@@ -1,0 +1,41 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+package templates
+
+import (
+	"github.com/hughobrien/comfortd/cmd/comfortd/ui"
+	"github.com/hughobrien/comfortd/internal/history"
+)
+
+// Page renders the explorer shell. The body opens /ui/sse on first datastar
+// processing; the server then patches every unit section and the feed.
+templ Page(units []ui.UnitView, feed []history.Record) {
+	<!DOCTYPE html>
+	<html lang="en">
+		<head>
+			<meta charset="utf-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1"/>
+			<title>comfortd</title>
+			<link rel="stylesheet" href="/ui/static/style.css"/>
+			<script type="module" src="/ui/static/datastar.js"></script>
+		</head>
+		<body data-init="@get('/ui/sse')">
+			<header><h1>comfortd</h1></header>
+			<div class="layout">
+				<main id="units">
+					for _, u := range units {
+						@UnitSection(u)
+					}
+				</main>
+				<aside>
+					<h2>Changes</h2>
+					<ol id="feed">
+						for _, r := range feed {
+							@FeedRow(r)
+						}
+					</ol>
+				</aside>
+			</div>
+		</body>
+	</html>
+}

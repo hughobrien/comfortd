@@ -1,0 +1,51 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+package templates
+
+import "github.com/hughobrien/comfortd/cmd/comfortd/ui"
+
+templ UnitSection(v ui.UnitView) {
+	<section id={ "unit-" + v.Slug } class="unit">
+		<h2>
+			{ v.Name }
+			<small>{ v.Serial }</small>
+			if v.Stale {
+				<span class="badge stale">stale</span>
+			}
+			if v.LastOK != "" {
+				<small>last ok { v.LastOK }</small>
+			}
+		</h2>
+		for _, e := range v.Endpoints {
+			<details open?={ e.Name == "device" }>
+				<summary>
+					{ e.Name }
+					if e.At != "" {
+						<small>{ e.At }</small>
+					}
+					if e.Error != "" {
+						<span class="badge err">{ e.Error }</span>
+					}
+				</summary>
+				<table>
+					for _, r := range e.Rows {
+						<tr class={ rowClass(r) }>
+							<td class="path">{ r.Path }</td>
+							<td class="val">{ r.Value }</td>
+						</tr>
+					}
+				</table>
+			</details>
+		}
+	</section>
+}
+
+func rowClass(r ui.Row) string {
+	switch {
+	case r.Changed:
+		return "changed"
+	case r.Noisy:
+		return "noisy"
+	}
+	return ""
+}

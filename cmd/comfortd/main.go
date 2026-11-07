@@ -127,6 +127,9 @@ func runContext(ctx context.Context, args []string, stdout io.Writer, ready func
 			slog.Warn("record history", "unit", u.Slug, "endpoint", u.Endpoint, "err", err)
 		}
 	})
+	hub := newPushHub()
+	st.Subscribe(func(u store.Update) { hub.Publish(pushEvent{Slug: u.Slug}) })
+	hist.Subscribe(func(r history.Record) { hub.Publish(pushEvent{Record: &r}) })
 	p := poller.New(client, st, *interval)
 	go p.Run(ctx)
 
@@ -136,7 +139,7 @@ func runContext(ctx context.Context, args []string, stdout io.Writer, ready func
 		return 1
 	}
 	httpSrv := &http.Server{
-		Handler:           newMux(deps{Store: st, History: hist, Interval: *interval, Now: time.Now}),
+		Handler:           newMux(deps{Store: st, History: hist, Hub: hub, Interval: *interval, Now: time.Now}),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 	slog.Info("listening", "addr", ln.Addr().String())

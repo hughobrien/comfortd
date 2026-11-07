@@ -1,0 +1,14 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+package templates
+
+import "github.com/hughobrien/comfortd/internal/history"
+
+templ FeedRow(r history.Record) {
+	<li>
+		<time>{ r.T.Local().Format("15:04:05") }</time>
+		<b>{ r.Unit }</b>
+		<span class="path">{ r.Endpoint }.{ r.Path }</span>
+		<code>{ r.Old }</code> → <code>{ r.New }</code>
+	</li>
+}

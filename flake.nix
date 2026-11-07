@@ -17,9 +17,9 @@
         pname = "comfortd";
         inherit version;
         src = ./.;
-        # No dependencies yet. When go.mod/go.sum change, set this to
+        # When go.mod/go.sum change, set this to
         # pkgs.lib.fakeHash, run the gate build, and paste the `got:` hash.
-        vendorHash = null;
+        vendorHash = pkgs.lib.fakeHash;
         subPackages = [ "cmd/comfortd" ];
         ldflags = [ "-s" "-w" "-X main.version=${version}" ];
         doCheck = true;
@@ -42,12 +42,12 @@
       };
 
       devShells.default = pkgs.mkShell {
-        packages = with pkgs; [ go gopls gotools just ];
+        packages = with pkgs; [ go gopls gotools just templ ];
       };
 
       checks.gate = comfortd-pkg.overrideAttrs (old: {
         pname = "comfortd-ci-gate";
-        nativeBuildInputs = (old.nativeBuildInputs or [ ]) ++ [ pkgs.clang ];
+        nativeBuildInputs = (old.nativeBuildInputs or [ ]) ++ [ pkgs.clang pkgs.templ ];
         doCheck = true;
         checkPhase = ''
           runHook preCheck
@@ -57,6 +57,9 @@
           [ -z "$drift" ] || { echo "gofmt drift: $drift"; exit 1; }
           go test ./...
           CGO_ENABLED=1 CC=clang go test -race ./...
+          cp -a cmd/comfortd/ui/templates "$TMPDIR/templ-before"
+          templ generate
+          diff -rq "$TMPDIR/templ-before" cmd/comfortd/ui/templates || { echo "templ drift; run 'just generate'"; exit 1; }
           runHook postCheck
         '';
       });
