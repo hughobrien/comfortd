@@ -63,10 +63,35 @@
 
       formatter = pkgs.nixpkgs-fmt;
     });
+
+    moduleCheck = (nixpkgs.lib.nixosSystem {
+      system = "x86_64-linux";
+      modules = [
+        self.nixosModules.default
+        {
+          boot.isContainer = true;
+          system.stateVersion = "26.05";
+          services.comfortd = {
+            enable = true;
+            credentialsFile = "/run/keys/comfortd";
+          };
+        }
+      ];
+    }).config.systemd.units."comfortd.service".unit;
+    defaultModule = { pkgs, lib, ... }: {
+      imports = [ ./nix/module.nix ];
+      services.comfortd.package = lib.mkDefault
+        self.packages.${pkgs.stdenv.hostPlatform.system}.default;
+    };
   in {
+    nixosModules.default = defaultModule;
+    nixosModules.comfortd = defaultModule;
+
     packages   = forEachSystem (system: perSystem.${system}.packages);
     apps       = forEachSystem (system: perSystem.${system}.apps);
-    checks     = forEachSystem (system: perSystem.${system}.checks);
+    checks     = forEachSystem (system: perSystem.${system}.checks // {
+      module = moduleCheck;
+    });
     devShells  = forEachSystem (system: perSystem.${system}.devShells);
     formatter  = forEachSystem (system: perSystem.${system}.formatter);
   };

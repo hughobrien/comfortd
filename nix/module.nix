@@ -1,0 +1,153 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# NixOS module for comfortd.
+#
+#   {
+#     imports = [ inputs.comfortd.nixosModules.default ];
+#     services.comfortd = {
+#       enable = true;
+#       credentialsFile = "/persist/comfortd/credentials";
+#     };
+#   }
+
+{ config, lib, pkgs, ... }:
+
+let
+  cfg = config.services.comfortd;
+in {
+  options.services.comfortd = {
+    enable = lib.mkEnableOption "comfortd — Mitsubishi Comfort (Kumo Cloud) bridge and web UI";
+
+    package = lib.mkOption {
+      type = lib.types.package;
+      default = pkgs.comfortd or (throw
+        "services.comfortd.package is unset. Set it explicitly, e.g. `services.comfortd.package = inputs.comfortd.packages.\${pkgs.system}.default;`.");
+      defaultText = lib.literalExpression "pkgs.comfortd";
+      description = "The comfortd package providing /bin/comfortd.";
+    };
+
+    listen = lib.mkOption {
+      type = lib.types.str;
+      default = "127.0.0.1:9879";
+      description = "HTTP listen address for the web UI and /v1 API.";
+    };
+
+    credentialsFile = lib.mkOption {
+      type = lib.types.path;
+      description = ''
+        File with the Comfort login: email on the first line, password on the
+        second. Read by systemd (LoadCredential), so it can be root-only.
+      '';
+    };
+
+    pollInterval = lib.mkOption {
+      type = lib.types.str;
+      default = "60s";
+      description = "How often to poll each unit.";
+    };
+
+    homekit = {
+      enable = lib.mkOption {
+        type = lib.types.bool;
+        default = false;
+        description = "Expose units to HomeKit (not implemented yet).";
+      };
+      port = lib.mkOption {
+        type = lib.types.port;
+        default = 0;
+        description = "HAP TCP port. 0 = ephemeral.";
+      };
+      units = lib.mkOption {
+        type = lib.types.listOf lib.types.str;
+        default = [ ];
+        description = "Unit slugs to expose to HomeKit.";
+      };
+    };
+
+    writableUnits = lib.mkOption {
+      type = lib.types.listOf lib.types.str;
+      default = [ ];
+      description = "Unit slugs allowed to receive commands (not implemented yet).";
+    };
+
+    openFirewall = lib.mkOption {
+      type = lib.types.bool;
+      default = false;
+      description = "Open the HomeKit port and mDNS UDP 5353 (HomeKit only).";
+    };
+
+    extraArgs = lib.mkOption {
+      type = lib.types.listOf lib.types.str;
+      default = [ ];
+      description = "Extra command-line arguments for comfortd.";
+    };
+  };
+
+  config = lib.mkIf cfg.enable {
+    assertions = [
+      {
+        assertion = !cfg.homekit.enable && cfg.writableUnits == [ ];
+        message = "comfortd: homekit/writableUnits not implemented yet";
+      }
+    ];
+
+    users.users.comfortd = {
+      isSystemUser = true;
+      group = "comfortd";
+      description = "comfortd daemon user";
+    };
+    users.groups.comfortd = { };
+
+    systemd.services.comfortd = {
+      description = "Mitsubishi Comfort (Kumo Cloud) bridge";
+      wants = [ "network-online.target" ];
+      after = [ "network-online.target" ];
+      wantedBy = [ "multi-user.target" ];
+
+      serviceConfig = {
+        ExecStart = lib.concatStringsSep " " ([
+          "${cfg.package}/bin/comfortd"
+          "--listen" (lib.escapeShellArg cfg.listen)
+          "--state-dir" "/var/lib/comfortd"
+          "--credentials" "%d/credentials"
+          "--poll-interval" cfg.pollInterval
+        ] ++ map lib.escapeShellArg cfg.extraArgs);
+        LoadCredential = [ "credentials:${cfg.credentialsFile}" ];
+        User = "comfortd";
+        Group = "comfortd";
+        Restart = "on-failure";
+        RestartSec = "10s";
+        StateDirectory = "comfortd";
+        StateDirectoryMode = "0700";
+
+        # Hardening. AF_NETLINK is kept for HomeKit mDNS later (Go's
+        # net.Interfaces() needs it).
+        NoNewPrivileges = true;
+        ProtectSystem = "strict";
+        ProtectHome = true;
+        PrivateTmp = true;
+        PrivateDevices = true;
+        ProtectKernelTunables = true;
+        ProtectKernelModules = true;
+        ProtectKernelLogs = true;
+        ProtectControlGroups = true;
+        ProtectClock = true;
+        ProtectHostname = true;
+        ProtectProc = "invisible";
+        RestrictAddressFamilies = [ "AF_INET" "AF_INET6" "AF_UNIX" "AF_NETLINK" ];
+        RestrictNamespaces = true;
+        RestrictRealtime = true;
+        RestrictSUIDSGID = true;
+        LockPersonality = true;
+        MemoryDenyWriteExecute = true;
+        SystemCallArchitectures = "native";
+        SystemCallFilter = [ "@system-service" "~@privileged" ];
+      };
+    };
+
+    networking.firewall = lib.mkIf cfg.openFirewall {
+      allowedUDPPorts = [ 5353 ];
+      allowedTCPPorts = lib.optional (cfg.homekit.port != 0) cfg.homekit.port;
+    };
+  };
+}
