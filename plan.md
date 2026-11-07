@@ -10,7 +10,7 @@ Control two Mitsubishi Comfort (Kumo Cloud) air conditioners from Apple Home, re
 
 - Phase 0 (API reverse engineering) is done for the MVP scope. See `docs/api-inventory.md`.
 - Office is in heat, setpoint 19 (left there by the last probe). House has not been written to.
-- Nothing is built or deployed yet. Design and segment plans are written (see "Segments"). **Next: execute segment 1.**
+- Segment 1 is deployed: comfortd polls both units and serves raw JSON at http://comfortd.wg/ (plain HTTP for now). **Next: segment 2.**
 - Repo is public (Hugh, 2026-11-07), like `breezyd` and `keylight-hap`, so the flake input needs no auth. Keep serials, MACs, dumps and credentials out of git.
 
 ## Segments
@@ -19,7 +19,7 @@ Design: `docs/superpowers/specs/2026-11-07-comfortd-design.md`. Each segment is 
 
 | # | Plan | Delivers | Hugh needed for | Status |
 |---|---|---|---|---|
-| 1 | `2026-11-07-s1-skeleton-deploy.md` | Kumo client, fake server, poller, `/v1` raw JSON, flake, module, CI, live on bigthink | nothing | [ ] |
+| 1 | `2026-11-07-s1-skeleton-deploy.md` | Kumo client, fake server, poller, `/v1` raw JSON, flake, module, CI, live on bigthink | nothing | [x] |
 | 2 | `2026-11-07-s2-explorer.md` | Change history, live explorer page | nothing | [ ] |
 | 3 | `2026-11-07-s3-annotations-cards.md` | Field annotations, unknown-fields list, status cards | nothing | [ ] |
 | 4 | `2026-11-07-s4-homekit-readonly.md` | Office in Home, read-only; reboot check | pairing, "No Response" check, reboot slot | [ ] |
@@ -97,7 +97,7 @@ Dropped for now: a LAN/local API check and capturing Comfort app traffic. Neithe
 ## Open questions
 
 - Will cloud schedules overwrite Home changes? Both zones have one (`hasActiveSchedule`, `holdMode`). Biggest unknown for real use; segment 2's history should answer it before segment 6.
-- Does logging in again affect the app's session, and do refresh tokens rotate? Segment 1.
+- Does logging in again affect the app's session, and do refresh tokens rotate? App session: no effect, Hugh's phone app stayed logged in after the daemon's login (2026-11-07). Refresh: works live (flat body, rotated token persisted, no fallback login).
 - Does Home show "No Response" when reads return -70402? Segment 4.
 - API details: `docs/api-inventory.md`.
 
@@ -110,3 +110,4 @@ Dropped for now: a LAN/local API check and capturing Comfort app traffic. Neithe
 - 2026-11-07: Reviewed the plan for iterative deployment to bigthink and reordered it into deployable slices. Checked bigthink's config conventions. Moved the Comfort credentials from `/tmp/comfort` to `/persist/comfortd/credentials`; temp copy removed. Hugh authorised the agent to run rebuilds.
 - 2026-11-07: Repo made public (history rescanned first: no secrets, serials or dumps).
 - 2026-11-07: Wrote the design (`docs/superpowers/specs/2026-11-07-comfortd-design.md`), six segment plans, and `CLAUDE.md` for executing agents. Committed redacted fixtures of every real API response (`pkg/kumo/kumotest/fixtures`, generator `spike/redact_fixtures.py`). Found that `serialNumber` differs from `deviceSerial`; the latter is the device key.
+- 2026-11-07: Segment 1 done and deployed to bigthink. Gate green locally and on Forgejo; flake is x86_64-linux only. Live: 2 units, one login, restart reused `tokens.json` (no login), first refresh at about 15 min worked (flat body, rotation persisted). Phone app stayed logged in. Surprise: the first rebuild added a TLS vhost whose cert (`/etc/nginx/comfortd.{crt,key}`, private CA) didn't exist, so nginx failed to start for about a minute; vhost removed, then re-added as plain HTTP. dnscrypt-proxy needed a manual restart to pick up `comfortd.wg`. TODO (Hugh): issue the cert, then switch `services/comfortd.nix` to `net-lib.mkHostProxyPass`. Next time: add a new vhost only after its cert exists.
