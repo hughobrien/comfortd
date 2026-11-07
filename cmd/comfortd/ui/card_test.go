@@ -1,0 +1,113 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+package ui
+
+import (
+	"encoding/json"
+	"os"
+	"testing"
+	"time"
+
+	"github.com/hughobrien/comfortd/internal/annotate"
+	"github.com/hughobrien/comfortd/internal/store"
+)
+
+func fixtureSnap(t *testing.T, slug, file string, extra map[string]json.RawMessage) store.Snapshot {
+	t.Helper()
+	raw, err := os.ReadFile("../../../pkg/kumo/kumotest/fixtures/" + file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	st := store.New([]store.Unit{{Slug: slug, Name: slug, Serial: "S"}})
+	now := time.Now()
+	if err := st.Put(slug, "device", raw, now); err != nil {
+		t.Fatal(err)
+	}
+	for ep, r := range extra {
+		if err := st.Put(slug, ep, r, now); err != nil {
+			t.Fatal(err)
+		}
+	}
+	sn, _ := st.Get(slug)
+	return sn
+}
+
+func mustAnn(t *testing.T) *annotate.Set {
+	t.Helper()
+	a, err := annotate.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return a
+}
+
+func TestRowsAnnotated(t *testing.T) {
+	a := mustAnn(t)
+	v := BuildUnitView(fixtureSnap(t, "office", "device_office.json", nil), nil, time.Now(), time.Minute, a, CardControl{})
+	r, ok := findRow(v, "device", "operationMode")
+	f, _ := a.Lookup("device", "operationMode")
+	if !ok || r.Label != "Mode" || r.Decoded != "Heat" || r.Confidence != f.Confidence {
+		t.Fatalf("%+v", r)
+	}
+}
+
+func TestUnknownFields(t *testing.T) {
+	zone := json.RawMessage(`{"id":"z","name":"Office","hasActiveSchedule":true,"holdMode":{"enabled":false},"tags":["a"],"adapter":{"deviceSerial":"TESTSERIAL0001"}}`)
+	v := BuildUnitView(fixtureSnap(t, "office", "device_office.json", map[string]json.RawMessage{"zone": zone}), nil, time.Now(), time.Minute, mustAnn(t), CardControl{})
+	has := map[string]bool{}
+	for _, r := range v.Unknown {
+		has[r.Path] = true
+	}
+	if !has["twoFiguresCode"] || !has["tags[0]"] {
+		t.Errorf("missing expected unknowns: %v", has)
+	}
+	if has["updatedAt"] || has["operationMode"] || has["hasActiveSchedule"] {
+		t.Errorf("unexpected unknowns: %v", has)
+	}
+}
+
+func TestCardFromFixture(t *testing.T) {
+	zone := json.RawMessage(`{"id":"z","name":"Office","hasActiveSchedule":true,"holdMode":{"enabled":false},"adapter":{"deviceSerial":"TESTSERIAL0001"}}`)
+	c := BuildCard(fixtureSnap(t, "office", "device_office.json", map[string]json.RawMessage{"zone": zone}), mustAnn(t), CardControl{}, time.Now(), time.Minute)
+	if c.Mode != "Heat" || c.SpHeat != "19" || c.RoomTemp != "20.5" || c.Humidity != dash || !c.ScheduleActive {
+		t.Fatalf("%+v", c)
+	}
+	h := BuildCard(fixtureSnap(t, "house", "device_house.json", nil), mustAnn(t), CardControl{}, time.Now(), time.Minute)
+	if h.Humidity != "52" {
+		t.Fatalf("house humidity %q", h.Humidity)
+	}
+}
+
+func TestCardMissingValues(t *testing.T) {
+	raw := json.RawMessage(`{"deviceSerial":"X","connected":true,"operationMode":"heat","power":1}`)
+	st := store.New([]store.Unit{{Slug: "u"}})
+	st.Put("u", "device", raw, time.Now())
+	sn, _ := st.Get("u")
+	c := BuildCard(sn, nil, CardControl{}, time.Now(), time.Minute)
+	if c.SpHeat != dash || c.RoomTemp != dash || c.Mode != "heat" {
+		t.Fatalf("%+v", c)
+	}
+	// no data at all must not panic
+	_ = BuildCard(store.Snapshot{}, nil, CardControl{}, time.Now(), time.Minute)
+}
+
+func TestCardStale(t *testing.T) {
+	sn := fixtureSnap(t, "office", "device_office.json", nil)
+	now := time.Now()
+	sn.LastDeviceOK = now.Add(-4 * time.Minute)
+	c := BuildCard(sn, nil, CardControl{}, now, time.Minute)
+	if !c.Stale || c.LastOK == "never" {
+		t.Fatalf("%+v", c)
+	}
+}
+
+func TestUndecodedValue(t *testing.T) {
+	raw := json.RawMessage(`{"deviceSerial":"X","connected":true,"operationMode":"cool","power":1}`)
+	st := store.New([]store.Unit{{Slug: "u"}})
+	st.Put("u", "device", raw, time.Now())
+	sn, _ := st.Get("u")
+	v := BuildUnitView(sn, nil, time.Now(), time.Minute, mustAnn(t), CardControl{})
+	if r, _ := findRow(v, "device", "operationMode"); r.Decoded != "(undecoded)" {
+		t.Fatalf("%+v", r)
+	}
+}

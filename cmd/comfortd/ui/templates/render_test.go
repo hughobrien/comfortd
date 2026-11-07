@@ -26,3 +26,14 @@ func TestUnitSectionRenders(t *testing.T) {
 		}
 	}
 }
+
+func TestCardStaleRendered(t *testing.T) {
+	var b bytes.Buffer
+	v := ui.UnitView{Slug: "office", Name: "Office", Card: ui.CardView{Stale: true, LastOK: "12:00:00"}}
+	if err := UnitSection(v).Render(context.Background(), &b); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(b.String(), "stale") || !strings.Contains(b.String(), "12:00:00") {
+		t.Fatal(b.String())
+	}
+}

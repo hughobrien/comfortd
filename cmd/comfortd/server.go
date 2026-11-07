@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/hughobrien/comfortd/internal/annotate"
 	"github.com/hughobrien/comfortd/internal/history"
 	"github.com/hughobrien/comfortd/internal/store"
 )
@@ -17,6 +18,7 @@ type deps struct {
 	Store    *store.Store
 	History  *history.Log
 	Hub      *pushHub
+	Ann      *annotate.Set
 	Interval time.Duration
 	Now      func() time.Time
 }

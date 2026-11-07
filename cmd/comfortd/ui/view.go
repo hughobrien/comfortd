@@ -8,13 +8,15 @@ import (
 	"strings"
 	"time"
 
+	"github.com/hughobrien/comfortd/internal/annotate"
 	"github.com/hughobrien/comfortd/internal/jsondiff"
 	"github.com/hughobrien/comfortd/internal/store"
 )
 
 type Row struct {
-	Path, Value    string
-	Changed, Noisy bool
+	Path, Value                      string
+	Changed, Noisy                   bool
+	Label, Decoded, Confidence, Note string
 }
 
 type EndpointView struct {
@@ -27,6 +29,8 @@ type UnitView struct {
 	Stale              bool
 	LastOK             string
 	Endpoints          []EndpointView
+	Card               CardView
+	Unknown            []Row // device and zone rows with no annotation, excluding noisy ones
 }
 
 var endpointOrder = []string{store.EndpointZone, store.EndpointDevice, store.EndpointProfile, store.EndpointStatus, store.EndpointSensor}
@@ -46,8 +50,8 @@ func isNoisy(path string) bool {
 
 // BuildUnitView flattens every fetched endpoint into sorted rows. changed
 // returns the recently changed paths for an endpoint.
-func BuildUnitView(s store.Snapshot, changed func(endpoint string) map[string]bool, now time.Time, interval time.Duration) UnitView {
-	v := UnitView{Slug: s.Unit.Slug, Name: s.Unit.Name, Serial: s.Unit.Serial, Stale: s.Stale(now, interval)}
+func BuildUnitView(s store.Snapshot, changed func(endpoint string) map[string]bool, now time.Time, interval time.Duration, ann *annotate.Set, ctl CardControl) UnitView {
+	v := UnitView{Slug: s.Unit.Slug, Name: s.Unit.Name, Serial: s.Unit.Serial, Stale: s.Stale(now, interval), Card: BuildCard(s, ann, ctl, now, interval)}
 	if !s.LastDeviceOK.IsZero() {
 		v.LastOK = s.LastDeviceOK.Local().Format("15:04:05")
 	}
@@ -71,11 +75,26 @@ func BuildUnitView(s store.Snapshot, changed func(endpoint string) map[string]bo
 				ch = changed(name)
 			}
 			for p, val := range flat {
-				ev.Rows = append(ev.Rows, Row{Path: p, Value: val, Changed: ch[p], Noisy: isNoisy(p)})
+				r := Row{Path: p, Value: val, Changed: ch[p], Noisy: isNoisy(p)}
+				f, annotated := ann.Lookup(name, p)
+				if annotated {
+					r.Label, r.Confidence, r.Note = f.Label, f.Confidence, f.Note
+					if len(f.Values) > 0 {
+						if m, ok := f.Decode(val); ok {
+							r.Decoded = m
+						} else {
+							r.Decoded = "(undecoded)"
+						}
+					}
+				} else if !r.Noisy && (name == store.EndpointDevice || name == store.EndpointZone) {
+					v.Unknown = append(v.Unknown, r)
+				}
+				ev.Rows = append(ev.Rows, r)
 			}
 			sort.Slice(ev.Rows, func(i, j int) bool { return ev.Rows[i].Path < ev.Rows[j].Path })
 		}
 		v.Endpoints = append(v.Endpoints, ev)
 	}
+	sort.SliceStable(v.Unknown, func(i, j int) bool { return v.Unknown[i].Path < v.Unknown[j].Path })
 	return v
 }

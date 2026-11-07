@@ -36,7 +36,7 @@ func (d deps) unitViews() []ui.UnitView {
 	now := d.Now()
 	var out []ui.UnitView
 	for _, sn := range d.Store.All() {
-		out = append(out, ui.BuildUnitView(sn, d.changed(sn.Unit.Slug, now), now, d.Interval))
+		out = append(out, ui.BuildUnitView(sn, d.changed(sn.Unit.Slug, now), now, d.Interval, d.Ann, ui.CardControl{}))
 	}
 	return out
 }

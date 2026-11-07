@@ -48,7 +48,7 @@ func TestBuildUnitViewRows(t *testing.T) {
 			return map[string]bool{"spHeat": true}
 		}
 		return nil
-	}, now, time.Minute)
+	}, now, time.Minute, nil, CardControl{})
 	r, ok := findRow(v, "device", "operationMode")
 	if !ok || r.Value != `"heat"` {
 		t.Fatalf("operationMode: %+v %v", r, ok)
