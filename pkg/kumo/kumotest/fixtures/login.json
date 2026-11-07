@@ -1,0 +1,7 @@
+{
+  "token": {
+    "access": "test-access-token",
+    "refresh": "test-refresh-token"
+  },
+  "username": "user@example.com"
+}

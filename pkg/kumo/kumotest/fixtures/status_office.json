@@ -1,0 +1,10 @@
+{
+  "firmwareVersion": "03.07.02",
+  "lastUpdated": "2026-11-06T21:50:45.605Z",
+  "mac": "00:00:00:00:00:00",
+  "maxSetPoint": 31,
+  "minSetPoint": 16,
+  "roomTempDisplayOffset": 0,
+  "routerRssi": -44,
+  "routerSsid": "REDACTED"
+}

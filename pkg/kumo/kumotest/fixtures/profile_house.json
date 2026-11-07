@@ -1,0 +1,28 @@
+[
+  {
+    "extendedTemps": true,
+    "hasDefrost": true,
+    "hasFanSpeedAuto": true,
+    "hasHotAdjust": true,
+    "hasInitialSettings": true,
+    "hasModeDry": true,
+    "hasModeHeat": true,
+    "hasModeTest": true,
+    "hasModeVent": true,
+    "hasStandby": true,
+    "hasVaneDir": false,
+    "hasVaneSwing": false,
+    "maximumSetPoints": {
+      "auto": 28,
+      "cool": 30,
+      "heat": 28
+    },
+    "minimumSetPoints": {
+      "auto": 19,
+      "cool": 19,
+      "heat": 10
+    },
+    "numberOfFanSpeeds": 3,
+    "usesSetPointInDryMode": true
+  }
+]
