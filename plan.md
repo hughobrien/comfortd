@@ -11,7 +11,7 @@ Control two Mitsubishi Comfort (Kumo Cloud) air conditioners from Apple Home, re
 - Phase 0 (API reverse engineering) is done for the MVP scope. See `docs/api-inventory.md`.
 - Office is in heat, setpoint 19 (left there by the last probe). House has not been written to.
 - Nothing is built or deployed yet. **Next: design doc for slices 1–5, then slice 1.**
-- **Blocker for the first deploy:** this repo is private, while `breezyd` and `keylight-hap` are public. A private flake input needs auth for rebuilds and probably for the nixos CI gate. Recommended fix is to make it public (the serials and dumps aren't in git). Waiting on Hugh.
+- Repo is public (Hugh, 2026-11-07), like `breezyd` and `keylight-hap`, so the flake input needs no auth. Keep serials, MACs, dumps and credentials out of git.
 
 ## How we work
 
@@ -135,7 +135,6 @@ See `docs/api-inventory.md`. Base `https://app-prod.kumocloud.com/v3`, header `x
 
 - Will cloud schedules overwrite Home changes? Both zones have one (`hasActiveSchedule`, `holdMode`). Biggest unknown for real use; slice 1 history should answer it.
 - Does logging in again affect the app's session, and do refresh tokens rotate? Slice 1.
-- Repo visibility (see Current state).
 - API details: `docs/api-inventory.md`.
 
 ## Log
@@ -145,3 +144,4 @@ See `docs/api-inventory.md`. Base `https://app-prod.kumocloud.com/v3`, header `x
 - 2026-11-07: Write probes on Office (`spike/probe_write.py`): `spHeat: 21`, `operationMode: vent`, `operationMode: off`, then heat/19 in one multi-field command. All accepted, visible within about 5 s, app agreed. A mode alone turns the unit on; `off` also sets `power` 0. `spHeat` is the real setpoint.
 - 2026-11-07: Hugh deferred the auto, cool and dry probes. Repo created as `comfortd` on Forgejo (private).
 - 2026-11-07: Reviewed the plan for iterative deployment to bigthink and reordered it into deployable slices. Checked bigthink's config conventions. Moved the Comfort credentials from `/tmp/comfort` to `/persist/comfortd/credentials`; temp copy removed. Hugh authorised the agent to run rebuilds.
+- 2026-11-07: Repo made public (history rescanned first: no secrets, serials or dumps).
