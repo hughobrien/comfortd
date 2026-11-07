@@ -1,0 +1,127 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+package kumo
+
+import (
+	"encoding/json"
+	"fmt"
+)
+
+type Site struct{ ID, Name string }
+
+type Zone struct {
+	ID, Name, Serial  string
+	HasActiveSchedule bool
+	HoldEnabled       bool
+}
+
+type Device struct {
+	Serial, ModelNumber, OperationMode, FanSpeed, AirDirection, UpdatedAt string
+	Power                                                                 int
+	SpHeat, SpCool, RoomTemp, Humidity                                    *float64
+	Connected                                                             bool
+	RealValues                                                            map[string]any
+}
+
+type Profile struct {
+	Min, Max          map[string]float64
+	NumberOfFanSpeeds int
+	HasModeDry        bool
+	HasModeHeat       bool
+	HasModeVent       bool
+	HasVaneDir        bool
+	HasVaneSwing      bool
+}
+
+func (p Profile) SupportsCool() bool { _, ok := p.Max["cool"]; return ok }
+func (p Profile) SupportsAuto() bool { _, ok := p.Max["auto"]; return ok }
+
+func ParseSites(raw json.RawMessage) ([]Site, error) {
+	var in []struct {
+		ID   string `json:"id"`
+		Name string `json:"name"`
+	}
+	if err := json.Unmarshal(raw, &in); err != nil {
+		return nil, fmt.Errorf("kumo: parse sites: %w", err)
+	}
+	out := make([]Site, len(in))
+	for i, s := range in {
+		out[i] = Site{ID: s.ID, Name: s.Name}
+	}
+	return out, nil
+}
+
+func ParseZones(raw json.RawMessage) ([]Zone, error) {
+	var in []struct {
+		ID                string `json:"id"`
+		Name              string `json:"name"`
+		HasActiveSchedule bool   `json:"hasActiveSchedule"`
+		HoldMode          *struct {
+			Enabled bool `json:"enabled"`
+		} `json:"holdMode"`
+		Adapter struct {
+			DeviceSerial string `json:"deviceSerial"`
+		} `json:"adapter"`
+	}
+	if err := json.Unmarshal(raw, &in); err != nil {
+		return nil, fmt.Errorf("kumo: parse zones: %w", err)
+	}
+	out := make([]Zone, len(in))
+	for i, z := range in {
+		out[i] = Zone{ID: z.ID, Name: z.Name, Serial: z.Adapter.DeviceSerial, HasActiveSchedule: z.HasActiveSchedule}
+		if z.HoldMode != nil {
+			out[i].HoldEnabled = z.HoldMode.Enabled
+		}
+	}
+	return out, nil
+}
+
+func ParseDevice(raw json.RawMessage) (Device, error) {
+	var in struct {
+		DeviceSerial  string         `json:"deviceSerial"`
+		ModelNumber   string         `json:"modelNumber"`
+		OperationMode string         `json:"operationMode"`
+		FanSpeed      string         `json:"fanSpeed"`
+		AirDirection  string         `json:"airDirection"`
+		UpdatedAt     string         `json:"updatedAt"`
+		Power         float64        `json:"power"`
+		SpHeat        *float64       `json:"spHeat"`
+		SpCool        *float64       `json:"spCool"`
+		RoomTemp      *float64       `json:"roomTemp"`
+		Humidity      *float64       `json:"humidity"`
+		Connected     bool           `json:"connected"`
+		RealValues    map[string]any `json:"realValues"`
+	}
+	if err := json.Unmarshal(raw, &in); err != nil {
+		return Device{}, fmt.Errorf("kumo: parse device: %w", err)
+	}
+	return Device{
+		Serial: in.DeviceSerial, ModelNumber: in.ModelNumber, OperationMode: in.OperationMode,
+		FanSpeed: in.FanSpeed, AirDirection: in.AirDirection, UpdatedAt: in.UpdatedAt,
+		Power: int(in.Power), SpHeat: in.SpHeat, SpCool: in.SpCool, RoomTemp: in.RoomTemp,
+		Humidity: in.Humidity, Connected: in.Connected, RealValues: in.RealValues,
+	}, nil
+}
+
+func ParseProfile(raw json.RawMessage) (Profile, error) {
+	var in []struct {
+		Max               map[string]float64 `json:"maximumSetPoints"`
+		Min               map[string]float64 `json:"minimumSetPoints"`
+		NumberOfFanSpeeds int                `json:"numberOfFanSpeeds"`
+		HasModeDry        bool               `json:"hasModeDry"`
+		HasModeHeat       bool               `json:"hasModeHeat"`
+		HasModeVent       bool               `json:"hasModeVent"`
+		HasVaneDir        bool               `json:"hasVaneDir"`
+		HasVaneSwing      bool               `json:"hasVaneSwing"`
+	}
+	if err := json.Unmarshal(raw, &in); err != nil {
+		return Profile{}, fmt.Errorf("kumo: parse profile: %w", err)
+	}
+	if len(in) == 0 {
+		return Profile{}, fmt.Errorf("kumo: parse profile: empty array")
+	}
+	p := in[0]
+	return Profile{Min: p.Min, Max: p.Max, NumberOfFanSpeeds: p.NumberOfFanSpeeds,
+		HasModeDry: p.HasModeDry, HasModeHeat: p.HasModeHeat, HasModeVent: p.HasModeVent,
+		HasVaneDir: p.HasVaneDir, HasVaneSwing: p.HasVaneSwing}, nil
+}
