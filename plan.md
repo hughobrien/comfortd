@@ -10,7 +10,7 @@ Control two Mitsubishi Comfort (Kumo Cloud) air conditioners from Apple Home, re
 
 - Phase 0 (API reverse engineering) is done for the MVP scope. See `docs/api-inventory.md`.
 - Office is in heat, setpoint 19 (left there by the last probe). House has not been written to.
-- Segment 1 is deployed: comfortd polls both units and serves raw JSON at http://comfortd.wg/ (plain HTTP for now). Segment 2 is deployed too: the same page is a live explorer with a change feed, and changes land in `history.jsonl`. **Next: segment 3.**
+- Segment 1 is deployed: comfortd polls both units and serves raw JSON at http://comfortd.wg/ (plain HTTP for now). Segment 2 is deployed too: the same page is a live explorer with a change feed, and changes land in `history.jsonl`. Segment 3 is deployed: annotated rows, an unknown-fields list and a status card per unit. **Next: segment 4 (needs Hugh: pairing, reboot slot).**
 - Repo is public (Hugh, 2026-11-07), like `breezyd` and `keylight-hap`, so the flake input needs no auth. Keep serials, MACs, dumps and credentials out of git.
 
 ## Segments
@@ -21,7 +21,7 @@ Design: `docs/superpowers/specs/2026-11-07-comfortd-design.md`. Each segment is 
 |---|---|---|---|---|
 | 1 | `2026-11-07-s1-skeleton-deploy.md` | Kumo client, fake server, poller, `/v1` raw JSON, flake, module, CI, live on bigthink | nothing | [x] |
 | 2 | `2026-11-07-s2-explorer.md` | Change history, live explorer page | nothing | [x] |
-| 3 | `2026-11-07-s3-annotations-cards.md` | Field annotations, unknown-fields list, status cards | nothing | [ ] |
+| 3 | `2026-11-07-s3-annotations-cards.md` | Field annotations, unknown-fields list, status cards | nothing | [x] |
 | 4 | `2026-11-07-s4-homekit-readonly.md` | Office in Home, read-only; reboot check | pairing, "No Response" check, reboot slot | [ ] |
 | 5 | `2026-11-07-s5-ui-controls.md` | Office controls in the web UI | agreeing the first live write | [ ] |
 | 6 | `2026-11-07-s6-homekit-controls.md` | Office controls in Home (MVP done) | schedule decision, trying it | [ ] |
@@ -112,3 +112,4 @@ Dropped for now: a LAN/local API check and capturing Comfort app traffic. Neithe
 - 2026-11-07: Wrote the design (`docs/superpowers/specs/2026-11-07-comfortd-design.md`), six segment plans, and `CLAUDE.md` for executing agents. Committed redacted fixtures of every real API response (`pkg/kumo/kumotest/fixtures`, generator `spike/redact_fixtures.py`). Found that `serialNumber` differs from `deviceSerial`; the latter is the device key.
 - 2026-11-07: Segment 1 done and deployed to bigthink. Gate green locally and on Forgejo; flake is x86_64-linux only. Live: 2 units, one login, restart reused `tokens.json` (no login), first refresh at about 15 min worked (flat body, rotation persisted). Phone app stayed logged in. Surprise: the first rebuild added a TLS vhost whose cert (`/etc/nginx/comfortd.{crt,key}`, private CA) didn't exist, so nginx failed to start for about a minute; vhost removed, then re-added as plain HTTP. dnscrypt-proxy needed a manual restart to pick up `comfortd.wg`. TODO (Hugh): issue the cert, then switch `services/comfortd.nix` to `net-lib.mkHostProxyPass`. Next time: add a new vhost only after its cert exists.
 - 2026-11-07: Segment 2 done and deployed. `internal/jsondiff`, `internal/history` (JSONL, 50 MB rotation), recorder, `/v1/history`, templ + datastar explorer (`/`, `/ui/sse`). Gate green on bigthink and Forgejo; datastar 1.0.1 vendored with datastar-go 1.2.2, templ 0.3.1020. Live over plain HTTP: SSE streams through nginx, history.jsonl is 0600, first records were `rssi` jitter on both units (noisy, dimmed in the UI). Schedule/`realValues` behaviour: nothing seen yet, check the history over the coming hours.
+- 2026-11-07: Segment 3 done and deployed. `internal/annotate` (embedded `annotations.toml`, now the source of truth; the inventory decode table points to it), annotated rows with confidence badges, unknown-fields list, status cards. Live cards: Office Heat, 19.5 °C room, heat to 19, schedule active; House Heat, 20 °C room, heat to 20, humidity 54. From now on, update `annotations.toml` in the same commit as a finding's Log line.
