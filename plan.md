@@ -1,120 +1,147 @@
 # comfortd — Plan
 
-(Repo renamed from the working name "comfort-hap" to `comfortd`; the daemon is `comfortd`.)
-
-High-level, living document. Update as sessions progress; tick off phases and record findings under "Log".
+High-level, living document, maintained by the agent. Update as sessions progress: tick off slices and record findings under "Log".
 
 ## Goal
 
-Control two Mitsubishi Comfort (Kumo Cloud) air conditioners from Apple Home, replacing the frustrating Mitsubishi app for everyday use. A small Go daemon exposing each AC as a HomeKit accessory, following the same pattern as `../keylight-hap`.
+Control two Mitsubishi Comfort (Kumo Cloud) air conditioners from Apple Home, replacing the frustrating Mitsubishi app for everyday use. A small Go daemon on bigthink exposes each AC as a HomeKit accessory, with a mini web UI that starts as a raw API explorer and grows with our understanding.
 
-## Starting points
+## Current state
 
-- `../keylight-hap` — pattern to copy: Go, `brutella/hap`, persisted PIN + pairing store, Nix flake + NixOS module, Forgejo CI gate, `docs/superpowers/{specs,plans}`.
-- `../comfort_HA` — prior reverse engineering of the Kumo Cloud V3 API (`custom_components/kumo_cloud/{api,coordinator,climate}.py`). Source of endpoints, mode/fan/vane value mappings, and the command-cache/anti-bounce approach.
-- `../breezyd` — closest structural model: one Go daemon owning all device traffic + poller/cache, protocol lib in `pkg/`, JSON API + `/ui` dashboard (templ + datastar over SSE), in-process HAP bridge, fake device for tests, `SPECIFICATION-*.md`, justfile, Nix module. Its reverse-engineering method (`tools/snapshot.py` capture + diff while changing one setting in the vendor app) is the model for our explorer.
-- `../btplayer` — minimal web page model: stdlib server + one `index.html`, `/api/state` + `/api/set`, no build step.
+- Phase 0 (API reverse engineering) is done for the MVP scope. See `docs/api-inventory.md`.
+- Office is in heat, setpoint 19 (left there by the last probe). House has not been written to.
+- Nothing is built or deployed yet. **Next: design doc for slices 1–5, then slice 1.**
+- **Blocker for the first deploy:** this repo is private, while `breezyd` and `keylight-hap` are public. A private flake input needs auth for rebuilds and probably for the nixos CI gate. Recommended fix is to make it public (the serials and dumps aren't in git). Waiting on Hugh.
 
-## Known API surface (from comfort_HA; verify, don't trust)
+## How we work
 
-Base `https://app-prod.kumocloud.com/v3`, header `x-app-version` (comfort_HA uses 3.2.4).
+**Iterative deployment.** Every slice is deployed to bigthink and used before the next one starts. Deployment comes first, not last.
 
-- `POST /login`, `POST /refresh` — tokens (access ~20 min)
-- `GET /accounts/me`, `GET /sites/`, `GET /sites/{id}/zones`
-- `GET /devices/{serial}`, `/profile`, `/status`, `/sensor`
-- `GET /zones/{id}/notification-preferences`
-- `POST /devices/send-command` — `{deviceSerial, commands:{...}}`
-- Command/state fields seen: `power`, `operationMode`, `spCool`, `spHeat`, `fanSpeed`, `airDirection`, `roomTemp`, `humidity`, `updatedAt`
+**One unit at a time.** Office (ductless MSZ-FX12NL) first, House (ducted PVA-AA36NL) after. Probe writes to an AC are agreed with Hugh beforehand and logged in `docs/api-inventory.md`. Findings are logged as we go.
 
-## Key risks / design constraints
+**The agent deploys.** Hugh authorised the agent to run `nixos-rebuild` (2026-11-07). The loop:
 
-- Cloud-only; Mitsubishi outage or no internet means no control. A LAN path may exist for some adapters but is unverified.
-- Cloud can take up to ~1 min to reflect commands -> need a command cache with `updatedAt` reconciliation so Home doesn't bounce back (port from comfort_HA).
-- Unofficial API: version header may need bumping; rate limits (429) need backoff; poll ~60 s.
-- Credentials: Comfort login must be supplied via secret file / systemd credential, never in the Nix store or logs.
-- HomeKit is Celsius-only and the API uses 0.5 °C steps, so the Fahrenheit lookup tables from comfort_HA are not needed.
+1. On the Mac, run tests with brew Go (`brew install go`; there is no Go or nix locally).
+2. Check the gate before pushing: rsync to bigthink and `nix build "path:$PWD#checks.x86_64-linux.gate"` with `TMPDIR` set to a directory that exists. `/` is an 8 GB tmpfs, and piping through `tail` hides the exit code.
+3. Push to `main`; the Forgejo gate must pass.
+4. In `~/.config/nixos` on bigthink, run `nix flake update comfortd` (this input only, so nixpkgs doesn't move). Commit.
+5. Run `sudo diff -r -x .git -x .claude -x .forgejo ~/.config/nixos /etc/nixos`. Hotfixes can live only in `/etc`; port them back first. If the diff shows anything unrelated, stop and ask.
+6. `sudo cp` the changed files to `/etc/nixos`, then rebuild (`doas nixos-rebuild switch`).
+7. Check the service and the UI. Only a reboot fully proves persistence and sandboxing, because `/` is ephemeral.
 
-## Phases
+## bigthink integration
 
-### 0. API reverse engineering and feature inventory (do first)
+Host: x86_64, NixOS unstable, already running `breezyd` and `keylight-hap` from flake inputs. Everything below is in `~/.config/nixos`.
 
-- [ ] Throwaway spike (Go or script, clearly labelled throwaway): log in (password from env var, never written to disk) and dump raw JSON for sites, zones, device detail, profile, status, sensor for both units. Store dumps outside git or with serials/tokens redacted.
-- [ ] Write `docs/api-inventory.md`: every endpoint, field and writable command found, with type/range/enum values, which are read-only vs writable, and per-unit differences (heat support, temp range, fan speeds, vanes).
-- [ ] Fill gaps comfort_HA doesn't cover: inspect the `/profile` capabilities, try additional read-only endpoints, and (if needed) capture app traffic from the Comfort app (e.g. mitmproxy) to find other commands (schedules, eco/economy, presets, humidity, vane left/right, filter reset, etc.).
-- [ ] Check whether a LAN/local API is usable for these adapters (low priority; note result either way).
-- [ ] Mark each inventoried feature with a HomeKit mapping candidate and a build priority.
+- `flake.nix`: add the `comfortd` input (`git+https://forgejo.wg/hughobrien/comfortd`, nixpkgs follows) and `comfortd.nixosModules.default`.
+- `services/homekit.nix`: enable the service, and add the nginx vhost `comfortd.wg` via `net-lib.mkHostProxyPass`. The UI binds to loopback, as `breezyd` does.
+- `net-data.nix`: add a UI port and a HomeKit port (9876–9878 are taken; confirm the next ones are free).
+- `network.nix`: open the HomeKit port on the LAN interface. mDNS is already handled there.
+- `storage.nix`: add `comfortd` to `libServices`, or a reboot loses the HomeKit pairing and tokens.
+- **Credentials: done.** `/persist/comfortd/credentials` (root, mode 600, two lines: email, then password). The service reads it with `LoadCredential`, as invidious does. The module takes a `credentialsFile` option, so nothing goes in the Nix store.
+- Module hardening: copy keylight-hap's. `AF_NETLINK` is required, or mDNS silently advertises on no interfaces. Use `StateDirectory`, so paths exist on a cold boot.
 
-### 1. Design doc
+## Slices
 
-- [ ] Pick scope from the inventory; write `docs/superpowers/specs/<date>-comfort-hap-design.md` (same format as keylight-hap).
-- [x] HomeKit service: **HeaterCooler** (decided, see Decisions).
-- [ ] Web UI design: raw explorer first (see Phase 2).
+### 1. Read-only daemon, deployed
 
-### 2. Minimal build (MVP)
+- [ ] Go module following breezyd's layout: `pkg/` Kumo client, `cmd/comfortd/ui/` (templ + datastar, `PushHub`, `/ui/sse`), `/v1` JSON.
+- [ ] Login, refresh and 429 backoff. **Persist the refresh token** in the state directory, so frequent deploys don't mean frequent logins (unknown whether those risk a lockout or disturb the app's session).
+- [ ] Poll about every 60 s: device state often, profile rarely.
+- [ ] Raw explorer: latest unmodified JSON per endpoint per unit, with changed fields highlighted between polls.
+- [ ] **Change history:** append every field change to a JSONL file in the state directory. This answers open questions with no write probes: when schedules fire, `realValues`, `updatedAt`, token lifetime.
+- [ ] Fake Kumo server (needed from the start: the gate runs in a sandbox with no network).
+- [ ] Nix flake, NixOS module, Forgejo gate (including templ drift check), bigthink integration above.
+- [ ] No HomeKit and no write path in this slice.
 
-- [ ] Kumo client: login/refresh, sites/zones discovery, get state, send command, 429 backoff.
-- [ ] Command cache / anti-bounce.
-- [ ] One HomeKit accessory per AC: on/off, mode, target temperature, current temperature.
-- [ ] Polling loop + two-way sync; PIN + pairing persistence.
-- [ ] Fake Kumo server for tests (cf. keylight-hap `fakedevice.go`).
-- [ ] Mini web UI, grown alongside the HomeKit features (layout of breezyd, simplicity of btplayer):
-  - Step 1, raw explorer: latest unmodified JSON per endpoint per unit; changed fields highlighted between polls (live version of the snapshot-and-diff technique, usable while changing things in the Comfort app); a hand-edited annotations file (field/value -> meaning + confidence, seeded from `docs/api-inventory.md` decode table) so known fields show friendly labels and unknown ones stay raw.
-  - Step 2: read-only friendly cards per unit (mode, setpoints, room temp, connected).
-  - Step 3: controls (power/mode/setpoint) via the same code path HomeKit uses.
-  - Stack: breezyd's templ + datastar over SSE from the start (Hugh's call, 2026-11-07: the pattern is proven). Reuse breezyd's layout: `cmd/comfortd/ui/` (templates, view, style.css, vendored datastar), `PushHub`, `/ui/sse`, `/v1` JSON API. btplayer remains the reference for keeping the page itself small.
-- [ ] Nix flake, NixOS module with credential file, CI gate.
+### 2. Understanding in the UI
 
-### 3. Incremental features (pick from the inventory, one at a time)
+- [ ] Annotations file (field/value -> meaning + confidence, seeded from the decode table), so known fields get labels and unknown ones stay raw.
+- [ ] Read-only cards per unit: mode, setpoints, room temp, connected.
 
-Candidates, in rough order: fan speed, swing/vane, dry mode, humidity, wireless sensor, filter-dirty status, schedules/other app features. Each gets: mapping decision, implementation, test, README note.
+### 3. HomeKit, Office read-only
 
-### 4. Hardening
+- [ ] Bridge with one HeaterCooler for Office: current temp, state, setpoint. PIN and pairing persisted.
+- [ ] Stable accessory IDs derived from serials, so adding House later doesn't disturb pairing.
+- [ ] **Cache discovery on disk**, so a cloud outage at boot doesn't remove accessories from Home. Show "No Response" and recover on its own.
+- [ ] Reboot bigthink once to prove the pairing survives.
 
-- [ ] Behaviour on API outage / token expiry / password change (accessory shows "No Response", recovers on its own).
-- [ ] Log hygiene (no tokens/passwords).
-- [ ] README with scope, limitations, setup.
+### 4. Controls in the web UI, Office
 
-## Decisions so far
+- [ ] Off, heat, heat setpoint: all verified by probes. One write path, shared later with HomeKit.
+- [ ] **Per-unit write allowlist, read-only by default; House stays off it.** Never write at startup.
+- [ ] Pending-value hold: show the requested value until a read matches or a timeout passes, and poll faster after a write. This replaces comfort_HA's `updatedAt` reconciliation: we saw about 5 s of lag, not a minute, and `updatedAt` changes on every report.
 
-- Follow keylight-hap's stack and layout (my call).
-- Start minimal; the full feature inventory drives later additions.
-- Celsius end to end (my call); Home displays per phone locale.
-- HomeKit service: **HeaterCooler** (my recommendation, Hugh was leaning the same way). Reasons: Active is separate from mode (matches `power`/`operationMode`); separate heating/cooling thresholds match `spHeat`/`spCool`; fan speed and swing slots exist for later. Cost: no place for fan-only/dry in HomeKit; those show as active/idle in Home and are controlled from the web UI.
-- Reverse engineering continues in the open: the explorer UI shows raw API responses, and understanding is added incrementally through the annotations file.
-- Cloud schedule/hold handling is later work (Hugh, 2026-11-07).
+### 5. Controls in Home, Office
 
-## Working order
+- [ ] Before starting, read the slice 1 history to see whether schedules revert changes. If they do, handling them moves up to here.
+- [ ] Active and heating threshold. **Offer only Heat in Home until cool and auto are probed.**
+- [ ] Active on needs a mode to send (a mode alone turns the unit on): persist the last mode used.
+- [ ] Combine bursts of Home writes over about 1 s into one multi-field command (confirmed to work).
+- [ ] Fan-only or dry set elsewhere shows as Active + Idle in Home.
 
-One unit at a time. **Office (ductless MSZ-FX12NL) first**, House (ducted PVA-AA36NL) after. Any write to an AC is agreed with Hugh beforehand and tested on Office only.
+### 6. House, then features
 
-## Deferred probes (to be implemented, Office first)
+- [ ] Repeat for House (3 fan speeds, no vane, reports humidity).
+- [ ] Pick from, one at a time: cool and auto (after probes), fan speed, swing/vane, dry, humidity, filter status, schedule/hold. Each gets a mapping decision, implementation, test, README note.
 
-Not needed to start the MVP; do when the matching feature is built. Each probe: agree with Hugh first, log it in `docs/api-inventory.md`, use `spike/probe_write.py '<json>'`.
+### Throughout
 
-- `auto` mode: switch with band 19–26; narrow band (e.g. 22–23); inverted band (`spHeat` > `spCool`). Learn whether a minimum gap is enforced. Until then the bridge enforces a 1 °C minimum gap itself (my call, mirrors comfort_HA).
-- `cool` and `dry` modes (behaviour, setpoint use; `usesSetPointInDryMode` is true).
-- `power` written on its own (not needed for MVP: a mode alone turns the unit on, `off` turns it off).
-- `fanSpeed` and `airDirection` writes, and the fan-label tables from comfort_HA against the Office's 5 speeds.
-- `realValues` semantics (hypothesis: unit's own value while it differs from the requested one).
-- Cloud schedule/hold behaviour: does it revert Home changes; can a hold be set.
-- Read comfort_HA `hvac_action` (idle vs heating/cooling) and command-cache code in depth.
-- Everything above for the House (ducted) unit afterwards.
+- Log hygiene: never tokens or passwords.
+- README grows with scope, limitations, setup; complete by slice 5.
+- Behaviour on API outage, token expiry and password change is handled as each slice meets it, not saved for the end.
+
+## Deferred probes
+
+Do when the matching feature is built. Agree with Hugh first, log in `docs/api-inventory.md`, use `spike/probe_write.py '<json>'` until the daemon can write.
+
+- `auto`: band 19–26; narrow band (22–23); inverted band (`spHeat` > `spCool`). Learn whether a minimum gap is enforced. Until then the bridge enforces 1 °C (mirrors comfort_HA).
+- `cool` and `dry` (behaviour, setpoint use; `usesSetPointInDryMode` is true).
+- `power` written alone (not needed: a mode turns the unit on, `off` turns it off).
+- `fanSpeed` and `airDirection` writes, and comfort_HA's fan labels against Office's 5 speeds.
+- Can a hold be set through the API?
+- Read comfort_HA's `hvac_action` (idle vs heating/cooling) in depth, needed for HomeKit's current state in slice 3.
+- All of the above again for House.
+
+Dropped for now: a LAN/local API check and capturing Comfort app traffic. Neither is needed for the MVP; revisit if the cloud API proves unreliable or a wanted feature isn't visible.
+
+## Key constraints
+
+- Cloud-only: a Mitsubishi outage or no internet means no control.
+- Unofficial API: `x-app-version` may need bumping; 429s need backoff.
+- Celsius end to end, 0.5 °C steps. Home displays per phone locale.
+
+## Known API surface
+
+See `docs/api-inventory.md`. Base `https://app-prod.kumocloud.com/v3`, header `x-app-version: 3.2.4`, `POST /devices/send-command` with `{deviceSerial, commands:{...}}`.
+
+## References
+
+- `../breezyd`: closest structural model (daemon, `pkg/`, `/v1`, templ + datastar UI, in-process HAP, fake device, justfile, Nix module, snapshot-and-diff reverse engineering).
+- `../keylight-hap`: smallest HAP + Nix module + gate example.
+- `../btplayer`: reference for keeping the page small.
+- `../comfort_HA`: prior reverse engineering. Verify, don't trust.
+
+## Decisions
+
+- Daemon, UI and packaging follow breezyd and keylight-hap (agent's call). UI is templ + datastar from the start (Hugh).
+- HomeKit service is **HeaterCooler** (agent's recommendation, Hugh leaning the same way): Active is separate from mode; separate thresholds match `spHeat`/`spCool`; fan and swing slots exist for later. Cost: no home for fan-only or dry, which stay in the web UI.
+- Reverse engineering continues in the open through the explorer and annotations.
+- Schedule/hold implementation is later work (Hugh). Observing it starts in slice 1 (agent's call).
+- Iterative deployment to bigthink (Hugh); agent runs rebuilds (Hugh).
+- Credentials as a file under `/persist`, not plain text in the config (agent's call: this is an internet account, unlike the LAN-only secrets accepted elsewhere on bigthink).
 
 ## Open questions
 
-- Both zones have an active cloud schedule (`hasActiveSchedule`, `holdMode`). Will it overwrite Home-initiated changes? Can a hold be set via the API? (biggest unknown for real-world use)
-- See `docs/api-inventory.md` for the detailed list of API unknowns.
-
-- Do both units support heat and cool, or cool only? (answered by phase 0 dumps)
-- Is a local/LAN control path viable? (phase 0, optional)
-- What HeaterCooler should show when the unit is in fan-only or dry (Active + Idle is the working idea).
+- Will cloud schedules overwrite Home changes? Both zones have one (`hasActiveSchedule`, `holdMode`). Biggest unknown for real use; slice 1 history should answer it.
+- Does logging in again affect the app's session, and do refresh tokens rotate? Slice 1.
+- Repo visibility (see Current state).
+- API details: `docs/api-inventory.md`.
 
 ## Log
 
-- 2026-11-07: Read comfort_HA and keylight-hap, wrote this plan. Next: phase 0 spike (needs Comfort credentials via env var).
-- 2026-11-07: Ran read-only spike (`spike/dump.py`, creds in gitignored `./comfort`). Login and all GETs work (sensor 404 on both, expected). Two zones: Office (MSZ-FX12NL ductless), House (PVA-AA36NL ducted). Wrote `docs/api-inventory.md` for Office. Next: agree one harmless write probe on Office.
-- 2026-11-07: Write probe on Office (`spike/probe_write.py`): `send-command {spHeat:21}` -> 200 `{"devices":[serial]}`; state showed 21 within 5 s and the app agreed. `spHeat` is the real setpoint (`realValues` is something transient). Office heat setpoint left at 21 at Hugh's request. Next: probe `operationMode`/`power`, then check whether the schedule reverts the change.
-- 2026-11-07: Office set to fan only (`operationMode: vent`) at Hugh's request; accepted, state visible in 5 s, app agreed. `roomTemp` jumped 20.5 -> 22.5 on the mode change. Office is currently in vent mode, heat setpoint 21. Next: `off`, `cool`, `auto`, and `power`, one at a time.
-- 2026-11-07: Office `operationMode: off` -> `power` 0 as well, app agreed. Office is currently OFF. Next: how to turn back on (`power:1` vs a mode), then `cool`, `auto`, `dry`; restore heat/21 at the end.
-- 2026-11-07: Office set to heat/19 in one multi-field command: accepted; a mode alone turns the unit on (no `power` write needed). `realValues` now looks like the unit's own value while it differs from the requested one (hypothesis). Office is currently heat, setpoint 19. Remaining modes to probe: `cool`, `auto`, `dry`.
-- 2026-11-07: Hugh deferred the auto/cool/dry probes; moved to "Deferred probes". Office left in heat, setpoint 19. Phase 0 is effectively done for the MVP scope (power/mode/setpoint/room temp); next is phase 1 (design doc).
+- 2026-11-07: Read comfort_HA and keylight-hap, wrote this plan.
+- 2026-11-07: Ran read-only spike (`spike/dump.py`). Login and all GETs work (sensor 404 on both, expected). Two zones: Office (MSZ-FX12NL ductless), House (PVA-AA36NL ducted). Wrote `docs/api-inventory.md`.
+- 2026-11-07: Write probes on Office (`spike/probe_write.py`): `spHeat: 21`, `operationMode: vent`, `operationMode: off`, then heat/19 in one multi-field command. All accepted, visible within about 5 s, app agreed. A mode alone turns the unit on; `off` also sets `power` 0. `spHeat` is the real setpoint.
+- 2026-11-07: Hugh deferred the auto, cool and dry probes. Repo created as `comfortd` on Forgejo (private).
+- 2026-11-07: Reviewed the plan for iterative deployment to bigthink and reordered it into deployable slices. Checked bigthink's config conventions. Moved the Comfort credentials from `/tmp/comfort` to `/persist/comfortd/credentials`; temp copy removed. Hugh authorised the agent to run rebuilds.
