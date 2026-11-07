@@ -18,6 +18,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/hughobrien/comfortd/internal/history"
 	"github.com/hughobrien/comfortd/internal/poller"
 	"github.com/hughobrien/comfortd/internal/store"
 	"github.com/hughobrien/comfortd/pkg/kumo"
@@ -115,6 +116,17 @@ func runContext(ctx context.Context, args []string, stdout io.Writer, ready func
 	}
 
 	st := store.New(units)
+	hist, err := history.Open(filepath.Join(*stateDir, "history.jsonl"), history.DefaultMaxBytes)
+	if err != nil {
+		slog.Error("history", "err", err)
+		return 1
+	}
+	defer hist.Close()
+	st.Subscribe(func(u store.Update) {
+		if err := recordUpdate(hist, u); err != nil {
+			slog.Warn("record history", "unit", u.Slug, "endpoint", u.Endpoint, "err", err)
+		}
+	})
 	p := poller.New(client, st, *interval)
 	go p.Run(ctx)
 
@@ -124,7 +136,7 @@ func runContext(ctx context.Context, args []string, stdout io.Writer, ready func
 		return 1
 	}
 	httpSrv := &http.Server{
-		Handler:           newMux(deps{Store: st, Interval: *interval, Now: time.Now}),
+		Handler:           newMux(deps{Store: st, History: hist, Interval: *interval, Now: time.Now}),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 	slog.Info("listening", "addr", ln.Addr().String())

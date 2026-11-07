@@ -5,14 +5,17 @@ package main
 import (
 	"encoding/json"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
+	"github.com/hughobrien/comfortd/internal/history"
 	"github.com/hughobrien/comfortd/internal/store"
 )
 
 type deps struct {
 	Store    *store.Store
+	History  *history.Log
 	Interval time.Duration
 	Now      func() time.Time
 }
@@ -80,6 +83,18 @@ func newMux(d deps) *http.ServeMux {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.Write(raw)
+	})
+
+	mux.HandleFunc("GET /v1/history", func(w http.ResponseWriter, r *http.Request) {
+		limit := 100
+		if n, err := strconv.Atoi(r.URL.Query().Get("limit")); err == nil && n > 0 {
+			limit = min(n, 1000)
+		}
+		out := []history.Record{}
+		if d.History != nil {
+			out = append(out, d.History.Recent(r.URL.Query().Get("unit"), limit)...)
+		}
+		writeJSON(w, http.StatusOK, out)
 	})
 
 	return mux
