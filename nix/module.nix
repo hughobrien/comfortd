@@ -50,7 +50,7 @@ in {
       enable = lib.mkOption {
         type = lib.types.bool;
         default = false;
-        description = "Expose units to HomeKit (not implemented yet).";
+        description = "Expose the units in `homekit.units` to HomeKit.";
       };
       port = lib.mkOption {
         type = lib.types.port;
@@ -86,8 +86,8 @@ in {
   config = lib.mkIf cfg.enable {
     assertions = [
       {
-        assertion = !cfg.homekit.enable && cfg.writableUnits == [ ];
-        message = "comfortd: homekit/writableUnits not implemented yet";
+        assertion = cfg.writableUnits == [ ];
+        message = "comfortd: writableUnits not implemented yet";
       }
     ];
 
@@ -111,6 +111,9 @@ in {
           "--state-dir" "/var/lib/comfortd"
           "--credentials" "%d/credentials"
           "--poll-interval" cfg.pollInterval
+        ] ++ lib.optionals cfg.homekit.enable [
+          "--hap-port" (toString cfg.homekit.port)
+          "--homekit-units" (lib.escapeShellArg (lib.concatStringsSep "," cfg.homekit.units))
         ] ++ map lib.escapeShellArg cfg.extraArgs);
         LoadCredential = [ "credentials:${cfg.credentialsFile}" ];
         User = "comfortd";

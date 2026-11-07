@@ -1,0 +1,46 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+package templates
+
+import (
+	"fmt"
+
+	"github.com/hughobrien/comfortd/internal/homekit"
+)
+
+// HomekitPage shows how to pair the bridge. The UI is only reachable on
+// loopback and the private network via nginx, so showing the PIN is fine.
+templ HomekitPage(name, pin string, accs []homekit.AccessoryInfo) {
+	<!DOCTYPE html>
+	<html lang="en">
+		<head>
+			<meta charset="utf-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1"/>
+			<title>comfortd HomeKit</title>
+			<link rel="stylesheet" href="/ui/static/style.css"/>
+		</head>
+		<body>
+			<header><h1><a href="/">comfortd</a> / HomeKit</h1></header>
+			<main>
+				<p>Bridge <strong>{ name }</strong>. In Home: Add Accessory, More options, then enter the code.</p>
+				<p>Code: <code id="pin">{ pin }</code></p>
+				<table>
+					<tr><th>Unit</th><th>Accessory ID</th><th>State</th></tr>
+					for _, a := range accs {
+						<tr>
+							<td>{ a.Name }</td>
+							<td>{ fmt.Sprint(a.AID) }</td>
+							<td>
+								if a.Stale {
+									No Response
+								} else {
+									OK
+								}
+							</td>
+						</tr>
+					}
+				</table>
+			</main>
+		</body>
+	</html>
+}

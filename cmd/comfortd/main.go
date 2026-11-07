@@ -15,11 +15,14 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"slices"
+	"strings"
 	"syscall"
 	"time"
 
 	"github.com/hughobrien/comfortd/internal/annotate"
 	"github.com/hughobrien/comfortd/internal/history"
+	"github.com/hughobrien/comfortd/internal/homekit"
 	"github.com/hughobrien/comfortd/internal/poller"
 	"github.com/hughobrien/comfortd/internal/store"
 	"github.com/hughobrien/comfortd/pkg/kumo"
@@ -52,6 +55,16 @@ func upperSnake(s string) string {
 	return string(b)
 }
 
+func splitList(s string) []string {
+	var out []string
+	for _, p := range strings.Split(s, ",") {
+		if p = strings.TrimSpace(p); p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
 func run(args []string, stdout io.Writer) int {
 	return runContext(context.Background(), args, stdout, nil)
 }
@@ -66,6 +79,10 @@ func runContext(ctx context.Context, args []string, stdout io.Writer, ready func
 	appVersion := fs.String("app-version", envOr("app-version", kumo.DefaultAppVersion), "x-app-version header")
 	interval := fs.Duration("poll-interval", 60*time.Second, "poll interval")
 	fake := fs.Bool("fake", false, "run against an in-process fake Kumo server")
+	hapPort := fs.Int("hap-port", 0, "HomeKit (HAP) TCP port; 0 = ephemeral")
+	hkUnits := fs.String("homekit-units", envOr("homekit-units", ""), "comma-separated unit slugs to expose to HomeKit; empty = HomeKit off")
+	bridgeName := fs.String("bridge-name", "comfortd", "HomeKit bridge name")
+	forceStale := fs.String("force-stale", "", "debug: comma-separated unit slugs HomeKit treats as stale (to check \"No Response\")")
 	if v := os.Getenv("COMFORTD_POLL_INTERVAL"); v != "" {
 		if d, err := time.ParseDuration(v); err == nil {
 			*interval = d
@@ -136,6 +153,38 @@ func runContext(ctx context.Context, args []string, stdout io.Writer, ready func
 	hub := newPushHub()
 	st.Subscribe(func(u store.Update) { hub.Publish(pushEvent{Slug: u.Slug}) })
 	hist.Subscribe(func(r history.Record) { hub.Publish(pushEvent{Record: &r}) })
+	var bridge *homekit.Bridge
+	if slugs := splitList(*hkUnits); len(slugs) > 0 {
+		var sel []store.Unit
+		for _, slug := range slugs {
+			i := slices.IndexFunc(units, func(u store.Unit) bool { return u.Slug == slug })
+			if i < 0 {
+				slog.Error("homekit-units: unknown unit", "unit", slug)
+				fmt.Fprintf(os.Stderr, "comfortd: -homekit-units: unknown unit %q\n", slug)
+				return 1
+			}
+			sel = append(sel, units[i])
+		}
+		force := map[string]bool{}
+		for _, s := range splitList(*forceStale) {
+			force[s] = true
+		}
+		bridge, err = homekit.New(homekit.Options{
+			StateDir: *stateDir, BridgeName: *bridgeName, Version: version, Port: *hapPort,
+			Units: sel, Snapshot: st.Get, Interval: *interval, Now: time.Now, ForceStale: force,
+		})
+		if err != nil {
+			slog.Error("homekit", "err", err)
+			return 1
+		}
+		st.Subscribe(func(u store.Update) { bridge.Sync(u.Slug) })
+		go func() {
+			if err := bridge.Run(ctx); err != nil && ctx.Err() == nil {
+				slog.Error("homekit server", "err", err)
+			}
+		}()
+		slog.Info("homekit enabled", "units", slugs, "port", *hapPort)
+	}
 	p := poller.New(client, st, *interval)
 	go p.Run(ctx)
 
@@ -145,7 +194,7 @@ func runContext(ctx context.Context, args []string, stdout io.Writer, ready func
 		return 1
 	}
 	httpSrv := &http.Server{
-		Handler:           newMux(deps{Store: st, History: hist, Ann: ann, Hub: hub, Interval: *interval, Now: time.Now}),
+		Handler:           newMux(deps{Store: st, History: hist, Ann: ann, Homekit: bridge, Hub: hub, Interval: *interval, Now: time.Now}),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 	slog.Info("listening", "addr", ln.Addr().String())

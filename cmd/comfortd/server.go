@@ -4,6 +4,8 @@ package main
 
 import (
 	"encoding/json"
+	"github.com/a-h/templ"
+	"github.com/hughobrien/comfortd/cmd/comfortd/ui/templates"
 	"net/http"
 	"strconv"
 	"strings"
@@ -11,6 +13,7 @@ import (
 
 	"github.com/hughobrien/comfortd/internal/annotate"
 	"github.com/hughobrien/comfortd/internal/history"
+	"github.com/hughobrien/comfortd/internal/homekit"
 	"github.com/hughobrien/comfortd/internal/store"
 )
 
@@ -19,6 +22,7 @@ type deps struct {
 	History  *history.Log
 	Hub      *pushHub
 	Ann      *annotate.Set
+	Homekit  *homekit.Bridge // nil when HomeKit is off
 	Interval time.Duration
 	Now      func() time.Time
 }
@@ -31,6 +35,14 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 
 func newMux(d deps) *http.ServeMux {
 	mux := http.NewServeMux()
+
+	mux.HandleFunc("GET /homekit", func(w http.ResponseWriter, r *http.Request) {
+		if d.Homekit == nil {
+			http.NotFound(w, r)
+			return
+		}
+		templ.Handler(templates.HomekitPage(d.Homekit.Name, homekit.FormatPin(d.Homekit.Pin), d.Homekit.Accessories())).ServeHTTP(w, r)
+	})
 
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
 		now := d.Now()
