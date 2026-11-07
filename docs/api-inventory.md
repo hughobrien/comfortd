@@ -79,25 +79,9 @@ Base `https://app-prod.kumocloud.com/v3`, header `x-app-version: 3.2.4`, bearer 
 6. Do any endpoints beyond those listed exist (schedules, history, energy)? Needs Comfort app traffic capture or probing.
 7. Token lifetime and refresh behaviour in practice; rate limits.
 
-## Decode table (Office) — grows with every probe
+## Decode table (Office)
 
-Confidence: **app-confirmed** = Hugh saw the same in the Comfort app; **api-only** = seen in API, not yet cross-checked; **assumed** = from comfort_HA.
-
-| Field | API value | Meaning | Confidence |
-|---|---|---|---|
-| `operationMode` | `vent` | "Fan only" in app | app-confirmed (2026-11-07) |
-| `operationMode` | `off` | Off; the cloud also sets `power` to 0 | app-confirmed (2026-11-07) |
-| `operationMode` | `heat` | Heat | api-only (unit was in heat, not cross-checked against app label) |
-| `operationMode` | `cool`, `dry`, `auto`, `autoCool`, `autoHeat` | | assumed |
-| `power` | `1` / `0` | on / off; stays 1 in `vent`, goes 0 when `operationMode` is `off` | api-only |
-| `spHeat` | `21` | heat setpoint 21 °C | app-confirmed |
-| `spCool` | `26` | cool setpoint, unchanged by mode/heat writes | api-only |
-| `roomTemp` | `22.5`, `23` | room temp in °C, same value as app; jumps ~2 °C on switch heat -> vent | app-confirmed |
-| `fanSpeed` | `auto` | | api-only |
-| `airDirection` | `auto` | | api-only |
-| `realValues` | `{}` or `{"spHeat":N}` | unit-reported value while it differs from the requested one; see open question 4 | hypothesis |
-| `spHeat` | `19` after heat+19 command | heat setpoint 19 °C | app-confirmed ("app seems happy"; Hugh did not read out the number) |
-| `power` | set by `operationMode: heat` | mode other than off turns the unit on, no separate `power` write needed | api-only |
+Moved to `internal/annotate/annotations.toml`.
 
 ## Probe log (Office)
 

@@ -1,0 +1,124 @@
+# Field annotations: the source of truth for what we know about Kumo fields.
+# confidence: app-confirmed (Hugh saw it in the Comfort app), api-only (seen in
+# the API, not cross-checked), assumed (from comfort_HA), hypothesis.
+# Paths use the jsondiff syntax and are matched per endpoint.
+
+[[field]]
+endpoint = "device"
+path = "operationMode"
+label = "Mode"
+confidence = "assumed"
+note = "vent and off app-confirmed 2026-11-07; heat api-only (not cross-checked against the app label); cool, dry, auto, autoCool, autoHeat are assumed and untested, so they stay undecoded. A mode other than off turns the unit on."
+values = { '"vent"' = "Fan only", '"off"' = "Off (also sets power 0)", '"heat"' = "Heat" }
+
+[[field]]
+endpoint = "device"
+path = "previousOperationMode"
+label = "Previous mode"
+confidence = "assumed"
+
+[[field]]
+endpoint = "device"
+path = "power"
+label = "Power"
+confidence = "api-only"
+note = "Stays 1 in vent, goes 0 when operationMode is off. comfort_HA treats 0 as off regardless of mode."
+values = { '1' = "On", '0' = "Off" }
+
+[[field]]
+endpoint = "device"
+path = "spHeat"
+label = "Heat setpoint (°C)"
+confidence = "app-confirmed"
+note = "21 app-confirmed; 19 after the heat+19 command agreed with the app but Hugh did not read the number."
+
+[[field]]
+endpoint = "device"
+path = "spCool"
+label = "Cool setpoint (°C)"
+confidence = "api-only"
+note = "Unchanged by mode and heat writes."
+
+[[field]]
+endpoint = "device"
+path = "spAuto"
+label = "Auto setpoint (°C)"
+confidence = "assumed"
+note = "null on Office."
+
+[[field]]
+endpoint = "device"
+path = "roomTemp"
+label = "Room temperature (°C)"
+confidence = "app-confirmed"
+note = "Same as the app. Jumped about 2 °C on switching heat to vent."
+
+[[field]]
+endpoint = "device"
+path = "humidity"
+label = "Humidity (%)"
+confidence = "assumed"
+note = "null on Office, which reports none."
+
+[[field]]
+endpoint = "device"
+path = "fanSpeed"
+label = "Fan speed"
+confidence = "api-only"
+
+[[field]]
+endpoint = "device"
+path = "airDirection"
+label = "Vane direction"
+confidence = "api-only"
+
+[[field]]
+endpoint = "device"
+path = "connected"
+label = "Adapter connected"
+confidence = "api-only"
+
+[[field]]
+endpoint = "device"
+path = "realValues"
+label = "Unit-reported values"
+confidence = "hypothesis"
+note = "{} or {\"spHeat\":N}: the unit's own value while it differs from the requested one. See the inventory's open question 4."
+
+[[field]]
+endpoint = "device"
+path = "realValues.spHeat"
+label = "Unit-reported heat setpoint (°C)"
+confidence = "hypothesis"
+note = "Differed from spHeat (20 vs 19) at one point; possibly the unit's actual setpoint."
+
+[[field]]
+endpoint = "zone"
+path = "hasActiveSchedule"
+label = "Has active schedule"
+confidence = "assumed"
+
+[[field]]
+endpoint = "zone"
+path = "holdMode.enabled"
+label = "Hold enabled"
+confidence = "assumed"
+
+[[field]]
+endpoint = "zone"
+path = "holdMode.holdType"
+label = "Hold type"
+confidence = "assumed"
+note = "until_next_event seen on Office."
+
+[[field]]
+endpoint = "profile"
+path = "[0].minimumSetPoints.heat"
+label = "Minimum heat setpoint (°C)"
+confidence = "api-only"
+
+[[field]]
+endpoint = "profile"
+path = "[0].maximumSetPoints.heat"
+label = "Maximum heat setpoint (°C)"
+confidence = "api-only"
