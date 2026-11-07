@@ -1,0 +1,124 @@
+# Kumo Cloud API inventory
+
+Living reference for what the Kumo Cloud V3 API exposes. Findings are tagged:
+**[observed]** seen in our own dumps (`spike/dump.py`, 2026-11-07), **[comfort_HA]** taken from
+`../comfort_HA` and not yet independently verified, **[untested]** unknown.
+
+Scope order: **Office (ductless MSZ-FX12NL) first**, then House (ducted PVA-AA36NL). Serials, MACs
+and tokens are deliberately omitted from this file.
+
+Base `https://app-prod.kumocloud.com/v3`, header `x-app-version: 3.2.4`, bearer token after login.
+
+## Endpoints
+
+| Endpoint | Method | Status | Notes |
+|---|---|---|---|
+| `/login` | POST | [observed] 200 | body `{username,password,appVersion}`; returns `token.{access,refresh}` plus user profile |
+| `/refresh` | POST | [comfort_HA] | body `{refresh}`; returns new `access` and `refresh`. Not yet exercised by us |
+| `/accounts/me` | GET | [observed] 200 | account details |
+| `/sites/` | GET | [observed] 200 | one site "Highwood"; has `schedulesEnabled`, `role: owner` |
+| `/sites/{id}/zones` | GET | [observed] 200 | zones, each with embedded `adapter` summary and `holdMode` |
+| `/devices/{serial}` | GET | [observed] 200 | full device state (below) |
+| `/devices/{serial}/profile` | GET | [observed] 200 | list with one capability object (below) |
+| `/devices/{serial}/status` | GET | [observed] 200 | firmware, wifi, setpoint limits |
+| `/devices/{serial}/sensor` | GET | [observed] 404 | no wireless sensor on either unit |
+| `/zones/{id}/notification-preferences` | GET | [observed] 200 | alert settings, filter reminder |
+| `/devices/send-command` | POST | [comfort_HA] **untested by us** | `{deviceSerial, commands:{...}}` |
+
+## Office (ductless MSZ-FX12NL) — device state fields
+
+| Field | Example | Writable? | Notes |
+|---|---|---|---|
+| `power` | `1` | [comfort_HA] yes? | 0/1. comfort_HA treats power 0 as off regardless of mode |
+| `operationMode` | `heat` | [comfort_HA] yes | `off cool heat dry vent auto autoCool autoHeat` |
+| `previousOperationMode` | `heat` | read-only? | |
+| `spCool` / `spHeat` | `26` / `19` | [comfort_HA] yes | °C, 0.5 steps. `spAuto` is null |
+| `realValues.spHeat` | `20` | read-only? | differs from `spHeat` (19 vs 20): unit's actual setpoint? Investigate |
+| `roomTemp` | `20.5` | read-only | °C |
+| `humidity` | `null` | read-only | this unit reports none |
+| `fanSpeed` | `auto` | [comfort_HA] yes | see fan table in comfort_HA README |
+| `airDirection` | `auto` | [comfort_HA] yes | vane; this unit supports direction and swing |
+| `connected` | `true` | read-only | |
+| `rssi` | `-42` | read-only | adapter wifi |
+| `ledDisabled` | `false` | [untested] | possibly writable (adapter LED) |
+| `scheduleOwner` | `adapter` | [untested] | who runs the schedule |
+| `scheduleHoldEndTime` | `0` | [untested] | |
+| `displayConfig` | `{defrost,filter,hotAdjust,standby}` | read-only? | `filter: true` here means filter indicator is shown/supported; confirm |
+| `statusDisplay`, `twoFiguresCode`, `unusualFigures`, `runTest`, `tempSource`, `activeThermistor`, `collectMethod` | various | [untested] | diagnostic; meaning unknown |
+| `updatedAt` | ISO time | read-only | used by comfort_HA to reconcile commands |
+| `model.*` | family MSZ, 12 kBTU | read-only | static model data |
+
+## Office — capability profile (`/profile`)
+
+- Modes: heat yes, dry yes, vent yes, test no (`hasModeTest: false`).
+- Fan: 5 speeds plus auto (`numberOfFanSpeeds: 5`, `hasFanSpeedAuto: true`).
+- Vane: direction and swing both supported.
+- Set point limits (°C): cool 16–31, auto 16–31, heat 10–31. `/status` says `minSetPoint 16`, `maxSetPoint 31`.
+- Other flags: `extendedTemps`, `hasDefrost`, `hasHotAdjust`, `hasStandby` true; `usesSetPointInDryMode` true.
+
+## Office — other
+
+- Zone "Office": `hasActiveSchedule: true`, `holdMode` object (`enabled`, `holdType: until_next_event`, `endTime`, optional overrides for mode, setpoints, fan, vane). This is how the app's temporary override works. [untested] how to set it.
+- Notification preferences: filter reminder every 90 days (`filterDirtyReminderInterval`), high/low temp alerts, system/zone error alerts. Filter-dirty state itself not found in dumps yet.
+- Adapter firmware 03.07.02 (from `/status`).
+
+## Differences from House (ducted PVA-AA36NL), for later
+
+3 fan speeds; no vane control; setpoints cool 19–30, heat 10–28, auto 19–28; reports `humidity`; `hasInitialSettings` and `hasModeTest` true.
+
+## Open questions
+
+1. `send-command` — **observed 2026-11-07 on Office:** `{"deviceSerial":..., "commands":{"spHeat":21}}` returns `200 {"devices":["<serial>"]}` (no state in the response). `GET /devices/{serial}` showed the new value on the first poll, 5 s later, and the app agreed. One sample only: no evidence yet of comfort_HA's "up to a minute" lag. Still open: which other commands/values are accepted, how invalid values are rejected, and whether the 5 s state is the unit's confirmed state or an optimistic cloud copy.
+   - `updatedAt` also changed at t+5s, t+10s and t+57s with no further commands, so it moves on every device report, not only on command confirmation. comfort_HA's `updatedAt`-based command culling needs re-checking against this.
+   - The setpoint also changed on its own between our two dumps (`spHeat` 19, then 20 about hours later, before our write). Possibly the schedule or someone using the app. Worth watching.
+2. Is `power` separately writable, or is `operationMode: off` the way to turn off? **Partly observed:** `{"operationMode":"vent"}` on Office returned `200 {"devices":[...]}`, state showed `vent` within 5 s with `power` still 1, and the app showed "fan only". `spHeat` (21) and `spCool` (26) were untouched. Then `{"operationMode":"off"}` set `operationMode: off` and `power: 0` together (app showed off), so off is a mode value. Still untested: `cool`, `dry`, `auto*`, `power` on its own, and what turning back on needs (`power: 1`, or a mode, which mode comes back, and whether the old setpoints/fan survive).
+   - **`roomTemp` depends on mode:** 20.5 in heat, 22.5 five seconds after switching to vent, 23 after about 90 s; the app showed the same 22.5. Hypothesis (untested): the unit's sensor reads differently when the fan is circulating room air. HomeKit's Current Temperature will step when mode changes.
+3. Active schedule: will the cloud overwrite a Home-initiated change at the next schedule event? Can a hold be set via the API?
+4. `realValues` vs top-level fields — **hypothesis (2 sightings):** top-level `spHeat` is the value *requested* via the cloud; `realValues.spHeat` is the value the *unit itself* last reported, present only while the two differ, `{}` when in sync. Evidence: (a) first dump: `spHeat` 19, `realValues.spHeat` 20, app showed 20; (b) heat+19 command: at +4.4 s `spHeat` 19 with `realValues.spHeat` 21 (the old value), cleared by +8.6 s. If right, the app shows the unit's value when present, and a `realValues` entry that lingers means a command the unit hasn't applied. Needs a case where the unit is slow, offline, or rejects a value. Design implication: Current/Target should prefer `realValues` when present.
+5. `auto` — **likely a band using both `spHeat` (floor) and `spCool` (ceiling)**: both always present, `spAuto` null on both units, comfort_HA maps auto to dual setpoints, profile has per-unit auto min/max (Office 16–31, House 19–28). Untested on the unit. **comfort_HA code read (2026-11-07):** auto reads `spHeat` as low and `spCool` as high; range writes send both; `autoCool`/`autoHeat` are only in the read-side mode map and never sent (only plain `auto` is written), so they are unit-reported sub-states. A single target in auto is written as `spCool=t, spHeat=t-1.0` ("hysteresis", maybe a real gap rule, maybe just their choice). **Our profiles have no `hasModeCool`/`hasModeAuto` keys**, only `cool`/`auto` inside `maximumSetPoints`/`minimumSetPoints`, so detect cool/auto support from those keys. Not yet read: comfort_HA's `hvac_action` (idle vs heating) logic. Unknown: is there a minimum gap between `spHeat` and `spCool`; what happens on a narrow or inverted band (reject, clamp, accept); what `autoCool`/`autoHeat` mean (sub-states the unit reports, or modes we can send).
+6. Do any endpoints beyond those listed exist (schedules, history, energy)? Needs Comfort app traffic capture or probing.
+7. Token lifetime and refresh behaviour in practice; rate limits.
+
+## Decode table (Office) — grows with every probe
+
+Confidence: **app-confirmed** = Hugh saw the same in the Comfort app; **api-only** = seen in API, not yet cross-checked; **assumed** = from comfort_HA.
+
+| Field | API value | Meaning | Confidence |
+|---|---|---|---|
+| `operationMode` | `vent` | "Fan only" in app | app-confirmed (2026-11-07) |
+| `operationMode` | `off` | Off; the cloud also sets `power` to 0 | app-confirmed (2026-11-07) |
+| `operationMode` | `heat` | Heat | api-only (unit was in heat, not cross-checked against app label) |
+| `operationMode` | `cool`, `dry`, `auto`, `autoCool`, `autoHeat` | | assumed |
+| `power` | `1` / `0` | on / off; stays 1 in `vent`, goes 0 when `operationMode` is `off` | api-only |
+| `spHeat` | `21` | heat setpoint 21 °C | app-confirmed |
+| `spCool` | `26` | cool setpoint, unchanged by mode/heat writes | api-only |
+| `roomTemp` | `22.5`, `23` | room temp in °C, same value as app; jumps ~2 °C on switch heat -> vent | app-confirmed |
+| `fanSpeed` | `auto` | | api-only |
+| `airDirection` | `auto` | | api-only |
+| `realValues` | `{}` or `{"spHeat":N}` | unit-reported value while it differs from the requested one; see open question 4 | hypothesis |
+| `spHeat` | `19` after heat+19 command | heat setpoint 19 °C | app-confirmed ("app seems happy"; Hugh did not read out the number) |
+| `power` | set by `operationMode: heat` | mode other than off turns the unit on, no separate `power` write needed | api-only |
+
+## Probe log (Office)
+
+All times 2026-11-07. Raw copies in the gitignored `spike/out/probe_log.jsonl` (written by `spike/probe_write.py`).
+
+| Command | HTTP / response | Observed effect | Latency |
+|---|---|---|---|
+| `{"spHeat":21}` | 200 `{"devices":[serial]}` | `spHeat` 20 -> 21, app agreed | <= 5 s |
+| `{"operationMode":"vent"}` | 200 `{"devices":[serial]}` | mode heat -> vent, power stayed 1, setpoints unchanged, `roomTemp` 20.5 -> 22.5 (-> 23 by ~90 s), app agreed | <= 5 s |
+| `{"operationMode":"off"}` | 200 `{"devices":[serial]}` | `operationMode` vent -> off and `power` 1 -> 0 in one step, setpoints unchanged, `roomTemp` stayed 23, app showed off | <= 5 s |
+| `{"operationMode":"heat","spHeat":19}` (from off) | 200 `{"devices":[serial]}` | multi-field accepted; mode off -> heat, `power` 0 -> 1 automatically, `spHeat` 21 -> 19; `realValues.spHeat` showed old 21 at +4.4 s then cleared; `roomTemp` 23 -> 21 by +8.6 s; app "happy" | <= 5 s |
+
+## Candidate HomeKit mapping (Office, MVP first)
+
+| Feature | Maps to | Priority |
+|---|---|---|
+| power + `operationMode` | HeaterCooler Active + Target State (Cool/Heat/Auto) | MVP |
+| `spCool` / `spHeat` | Cooling / Heating Threshold Temperature | MVP |
+| `roomTemp` | Current Temperature | MVP |
+| derived running state | Current State (Idle/Heating/Cooling) | MVP, needs a rule |
+| `fanSpeed` | Rotation Speed | later |
+| `airDirection` swing | Swing Mode | later |
+| dry / fan-only modes | not in HeaterCooler; maybe separate switches | later / maybe never |
+| `connected` | accessory "No Response" | MVP |
