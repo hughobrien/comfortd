@@ -33,7 +33,7 @@ li .path { color:var(--weak); }
 .conf-app-confirmed { color:#2a7; } .conf-api-only { color:#27a; } .conf-assumed { color:#a70; } .conf-hypothesis { color:var(--err); }
 em { color:var(--weak); }
 details.unknown { margin-bottom:.5rem; }
-.card .head { display:flex; justify-content:space-between; align-items:center; }
+.card .head { display:flex; flex-wrap:wrap; gap:.25rem; justify-content:space-between; align-items:center; }
 .card .sub { color:var(--weak); margin-bottom:.4rem; }
 .ctrl { margin:.5rem 0; }
 .ctrl-label { color:var(--weak); font-size:.75rem; letter-spacing:.05em; display:block; margin-bottom:.15rem; }
@@ -46,8 +46,8 @@ details.unknown { margin-bottom:.5rem; }
 .seg button[data-value="cool"][aria-pressed="true"] { background:var(--cool); border-color:var(--cool); }
 .seg button:focus-visible, .stepper button:focus-visible, .power-toggle:focus-visible { outline:2px solid var(--on); outline-offset:1px; }
 .seg button.pending { outline:2px dashed var(--weak); outline-offset:1px; }
-.slider-row { display:flex; gap:.5rem; align-items:center; }
-.slider-row input[type=range] { flex:1; accent-color:var(--on); }
+.slider-row { display:flex; gap:.5rem; align-items:center; flex-wrap:wrap; }
+.slider-row input[type=range] { flex:1 1 5rem; min-width:0; accent-color:var(--on); }
 .slider-row .val { display:flex; align-items:baseline; gap:.2rem; }
 .lim { color:var(--weak); font-size:.75rem; font-variant-numeric:tabular-nums; }
 .val-input { width:4.2rem; font:inherit; font-weight:600; text-align:right; padding:.15rem .25rem; border:1px solid var(--border); border-radius:4px; background:transparent; color:var(--fg); }
@@ -62,13 +62,15 @@ details.unknown { margin-bottom:.5rem; }
 .alert-flag { font-size:.75rem; font-weight:600; padding:.05rem .5rem; margin-left:.5rem; border-radius:3px; background:#f5d90a; color:#111; }
 .card .head img.model { height:3.2rem; width:auto; max-width:40%; object-fit:contain; margin:0 auto; }
 .dial { display:flex; flex-direction:column; align-items:center; }
-.dial svg { width:9rem; height:9rem; }
+.dials { display:flex; gap:1rem; justify-content:space-around; flex-wrap:wrap; }
+.dials .ctrl { margin:.4rem 0; }
+.dial svg { width:6rem; height:6rem; }
 .dial path { fill:var(--border); cursor:pointer; outline:none; }
 .dial path:hover { fill:var(--hl); }
 .dial path.lit { fill:var(--on); opacity:.55; }
 .dial path[aria-pressed="true"] { fill:var(--on); opacity:1; }
 .dial path:focus-visible { stroke:var(--fg); stroke-width:1.5; }
 .dial path.pending { stroke:var(--weak); stroke-dasharray:3 2; stroke-width:1.5; }
-.dial text { fill:var(--fg); font-size:13px; font-weight:600; }
-.dial-btns { margin-top:-1.6rem; position:relative; }
-.dial-btns button { flex:0 1 auto; }
+.dial text { fill:var(--fg); font-size:14px; font-weight:600; }
+.dial-btns { margin-top:-1.1rem; position:relative; }
+.dial-btns button { flex:0 1 auto; font-size:.75rem; padding:.15rem .45rem; }

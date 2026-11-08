@@ -41,16 +41,20 @@ templ Card(c ui.CardView) {
 				@setpointRow(c, "COOL TO", "spcool", "spCool", c.SpCool)
 			}
 		}
-		if len(c.Fans) > 0 {
-			<div class="ctrl">
-				<span class="ctrl-label">FAN</span>
-				@dial(c, c.Fans, "fan", "fanSpeed", true, "auto")
-			</div>
-		}
-		if len(c.Vanes) > 0 {
-			<div class="ctrl">
-				<span class="ctrl-label">VANE</span>
-				@dial(c, c.Vanes, "vane", "airDirection", false, "auto", "swing")
+		if len(c.Fans) > 0 || len(c.Vanes) > 0 {
+			<div class="dials">
+			if len(c.Fans) > 0 {
+				<div class="ctrl">
+					<span class="ctrl-label">FAN</span>
+					@dial(c, c.Fans, "fan", "fanSpeed", true, "auto")
+				</div>
+			}
+			if len(c.Vanes) > 0 {
+				<div class="ctrl">
+					<span class="ctrl-label">VANE</span>
+					@dial(c, c.Vanes, "vane", "airDirection", false, "auto", "swing")
+				</div>
+			}
 			</div>
 		}
 		<details class="kv" data-preserve-attr="open">
