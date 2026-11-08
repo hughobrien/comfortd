@@ -52,6 +52,7 @@ details.unknown { margin-bottom:.5rem; }
 .val-suffix.pending { text-decoration:underline dashed; }
 .ctrl > .val { font-size:1.1rem; font-weight:600; }
 .kv { margin-top:.6rem; padding-top:.4rem; border-top:1px solid var(--border); }
+.kv > summary { color:var(--weak); font-weight:500; font-size:.75rem; letter-spacing:.05em; text-transform:uppercase; }
 .kv .row { display:flex; justify-content:space-between; padding:.1rem 0; }
 .kv .row > span:first-child { color:var(--weak); }
 .ctl-error { color:#c0392b; margin:.4rem 0 0; }

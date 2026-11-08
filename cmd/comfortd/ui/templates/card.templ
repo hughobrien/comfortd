@@ -77,13 +77,14 @@ templ Card(c ui.CardView) {
 				@seg(c, c.Vanes, "vane", "v", "airDirection")
 			</div>
 		}
-		<div class="kv">
+		<details class="kv" data-preserve-attr="open">
+			<summary>Status</summary>
 			<div class="row"><span>Power</span><span>{ c.Power }</span></div>
 			<div class="row"><span>Cool to</span><span>{ c.SpCool } °C</span></div>
 			<div class="row"><span>Humidity</span><span>{ c.Humidity }</span></div>
 			<div class="row"><span>Schedule</span><span>{ yesNo(c.ScheduleActive) }{ holdSuffix(c.HoldEnabled) }</span></div>
 			<div class="row"><span>Adapter</span><span>{ connText(c.Connected) }</span></div>
-		</div>
+		</details>
 	</div>
 }
 
