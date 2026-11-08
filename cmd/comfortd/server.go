@@ -120,6 +120,7 @@ func newMux(d deps) *http.ServeMux {
 	mux.HandleFunc("GET /{$}", d.handleIndex)
 	mux.HandleFunc("GET /ui/sse", d.handleSSE)
 	mux.HandleFunc("GET /ui/static/style.css", serveAsset("ui/style.css", "text/css; charset=utf-8"))
+	mux.HandleFunc("GET /ui/static/dial.js", serveAsset("ui/dial.js", "text/javascript; charset=utf-8"))
 	mux.HandleFunc("GET /ui/static/datastar.js", serveAsset(datastarFile, "text/javascript; charset=utf-8"))
 
 	return mux

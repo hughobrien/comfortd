@@ -82,3 +82,19 @@ details.unknown { margin-bottom:.5rem; }
 .dial circle.hub.pending { stroke:var(--weak); stroke-dasharray:3 2; }
 .dial text.center { pointer-events:none; }
 .dials .ctrl-label { text-align:center; }
+.dials .ctrl { flex:0 1 22rem; }
+.dial path[data-value="heat"][aria-pressed="true"] { fill:var(--heat); }
+.dial path[data-value="cool"][aria-pressed="true"] { fill:var(--cool); }
+.dial circle.hub[data-value="off"][aria-pressed="true"] { fill:var(--weak); stroke:var(--weak); }
+.tdial { touch-action:none; cursor:pointer; }
+.tdial .track { fill:none; stroke:var(--border); stroke-width:14; }
+.tdial .fill { fill:none; stroke-width:14; }
+.tdial .fill.heat { stroke:var(--heat); }
+.tdial .fill.cool { stroke:var(--cool); }
+.tdial .fill.band { stroke:var(--on); }
+.tdial .handle { fill:var(--card); stroke:var(--fg); stroke-width:2; cursor:grab; }
+.tdial .handle:focus-visible { stroke:var(--on); stroke-width:3; outline:none; }
+.tdial .handle.pending { stroke-dasharray:3 2; }
+.tdial text.tval { fill:var(--fg); font-size:17px; font-weight:600; pointer-events:none; }
+.tdial[data-band] text.tval { font-size:11px; }
+.tdial text { pointer-events:none; }

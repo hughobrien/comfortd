@@ -20,47 +20,32 @@ templ Card(c ui.CardView) {
 			if c.Image != "" {
 				<img class="model" src={ c.Image } alt="" loading="lazy"/>
 			}
-			if len(c.Modes) > 0 {
-				<button
-					type="button"
-					class="power-toggle"
-					aria-pressed={ boolStr(c.On) }
-					data-on:click={ powerClick(c) }
-				>power</button>
-			}
 		</div>
 		<div class="sub">room · { c.Mode }</div>
 		if c.Control.LastError != "" {
 			<p class="ctl-error">last command failed: { c.Control.LastError }</p>
 		}
-		if len(c.Modes) > 0 {
-			<div class="ctrl">
-				<span class="ctrl-label">MODE</span>
-				@seg(c, c.Modes, "mode", "m", "operationMode")
-			</div>
-			if c.ShowHeat {
-				@setpointRow(c, "HEAT TO", "spheat", "spHeat", c.SpHeat)
+		<div class="dials">
+			if len(c.Modes) > 0 {
+				<div class="ctrl">
+					<span class="ctrl-label">MODE</span>
+					@dial(c, modeOpts(c), "mode", "m", "operationMode", "off", false, "off")
+				</div>
+				@tempDial(c, tempWheel(c))
 			}
-			if c.ShowCool {
-				@setpointRow(c, "COOL TO", "spcool", "spCool", c.SpCool)
-			}
-		}
-		if len(c.Fans) > 0 || len(c.Vanes) > 0 {
-			<div class="dials">
 			if len(c.Fans) > 0 {
 				<div class="ctrl">
 					<span class="ctrl-label">FAN</span>
-					@dial(c, c.Fans, "fan", "fanSpeed", true, "auto")
+					@dial(c, c.Fans, "fan", "v", "fanSpeed", "auto", true, "auto")
 				</div>
 			}
 			if len(c.Vanes) > 0 {
 				<div class="ctrl">
 					<span class="ctrl-label">VANE</span>
-					@dial(c, c.Vanes, "vane", "airDirection", false, "auto", "swing")
+					@dial(c, c.Vanes, "vane", "v", "airDirection", "auto", false, "auto", "swing")
 				</div>
 			}
-			</div>
-		}
+		</div>
 		<details class="kv" data-preserve-attr="open">
 			<summary>Status</summary>
 			<div class="row"><span>Power</span><span>{ c.Power }</span></div>
@@ -72,61 +57,11 @@ templ Card(c ui.CardView) {
 	</div>
 }
 
-// setpointRow is a labelled slider with a text box that follow each other;
-// the change is posted on release. Limits are the unit's own min/max.
-templ setpointRow(c ui.CardView, label, path, field, value string) {
-	if c.SpMin != "" && c.SpMax != "" {
-		<div class="ctrl">
-			<span class="ctrl-label">{ label }</span>
-			<div class="slider-row">
-				<span class="lim">{ c.SpMin }</span>
-				<input
-					type="range"
-					min={ c.SpMin }
-					max={ c.SpMax }
-					step="0.5"
-					value={ value }
-					data-on:input="el.closest('.slider-row').querySelector('.val-input').value = evt.target.value"
-					data-on:change={ setpointPost(c, path) }
-				/>
-				<span class="lim">{ c.SpMax }</span>
-				<span class="val">
-					<input
-						type="number"
-						class="val-input"
-						min={ c.SpMin }
-						max={ c.SpMax }
-						step="0.5"
-						value={ value }
-						data-on:input="el.closest('.slider-row').querySelector('input[type=range]').value = evt.target.value"
-						data-on:change={ setpointPost(c, path) }
-					/><span class={ "val-suffix", templ.KV("pending", c.Control.Pending[field] != "") }>°C</span>
-				</span>
-			</div>
-		</div>
-	}
-}
-
-// seg renders a segmented control; the current value is the pressed button.
-templ seg(c ui.CardView, opts []ui.Choice, path, param, field string) {
-	<div class="seg">
-		for _, o := range opts {
-			<button
-				type="button"
-				aria-pressed={ boolStr(o.Pressed) }
-				data-value={ o.Value }
-				class={ templ.KV("pending", o.Pressed && c.Control.Pending[field] != "") }
-				data-on:click={ "@post('/ui/units/" + c.Slug + "/" + path + "?" + param + "=" + o.Value + "')" }
-			>{ o.Label }</button>
-		}
-	</div>
-}
-
 // dial renders a ring of wedges with the current value in the middle and the
-// hub (auto) as a button; other extras (swing) fill the gap at the bottom.
-templ dial(c ui.CardView, opts []ui.Choice, path, field string, level bool, extra ...string) {
+// hub (auto, or off for the mode wheel) as a button; other extras (swing) fill the gap at the bottom.
+templ dial(c ui.CardView, opts []ui.Choice, path, param, field, hubValue string, level bool, extra ...string) {
 	{{ wedges, buttons := dialSplit(opts, extra...) }}
-	{{ hub, hasHub, rest := dialHub(buttons) }}
+	{{ hub, hasHub, rest := dialHub(buttons, hubValue) }}
 	<div class="dial">
 		<svg viewBox="0 0 180 134" role="group">
 			for _, a := range dialArcs(wedges, level, rest) {
@@ -138,7 +73,7 @@ templ dial(c ui.CardView, opts []ui.Choice, path, field string, level bool, extr
 					aria-pressed={ boolStr(a.Pressed) }
 					data-value={ a.Value }
 					class={ templ.KV("lit", a.Lit), templ.KV("pending", a.Pressed && c.Control.Pending[field] != "") }
-					data-on:click={ "@post('/ui/units/" + c.Slug + "/" + path + "?v=" + a.Value + "')" }
+					data-on:click={ "@post('/ui/units/" + c.Slug + "/" + path + "?" + param + "=" + a.Value + "')" }
 				><title>{ a.Label }</title></path>
 				<text class="wl" x={ fmt.Sprintf("%.1f", a.LX) } y={ fmt.Sprintf("%.1f", a.LY) } text-anchor={ a.Anchor } dominant-baseline="middle">{ a.Label }</text>
 			}
@@ -150,28 +85,15 @@ templ dial(c ui.CardView, opts []ui.Choice, path, field string, level bool, extr
 					r="24"
 					role="button"
 					tabindex="0"
+					data-value={ hub.Value }
 					aria-label={ hub.Label }
 					aria-pressed={ boolStr(hub.Pressed) }
-					data-on:click={ "@post('/ui/units/" + c.Slug + "/" + path + "?v=" + hub.Value + "')" }
+					data-on:click={ "@post('/ui/units/" + c.Slug + "/" + path + "?" + param + "=" + hub.Value + "')" }
 				><title>{ hub.Label }</title></circle>
 			}
 			<text class="center" x="90" y="70" text-anchor="middle" dominant-baseline="central">{ dialCenter(opts) }</text>
 		</svg>
 	</div>
-}
-
-// setpointPost sends the absolute value from the slider or text box; the
-// controller range-checks it, so the clamp here is only for tidiness.
-func setpointPost(c ui.CardView, path string) string {
-	return "const v = Math.min(" + c.SpMax + ", Math.max(" + c.SpMin + ", parseFloat(evt.target.value))); if (!isNaN(v)) { @post('/ui/units/" + c.Slug + "/" + path + "?v=' + v) }"
-}
-
-func powerClick(c ui.CardView) string {
-	m := "on"
-	if c.On {
-		m = "off"
-	}
-	return "@post('/ui/units/" + c.Slug + "/mode?m=" + m + "')"
 }
 
 func boolStr(b bool) string {
@@ -200,4 +122,54 @@ func connText(b bool) string {
 		return "connected"
 	}
 	return "offline"
+}
+
+// tempDial is the temperature wheel: drag a handle round the ring (dial.js);
+// the centre shows the value, or the heat and cool pair in auto.
+templ tempDial(c ui.CardView, w *TempWheel) {
+	if w != nil {
+		<div class="ctrl">
+			<span class="ctrl-label">{ w.Title }</span>
+			<div class="dial">
+				<svg
+					class="tdial"
+					viewBox="0 0 180 134"
+					role="group"
+					data-min={ fnum(w.Min) }
+					data-max={ fnum(w.Max) }
+					data-step="0.5"
+					data-gap="1.5"
+					data-cx="90"
+					data-cy="70"
+					data-r="37"
+					data-band?={ w.Band }
+					data-on:tempcommit={ "@post('/ui/units/" + c.Slug + "/' + evt.detail.path + '?v=' + evt.detail.v)" }
+				>
+					<path class="track" d={ w.Track }></path>
+					<path class={ "fill", w.Kind } d={ w.Fill }></path>
+					<text class="wl" x={ fmt.Sprintf("%.1f", w.MinX) } y={ fmt.Sprintf("%.1f", w.MinY) } text-anchor="middle" dominant-baseline="middle">{ w.MinLabel }</text>
+					<text class="wl" x={ fmt.Sprintf("%.1f", w.MaxX) } y={ fmt.Sprintf("%.1f", w.MaxY) } text-anchor="middle" dominant-baseline="middle">{ w.MaxLabel }</text>
+					<text class="tval" x="90" y="66" text-anchor="middle" dominant-baseline="central">{ w.Centre }</text>
+					<text class="wl" x="90" y="84" text-anchor="middle" dominant-baseline="middle">°C</text>
+					for _, h := range w.Handles {
+						<circle
+							class={ "handle", templ.KV("pending", h.Pending) }
+							data-handle
+							data-path={ h.Path }
+							data-v={ fnum(h.V) }
+							cx={ fmt.Sprintf("%.2f", h.X) }
+							cy={ fmt.Sprintf("%.2f", h.Y) }
+							r="8"
+							tabindex="0"
+							role="slider"
+							aria-label={ h.Label }
+							aria-valuemin={ fnum(w.Min) }
+							aria-valuemax={ fnum(w.Max) }
+							aria-valuenow={ fnum(h.V) }
+						></circle>
+					}
+				</svg>
+			</div>
+		</div>
+	}
 }

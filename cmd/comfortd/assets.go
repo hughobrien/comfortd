@@ -19,7 +19,7 @@ import (
 // datastarFile is the vendored datastar bundle; see ui/vendor/README.md.
 const datastarFile = "ui/vendor/datastar-1.0.1.min.js"
 
-//go:embed ui/style.css ui/vendor
+//go:embed ui/style.css ui/dial.js ui/vendor
 var assetFS embed.FS
 
 func serveAsset(file, ctype string) http.HandlerFunc {

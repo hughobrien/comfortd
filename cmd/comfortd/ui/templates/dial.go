@@ -5,6 +5,8 @@ package templates
 import (
 	"fmt"
 	"math"
+	"strconv"
+	"strings"
 
 	"github.com/hughobrien/comfortd/cmd/comfortd/ui"
 )
@@ -100,15 +102,124 @@ func dialCenter(opts []ui.Choice) string {
 	return "–"
 }
 
-// dialHub picks the "auto" choice out of the side buttons to be the clickable
+// dialHub picks the choice with the given value out of the side buttons to be the clickable
 // hub of the ring; the rest stay as buttons.
-func dialHub(buttons []ui.Choice) (hub ui.Choice, ok bool, rest []ui.Choice) {
+func dialHub(buttons []ui.Choice, value string) (hub ui.Choice, ok bool, rest []ui.Choice) {
 	for _, b := range buttons {
-		if b.Value == "auto" {
+		if b.Value == value {
 			hub, ok = b, true
 		} else {
 			rest = append(rest, b)
 		}
 	}
 	return
+}
+
+// Handle is one draggable setpoint on the temperature wheel.
+type Handle struct {
+	Field, Path string // control field (pending marker) and UI endpoint
+	Label       string
+	V           float64
+	X, Y        float64
+	Pending     bool
+}
+
+// TempWheel is the geometry for the temperature wheel; dial.js redraws the
+// same shapes while dragging.
+type TempWheel struct {
+	Min, Max               float64
+	Handles                []Handle
+	Track, Fill            string
+	Band                   bool // two handles: the fill is the band between them
+	Centre                 string
+	MinLabel, MaxLabel     string
+	MinX, MinY, MaxX, MaxY float64
+	Kind                   string // heat, cool or band, for the fill colour
+	Title                  string
+}
+
+const (
+	tCX, tCY, tR = 90.0, 70.0, 37.0
+	tGap         = 1.5 // the unit's minimum auto gap
+)
+
+func fnum(v float64) string { return strconv.FormatFloat(v, 'f', -1, 64) }
+
+func tAngle(w *TempWheel, v float64) float64 { return 210 + 300*(v-w.Min)/(w.Max-w.Min) }
+
+func tPoint(r, deg float64) (float64, float64) {
+	a := deg * math.Pi / 180
+	return tCX + r*math.Sin(a), tCY - r*math.Cos(a)
+}
+
+func tArc(w *TempWheel, v0, v1 float64) string {
+	a0, a1 := tAngle(w, v0), tAngle(w, v1)
+	if a1 <= a0 {
+		return ""
+	}
+	x0, y0 := tPoint(tR, a0)
+	x1, y1 := tPoint(tR, a1)
+	large := 0
+	if a1-a0 > 180 {
+		large = 1
+	}
+	return fmt.Sprintf("M%.2f %.2fA%.0f %.0f 0 %d 1 %.2f %.2f", x0, y0, tR, tR, large, x1, y1)
+}
+
+// tempWheel builds the wheel for a card, or nil when the mode has no setpoint
+// or the limits are unknown.
+func tempWheel(c ui.CardView) *TempWheel {
+	lo, e1 := strconv.ParseFloat(c.SpMin, 64)
+	hi, e2 := strconv.ParseFloat(c.SpMax, 64)
+	if e1 != nil || e2 != nil || hi <= lo || (!c.ShowHeat && !c.ShowCool) {
+		return nil
+	}
+	w := &TempWheel{Min: lo, Max: hi}
+	add := func(field, path, label, val string) {
+		v, err := strconv.ParseFloat(val, 64)
+		if err != nil {
+			return
+		}
+		v = math.Min(hi, math.Max(lo, v))
+		x, y := tPoint(tR, tAngle(w, v))
+		w.Handles = append(w.Handles, Handle{Field: field, Path: path, Label: label, V: v, X: x, Y: y, Pending: c.Control.Pending[field] != ""})
+	}
+	if c.ShowHeat {
+		add("spHeat", "spheat", "Heat to", c.SpHeat)
+	}
+	if c.ShowCool {
+		add("spCool", "spcool", "Cool to", c.SpCool)
+	}
+	if len(w.Handles) == 0 {
+		return nil
+	}
+	w.Track = tArc(w, lo, hi)
+	w.Band = len(w.Handles) == 2
+	switch {
+	case w.Band:
+		w.Kind, w.Title = "band", "HEAT / COOL"
+		w.Fill = tArc(w, w.Handles[0].V, w.Handles[1].V)
+	case c.ShowHeat:
+		w.Kind, w.Title = "heat", "HEAT TO"
+		w.Fill = tArc(w, lo, w.Handles[0].V)
+	default:
+		w.Kind, w.Title = "cool", "COOL TO"
+		w.Fill = tArc(w, lo, w.Handles[0].V)
+	}
+	parts := make([]string, len(w.Handles))
+	for i, h := range w.Handles {
+		parts[i] = fnum(h.V)
+	}
+	w.Centre = strings.Join(parts, " – ")
+	w.MinLabel, w.MaxLabel = fnum(lo), fnum(hi)
+	w.MinX, w.MinY = tPoint(tR, 210)
+	w.MaxX, w.MaxY = tPoint(tR, 150)
+	w.MinY += 13
+	w.MaxY += 13
+	return w
+}
+
+// modeOpts is the mode choices plus the Off hub.
+func modeOpts(c ui.CardView) []ui.Choice {
+	return append(append([]ui.Choice{}, c.Modes...), ui.Choice{Value: "off", Label: "Off", Pressed: !c.On})
 }

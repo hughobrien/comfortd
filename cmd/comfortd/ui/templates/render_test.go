@@ -47,13 +47,16 @@ func TestCardPendingMarked(t *testing.T) {
 		t.Fatal(err)
 	}
 	out := sb.String()
-	if !strings.Contains(out, `class="val-suffix pending"`) {
+	if !strings.Contains(out, `class="handle pending"`) {
 		t.Fatalf("setpoint not marked pending: %s", out)
 	}
-	if strings.Count(out, `aria-pressed="true"`) != 2 { // power + current mode
-		t.Fatalf("want power and Heat pressed: %s", out)
+	if strings.Count(out, `aria-pressed="true"`) != 1 { // current mode only; Off is not pressed while on
+		t.Fatalf("want only Heat pressed: %s", out)
 	}
 	if strings.Contains(out, `class="pending"`) {
 		t.Fatalf("mode wasn't pending: %s", out)
+	}
+	if !strings.Contains(out, `data-handle`) || !strings.Contains(out, `data-min="10"`) {
+		t.Fatalf("temperature wheel missing: %s", out)
 	}
 }
