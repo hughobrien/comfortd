@@ -223,7 +223,7 @@ templ ScheduleBody(c ui.CardView) {
 
 // ScheduleEditor is the editable table with Save and Cancel. msg shows above
 // the buttons (an error from a failed save).
-templ ScheduleEditor(slug, heading string, rows []ui.EditRow, msg string) {
+templ ScheduleEditor(slug, heading string, rows []ui.EditRow, o ui.EditOpts, msg string) {
 	<div id={ "sched-body-" + slug } class="sched-body editing" data-ignore-morph>
 		<p class="season">{ heading } · editing</p>
 		<form>
@@ -231,7 +231,7 @@ templ ScheduleEditor(slug, heading string, rows []ui.EditRow, msg string) {
 				<thead><tr><th>days</th><th>at</th><th>mode</th><th>target °C</th><th>fan</th><th></th></tr></thead>
 				<tbody id={ "sched-rows-" + slug }>
 					for _, r := range rows {
-						@ScheduleEditRow(slug, r)
+						@ScheduleEditRow(slug, r, o)
 					}
 				</tbody>
 			</table>
@@ -247,7 +247,7 @@ templ ScheduleEditor(slug, heading string, rows []ui.EditRow, msg string) {
 	</div>
 }
 
-templ ScheduleEditRow(slug string, r ui.EditRow) {
+templ ScheduleEditRow(slug string, r ui.EditRow, o ui.EditOpts) {
 	<tr data-mode={ r.Mode }>
 		<td class="days">
 			<input type="hidden" name="key" value={ r.Key }/>
@@ -259,18 +259,18 @@ templ ScheduleEditRow(slug string, r ui.EditRow) {
 		<td><input type="time" name="at" value={ r.At } required/></td>
 		<td>
 			<select name="mode" data-on:change="el.closest('tr').dataset.mode = el.value">
-				for _, m := range ui.ScheduleModeChoices {
+				for _, m := range o.Modes {
 					<option value={ m.Value } selected?={ m.Value == r.Mode }>{ m.Label }</option>
 				}
 			</select>
 		</td>
 		<td class="sp">
-			<input type="number" name="sph" class="sp-heat" step="0.5" min="10" max="31" value={ r.SpHeat } aria-label="heat to"/>
-			<input type="number" name="spc" class="sp-cool" step="0.5" min="10" max="31" value={ r.SpCool } aria-label="cool to"/>
+			<input type="number" name="sph" class="sp-heat" step="0.5" min={ o.Lo } max={ o.Hi } value={ r.SpHeat } aria-label="heat to"/>
+			<input type="number" name="spc" class="sp-cool" step="0.5" min={ o.Lo } max={ o.Hi } value={ r.SpCool } aria-label="cool to"/>
 		</td>
 		<td>
 			<select name="fan">
-				for _, f := range ui.ScheduleFanChoices {
+				for _, f := range o.Fans {
 					<option value={ f.Value } selected?={ f.Value == r.Fan }>{ f.Label }</option>
 				}
 			</select>

@@ -49,7 +49,7 @@ func (d deps) patchBody(sse *datastar.ServerSentEventGenerator, sn store.Snapsho
 }
 
 func (d deps) patchEditor(sse *datastar.ServerSentEventGenerator, sn store.Snapshot, msg string) error {
-	return sse.PatchElementTempl(templates.ScheduleEditor(sn.Unit.Slug, ui.BuildSchedule(sn, d.Now()).Heading, ui.BuildScheduleEdit(sn), msg),
+	return sse.PatchElementTempl(templates.ScheduleEditor(sn.Unit.Slug, ui.BuildSchedule(sn, d.Now()).Heading, ui.BuildScheduleEdit(sn), ui.BuildEditOpts(sn), msg),
 		datastar.WithSelectorf("#sched-body-%s", sn.Unit.Slug), datastar.WithMode(datastar.ElementPatchModeReplace))
 }
 
@@ -75,7 +75,7 @@ func (d deps) handleScheduleNewRow(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	row := ui.NewEditRow(fmt.Sprintf("n%d", time.Now().UnixNano()))
-	datastar.NewSSE(w, r).PatchElementTempl(templates.ScheduleEditRow(sn.Unit.Slug, row),
+	datastar.NewSSE(w, r).PatchElementTempl(templates.ScheduleEditRow(sn.Unit.Slug, row, ui.BuildEditOpts(sn)),
 		datastar.WithSelectorf("#sched-rows-%s", sn.Unit.Slug), datastar.WithModeAppend())
 }
 

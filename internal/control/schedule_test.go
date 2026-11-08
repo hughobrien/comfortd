@@ -6,6 +6,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/hughobrien/comfortd/internal/store"
 	"github.com/hughobrien/comfortd/pkg/kumo"
 )
 
@@ -14,7 +15,8 @@ func ev(at, mode string, h, c float64, days ...string) kumo.ScheduleEvent {
 }
 
 func TestValidateSchedule(t *testing.T) {
-	ok, err := ValidateSchedule([]kumo.ScheduleEvent{ev("0700", "heat", 20, 26, "Mo", "Su"), ev("0700", "cool", 20, 24, "Tu")})
+	lim := ScheduleLimitsFor(store.Snapshot{})
+	ok, err := ValidateSchedule([]kumo.ScheduleEvent{ev("0700", "heat", 20, 26, "Mo", "Su"), ev("0700", "cool", 20, 24, "Tu")}, lim)
 	if err != nil || ok[0].Fan != "auto" || ok[0].Vane != "auto" || ok[0].Days[0] != "Su" {
 		t.Fatalf("%+v %v", ok, err)
 	}
@@ -30,7 +32,7 @@ func TestValidateSchedule(t *testing.T) {
 		"nosets": {{Days: []string{"Mo"}, StartTime: "0700", Mode: "off"}},
 	}
 	for name, evs := range bad {
-		if _, err := ValidateSchedule(evs); !errors.Is(err, ErrInvalid) {
+		if _, err := ValidateSchedule(evs, lim); !errors.Is(err, ErrInvalid) {
 			t.Errorf("%s: got %v", name, err)
 		}
 	}
@@ -45,5 +47,28 @@ func TestSameEventIgnoresOrderAndDefaults(t *testing.T) {
 	b.Mode = "cool"
 	if sameEvent(a, b) {
 		t.Fatal("should differ")
+	}
+}
+
+func TestScheduleLimitsFollowTheUnit(t *testing.T) {
+	// A 3-speed, heat/cool-only unit with a 19.5–28 status range, like House.
+	lim := ScheduleLimits{
+		Modes: []Choice{{"heat", "Heat"}, {"cool", "Cool"}, {"off", "Off"}},
+		Fans:  FanChoices(3),
+		Lo:    19.5, Hi: 28,
+	}
+	hot := ev("0700", "heat", 20, 26, "Mo")
+	if _, err := ValidateSchedule([]kumo.ScheduleEvent{hot}, lim); err != nil {
+		t.Fatal(err)
+	}
+	for name, e := range map[string]kumo.ScheduleEvent{
+		"fan":  func() kumo.ScheduleEvent { e := hot; e.Fan = "superQuiet"; return e }(),
+		"mode": ev("0700", "dry", 20, 26, "Mo"),
+		"low":  ev("0700", "heat", 19, 26, "Mo"),
+		"high": ev("0700", "heat", 20, 29, "Mo"),
+	} {
+		if _, err := ValidateSchedule([]kumo.ScheduleEvent{e}, lim); !errors.Is(err, ErrInvalid) {
+			t.Errorf("%s: got %v", name, err)
+		}
 	}
 }

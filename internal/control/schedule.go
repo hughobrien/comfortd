@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/hughobrien/comfortd/internal/store"
 	"github.com/hughobrien/comfortd/pkg/kumo"
 )
 
@@ -18,20 +19,51 @@ type ScheduleWriter interface {
 	DeleteScheduleEvents(ctx context.Context, scheduleID string, eventIDs []string) error
 }
 
-var (
-	scheduleModes = []string{"heat", "cool", "auto", "dry", "vent", "off"}
-	scheduleFans  = []string{"auto", "superQuiet", "quiet", "low", "powerful", "superPowerful"}
-	scheduleDays  = []string{"Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"}
-)
+var scheduleDays = []string{"Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"}
 
-const (
-	scheduleMinSp = 10.0
-	scheduleMaxSp = 31.0
-)
+// ScheduleLimits is what one unit lets an event set: its modes (plus off), fan
+// speeds and setpoint range.
+type ScheduleLimits struct {
+	Modes, Fans []Choice
+	Lo, Hi      float64
+}
 
-// ValidateSchedule checks edited events and returns them with fields cleaned
-// (fan and vane defaulted, days in week order). Errors wrap ErrInvalid.
-func ValidateSchedule(events []kumo.ScheduleEvent) ([]kumo.ScheduleEvent, error) {
+// ScheduleLimitsFor derives the limits from the unit's capability profile and
+// status (the same sources the commands use). Anything not yet known falls back
+// to the widest set: every mode and fan speed, 10–31.
+func ScheduleLimitsFor(s store.Snapshot) ScheduleLimits {
+	l := ScheduleLimits{
+		Modes: []Choice{{"heat", "Heat"}, {"cool", "Cool"}, {"auto", "Auto"}, {"dry", "Dry"}, {"vent", "Fan"}},
+		Fans:  FanChoices(5),
+		Lo:    10, Hi: 31,
+	}
+	if s.Profile != nil {
+		if m := ModeChoices(*s.Profile); len(m) > 0 {
+			l.Modes = m
+		}
+		if f := FanChoices(s.Profile.NumberOfFanSpeeds); f != nil {
+			l.Fans = f
+		}
+	}
+	l.Modes = append(slices.Clone(l.Modes), Choice{"off", "Off"})
+	if lo, hi, ok := s.SetpointRange(); ok {
+		l.Lo, l.Hi = lo, hi
+	}
+	return l
+}
+
+func (l ScheduleLimits) hasMode(v string) bool {
+	return slices.ContainsFunc(l.Modes, func(c Choice) bool { return c.Value == v })
+}
+
+func (l ScheduleLimits) hasFan(v string) bool {
+	return slices.ContainsFunc(l.Fans, func(c Choice) bool { return c.Value == v })
+}
+
+// ValidateSchedule checks edited events against the unit's limits and returns
+// them with fields cleaned (fan and vane defaulted, days in week order).
+// Errors wrap ErrInvalid.
+func ValidateSchedule(events []kumo.ScheduleEvent, lim ScheduleLimits) ([]kumo.ScheduleEvent, error) {
 	bad := func(i int, f string, a ...any) error {
 		return fmt.Errorf("%w: row %d: %s", ErrInvalid, i+1, fmt.Sprintf(f, a...))
 	}
@@ -41,13 +73,13 @@ func ValidateSchedule(events []kumo.ScheduleEvent) ([]kumo.ScheduleEvent, error)
 		if _, err := fmt.Sscanf(e.StartTime, "%02d%02d", &h, &m); err != nil || len(e.StartTime) != 4 || h > 23 || m > 59 {
 			return nil, bad(i, "time %q is not HH:MM", e.StartTime)
 		}
-		if !slices.Contains(scheduleModes, e.Mode) {
+		if !lim.hasMode(e.Mode) {
 			return nil, bad(i, "mode %q", e.Mode)
 		}
 		if e.Fan == "" {
 			e.Fan = "auto"
 		}
-		if !slices.Contains(scheduleFans, e.Fan) {
+		if !lim.hasFan(e.Fan) {
 			return nil, bad(i, "fan %q", e.Fan)
 		}
 		if e.Vane == "" {
@@ -67,8 +99,8 @@ func ValidateSchedule(events []kumo.ScheduleEvent) ([]kumo.ScheduleEvent, error)
 			return nil, bad(i, "needs both temperatures")
 		}
 		for _, v := range []float64{*e.SpHeat, *e.SpCool} {
-			if v < scheduleMinSp || v > scheduleMaxSp || v*2 != float64(int(v*2)) {
-				return nil, bad(i, "temperature %.1f must be %.0f–%.0f in steps of 0.5", v, scheduleMinSp, scheduleMaxSp)
+			if v < lim.Lo || v > lim.Hi || v*2 != float64(int(v*2)) {
+				return nil, bad(i, "temperature %.1f must be %g–%g in steps of 0.5", v, lim.Lo, lim.Hi)
 			}
 		}
 		if e.Mode == "auto" && *e.SpCool-*e.SpHeat < MinAutoGap {
@@ -142,7 +174,7 @@ func (c *Controller) ApplySchedule(ctx context.Context, slug string, edited []ku
 	if cur.SeasonID == "" || cur.ScheduleID == "" || snap.Unit.ZoneID == "" {
 		return none, fmt.Errorf("%w: the schedule has no ids to edit", ErrInvalid)
 	}
-	edited, err = ValidateSchedule(edited)
+	edited, err = ValidateSchedule(edited, ScheduleLimitsFor(snap))
 	if err != nil {
 		return none, err
 	}

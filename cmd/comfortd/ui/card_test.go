@@ -184,3 +184,24 @@ func TestCardHoldAndScheduleActive(t *testing.T) {
 		t.Fatalf("hold %q active %v", c.HoldUntil, c.Schedule.Active)
 	}
 }
+
+func TestEditOptsFollowTheUnit(t *testing.T) {
+	prof, err := os.ReadFile("../../../pkg/kumo/kumotest/fixtures/profile_house.json")
+	if err != nil {
+		t.Skip("no house profile fixture")
+	}
+	status := json.RawMessage(`{"minSetPoint":19.5,"maxSetPoint":28}`)
+	sn := fixtureSnap(t, "house", "device_house.json", map[string]json.RawMessage{"profile": prof, "status": status})
+	o := BuildEditOpts(sn)
+	if o.Lo != "19.5" || o.Hi != "28" {
+		t.Fatalf("range %s–%s", o.Lo, o.Hi)
+	}
+	for _, f := range o.Fans {
+		if f.Value == "superQuiet" || f.Value == "superPowerful" {
+			t.Fatalf("3-speed unit offered %s", f.Value)
+		}
+	}
+	if o.Modes[len(o.Modes)-1].Value != "off" {
+		t.Fatalf("modes %+v", o.Modes)
+	}
+}

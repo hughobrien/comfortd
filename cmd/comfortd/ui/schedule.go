@@ -5,9 +5,11 @@ package ui
 import (
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
+	"github.com/hughobrien/comfortd/internal/control"
 	"github.com/hughobrien/comfortd/internal/store"
 	"github.com/hughobrien/comfortd/pkg/kumo"
 )
@@ -174,11 +176,20 @@ type DayChip struct{ Code, Short string }
 
 var DayChips = []DayChip{{"Mo", "M"}, {"Tu", "T"}, {"We", "W"}, {"Th", "T"}, {"Fr", "F"}, {"Sa", "S"}, {"Su", "S"}}
 
-// ScheduleModeChoices and ScheduleFanChoices are what an event can set.
-var (
-	ScheduleModeChoices = []Choice{{Value: "heat", Label: "Heat"}, {Value: "cool", Label: "Cool"}, {Value: "auto", Label: "Auto"}, {Value: "dry", Label: "Dry"}, {Value: "vent", Label: "Fan"}, {Value: "off", Label: "Off"}}
-	ScheduleFanChoices  = []Choice{{Value: "auto", Label: "Auto"}, {Value: "superQuiet", Label: "Quiet"}, {Value: "quiet", Label: "Low"}, {Value: "low", Label: "Medium"}, {Value: "powerful", Label: "High"}, {Value: "superPowerful", Label: "Powerful"}}
-)
+// EditOpts is what the editor offers for one unit: its modes, fan speeds and
+// setpoint range, derived from the unit's own data.
+type EditOpts struct {
+	Modes, Fans []Choice
+	Lo, Hi      string
+}
+
+// BuildEditOpts derives the editor's choices from the snapshot.
+func BuildEditOpts(s store.Snapshot) EditOpts {
+	l := control.ScheduleLimitsFor(s)
+	return EditOpts{Modes: choices(l.Modes, ""), Fans: choices(l.Fans, ""), Lo: fnumStr(l.Lo), Hi: fnumStr(l.Hi)}
+}
+
+func fnumStr(v float64) string { return strconv.FormatFloat(v, 'f', -1, 64) }
 
 // NewEditRow is a blank row: weekdays at 08:00, heat 20.
 func NewEditRow(key string) EditRow {
