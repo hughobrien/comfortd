@@ -4,6 +4,8 @@ package control
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -454,5 +456,25 @@ func TestFanChoicesBySpeedCount(t *testing.T) {
 	}
 	if got := vals(4); got != "" {
 		t.Errorf("4 speeds: %s", got)
+	}
+}
+
+func TestApplyRejectsModeTheProfileLacks(t *testing.T) {
+	r := newRig(t)
+	snap, _ := r.st.Get("office")
+	var ms []map[string]any
+	if err := json.Unmarshal(snap.Raw["profile"], &ms); err != nil {
+		t.Fatal(err)
+	}
+	ms[0]["hasModeDry"] = false
+	raw, _ := json.Marshal(ms)
+	if err := r.st.Put("office", "profile", raw, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.c.Apply("office", Intent{Mode: s("dry")}, "ui"); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("dry accepted without hasModeDry: %v", err)
+	}
+	if err := r.c.Apply("office", Intent{Mode: s("off")}, "ui"); err != nil {
+		t.Fatal(err)
 	}
 }

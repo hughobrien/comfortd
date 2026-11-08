@@ -244,6 +244,9 @@ func (c *Controller) Apply(slug string, in Intent, source string) error {
 		if !slices.Contains(allowedModes, *in.Mode) {
 			return fmt.Errorf("%w: mode %q not allowed", ErrInvalid, *in.Mode)
 		}
+		if snap, ok := c.o.Store.Get(slug); ok && snap.Profile != nil && *in.Mode != "off" && !hasValue(ModeChoices(*snap.Profile), *in.Mode) {
+			return fmt.Errorf("%w: mode %q not supported by this unit", ErrInvalid, *in.Mode)
+		}
 		mode = in.Mode
 	}
 	if in.SpHeat != nil {
