@@ -129,12 +129,14 @@ func TestInvalid(t *testing.T) {
 
 func TestCoalescesBurst(t *testing.T) {
 	r := newRig(t)
+	// Back to back: a sleep between them could outlast the 50 ms window on a
+	// loaded machine and split the burst.
 	for _, v := range []float64{20, 20.5, 21} {
 		r.c.Apply("office", Intent{SpHeat: f(v)}, "ui")
-		time.Sleep(5 * time.Millisecond)
 	}
 	r.c.Apply("office", Intent{Mode: s("heat")}, "ui")
-	time.Sleep(200 * time.Millisecond)
+	eventually(t, 2*time.Second, func() bool { return len(r.srv.Commands()) >= 1 }, "sent")
+	time.Sleep(200 * time.Millisecond) // any stray second command would show by now
 	cmds := r.srv.Commands()
 	if len(cmds) != 1 || len(cmds[0].Commands) != 2 || cmds[0].Commands["operationMode"] != "heat" || cmds[0].Commands["spHeat"] != 21.0 {
 		t.Fatalf("got %+v", cmds)
