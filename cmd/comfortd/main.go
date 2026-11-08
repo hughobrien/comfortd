@@ -154,17 +154,21 @@ func runContext(ctx context.Context, args []string, stdout io.Writer, ready func
 	}
 	hub := newPushHub()
 	var p *poller.Poller
+	var bridge *homekit.Bridge // set before any goroutine that can call OnChange starts
 	ctl := control.New(control.Options{
 		Sender: client, Store: st, History: hist, Writable: splitList(*writable),
 		LastModePath: filepath.Join(*stateDir, "lastmode.json"),
 		Kick:         func(slug string) { p.Kick(slug) },
-		OnChange:     func(slug string) { hub.Publish(pushEvent{Slug: slug}) },
+		OnChange: func(slug string) {
+			hub.Publish(pushEvent{Slug: slug})
+			if bridge != nil {
+				bridge.Sync(slug)
+			}
+		},
 	})
 	st.Subscribe(ctl.Observe) // before the hub and HomeKit, so they see a cleared hold
-	go ctl.Run(ctx)
 	st.Subscribe(func(u store.Update) { hub.Publish(pushEvent{Slug: u.Slug}) })
 	hist.Subscribe(func(r history.Record) { hub.Publish(pushEvent{Record: &r}) })
-	var bridge *homekit.Bridge
 	if slugs := splitList(*hkUnits); len(slugs) > 0 {
 		var sel []store.Unit
 		for _, slug := range slugs {
@@ -182,7 +186,7 @@ func runContext(ctx context.Context, args []string, stdout io.Writer, ready func
 		}
 		bridge, err = homekit.New(homekit.Options{
 			StateDir: *stateDir, BridgeName: *bridgeName, Version: version, Port: *hapPort,
-			Units: sel, Snapshot: st.Get, Interval: *interval, Now: time.Now, ForceStale: force,
+			Units: sel, Snapshot: st.Get, Control: ctl, Interval: *interval, Now: time.Now, ForceStale: force,
 		})
 		if err != nil {
 			slog.Error("homekit", "err", err)
@@ -197,6 +201,7 @@ func runContext(ctx context.Context, args []string, stdout io.Writer, ready func
 		slog.Info("homekit enabled", "units", slugs, "port", *hapPort)
 	}
 	p = poller.New(client, st, *interval)
+	go ctl.Run(ctx)
 	go p.Run(ctx)
 
 	ln, err := net.Listen("tcp", *listen)

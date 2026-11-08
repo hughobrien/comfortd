@@ -102,7 +102,7 @@ func TestSyncUpdates(t *testing.T) {
 
 func TestRemoteWritesRejected(t *testing.T) {
 	b := newBridge(t, fakeSnaps{"office": officeSnap()}, nil)
-	if b.onSetActive("office", 0) != ErrReadOnly || b.onSetTarget("office", 1) != ErrReadOnly || b.onSetThreshold("office", 20) != ErrReadOnly {
+	if b.onSetActive("office", 0) != ErrReadOnly || b.onSetTarget("office", 1) != ErrReadOnly || b.onSetHeatThresh("office", 20) != ErrReadOnly {
 		t.Fatal("writes accepted")
 	}
 	// And they are wired up: a differing remote write is refused with -70402.

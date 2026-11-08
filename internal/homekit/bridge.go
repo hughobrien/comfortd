@@ -17,8 +17,18 @@ import (
 	"github.com/brutella/hap/characteristic"
 	"github.com/brutella/hap/service"
 
+	"github.com/hughobrien/comfortd/internal/control"
 	"github.com/hughobrien/comfortd/internal/store"
 )
+
+// Controller is the write path (internal/control.Controller).
+type Controller interface {
+	Apply(slug string, in control.Intent, source string) error
+	Overlay(s store.Snapshot) store.Snapshot
+	Writable(slug string) bool
+	LastMode(slug string) string
+	PendingMode(slug string) (string, bool)
+}
 
 // ErrReadOnly is returned for every write from Home in this version.
 var ErrReadOnly = errors.New("comfortd: read-only in this version")
@@ -43,6 +53,7 @@ type Options struct {
 	Interval                      time.Duration // poll interval, for staleness
 	Now                           func() time.Time
 	ForceStale                    map[string]bool
+	Control                       Controller // nil = read-only everywhere
 }
 
 type AccessoryInfo struct {
@@ -140,16 +151,57 @@ func (b *Bridge) buildUnit(u store.Unit, aid uint64) *unitAcc {
 	slug := u.Slug
 	hc.Active.OnSetRemoteValue(func(v int) error { return b.onSetActive(slug, v) })
 	hc.TargetHeaterCoolerState.OnSetRemoteValue(func(v int) error { return b.onSetTarget(slug, v) })
-	thresh.OnSetRemoteValue(func(v float64) error { return b.onSetThreshold(slug, v) })
+	thresh.OnSetRemoteValue(func(v float64) error { return b.onSetHeatThresh(slug, v) })
 	for _, c := range []*characteristic.C{hc.Active.C, hc.CurrentHeaterCoolerState.C, hc.TargetHeaterCoolerState.C, hc.CurrentTemperature.C, thresh.C} {
 		c.ValueRequestFunc = b.valueRequest(slug, c)
 	}
 	return ua
 }
 
-func (b *Bridge) onSetActive(slug string, v int) error        { return ErrReadOnly }
-func (b *Bridge) onSetTarget(slug string, v int) error        { return ErrReadOnly }
-func (b *Bridge) onSetThreshold(slug string, v float64) error { return ErrReadOnly }
+// writable reports whether Home may write to slug.
+func (b *Bridge) writable(slug string) bool {
+	return b.o.Control != nil && b.o.Control.Writable(slug)
+}
+
+func (b *Bridge) onSetActive(slug string, v int) error {
+	if !b.writable(slug) {
+		return ErrReadOnly
+	}
+	ctl := b.o.Control
+	if v == 0 {
+		off := "off"
+		return ctl.Apply(slug, control.Intent{Mode: &off}, "homekit")
+	}
+	// A mode already queued in this window (e.g. Target Heat) wins.
+	if _, queued := ctl.PendingMode(slug); queued {
+		return nil
+	}
+	if snap, ok := b.o.Snapshot(slug); ok && snap.Device != nil {
+		if d := ctl.Overlay(snap).Device; d.Power == 1 && d.OperationMode != "off" {
+			return nil // already on, possibly in a mode we don't map to Heat
+		}
+	}
+	mode := ctl.LastMode(slug)
+	return ctl.Apply(slug, control.Intent{Mode: &mode}, "homekit")
+}
+
+func (b *Bridge) onSetTarget(slug string, v int) error {
+	if !b.writable(slug) {
+		return ErrReadOnly
+	}
+	if v != TargetHeat {
+		return fmt.Errorf("%w: target state %d", control.ErrInvalid, v)
+	}
+	heat := "heat"
+	return b.o.Control.Apply(slug, control.Intent{Mode: &heat}, "homekit")
+}
+
+func (b *Bridge) onSetHeatThresh(slug string, v float64) error {
+	if !b.writable(slug) {
+		return ErrReadOnly
+	}
+	return b.o.Control.Apply(slug, control.Intent{SpHeat: &v}, "homekit")
+}
 
 func (b *Bridge) valueRequest(slug string, c *characteristic.C) func(*http.Request) (interface{}, int) {
 	return func(*http.Request) (interface{}, int) {
@@ -180,6 +232,9 @@ func (b *Bridge) Sync(slug string) {
 	snap, ok := b.o.Snapshot(slug)
 	if !ok || snap.Device == nil {
 		return
+	}
+	if b.o.Control != nil {
+		snap = b.o.Control.Overlay(snap)
 	}
 	b.mu.Lock()
 	defer b.mu.Unlock()

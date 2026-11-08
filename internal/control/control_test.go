@@ -269,3 +269,16 @@ func TestNoSendWithoutApply(t *testing.T) {
 		t.Fatalf("%d commands", n)
 	}
 }
+
+func TestPendingMode(t *testing.T) {
+	r := newRig(t)
+	if _, ok := r.c.PendingMode("office"); ok {
+		t.Fatal("pending before apply")
+	}
+	r.c.Apply("office", Intent{Mode: s("vent")}, "ui")
+	if m, ok := r.c.PendingMode("office"); !ok || m != "vent" {
+		t.Fatalf("got %q %v", m, ok)
+	}
+	eventually(t, time.Second, func() bool { return len(r.srv.Commands()) == 1 }, "sent")
+	eventually(t, time.Second, func() bool { _, ok := r.c.PendingMode("office"); return !ok }, "no longer queued once sent")
+}

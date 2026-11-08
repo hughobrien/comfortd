@@ -202,6 +202,19 @@ func (c *Controller) LastMode(slug string) string {
 	return "heat"
 }
 
+// PendingMode returns a mode that is queued but not yet sent.
+func (c *Controller) PendingMode(slug string) (string, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if st := c.units[slug]; st != nil {
+		if f := st.fields[fieldMode]; f != nil && !f.sent {
+			m, _ := f.val.(string)
+			return m, true
+		}
+	}
+	return "", false
+}
+
 // Overlay returns s with pending values in place of the polled ones.
 func (c *Controller) Overlay(s store.Snapshot) store.Snapshot {
 	if s.Device == nil {
