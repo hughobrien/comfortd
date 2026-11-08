@@ -64,14 +64,14 @@ details.unknown { margin-bottom:.5rem; }
 .dial { display:flex; flex-direction:column; align-items:center; }
 .dials { display:flex; gap:.5rem; justify-content:space-around; flex-wrap:wrap; }
 .dials .ctrl { margin:.4rem 0; }
-.dial svg { width:22rem; max-width:100%; height:auto; aspect-ratio:180/122; }
+.dial svg { width:22rem; max-width:100%; height:auto; aspect-ratio:180/134; }
 .dial path { fill:var(--border); cursor:pointer; outline:none; }
 .dial path:hover { fill:var(--hl); }
 .dial path.lit { fill:var(--on); opacity:.55; }
 .dial path[aria-pressed="true"] { fill:var(--on); opacity:1; }
 .dial path:focus-visible { stroke:var(--fg); stroke-width:1.5; }
 .dial path.pending { stroke:var(--weak); stroke-dasharray:3 2; stroke-width:1.5; }
-.dial text.center { fill:var(--fg); font-size:12px; font-weight:600; }
+.dial text.center { fill:var(--fg); font-size:9px; }
 .dial text.wl { fill:var(--weak); font-size:9px; pointer-events:none; }
 .dial-btns { margin-top:.1rem; }
 .dial-btns button { flex:0 1 auto; font-size:.75rem; padding:.15rem .45rem; }
@@ -81,3 +81,4 @@ details.unknown { margin-bottom:.5rem; }
 .dial circle.hub[aria-pressed="true"] + text.center { fill:#fff; }
 .dial circle.hub.pending { stroke:var(--weak); stroke-dasharray:3 2; }
 .dial text.center { pointer-events:none; }
+.dials .ctrl-label { text-align:center; }

@@ -44,7 +44,7 @@ func dialSplit(opts []ui.Choice, extra ...string) (wedges, buttons []ui.Choice) 
 // bottom choices (e.g. swing) share the gap at the bottom.
 func dialArcs(wedges []ui.Choice, cumulative bool, bottom []ui.Choice) []Arc {
 	const (
-		cx, cy       = 90.0, 64.0
+		cx, cy       = 90.0, 70.0
 		outer, inner = 46.0, 28.0
 		start, sweep = 210.0, 300.0
 		gap          = 3.0
@@ -62,13 +62,13 @@ func dialArcs(wedges []ui.Choice, cumulative bool, bottom []ui.Choice) []Arc {
 		d := fmt.Sprintf("M%.2f %.2fA%.0f %.0f 0 0 1 %.2f %.2fL%.2f %.2fA%.0f %.0f 0 0 0 %.2f %.2fZ",
 			ox0, oy0, outer, outer, ox1, oy1, ix1, iy1, inner, inner, ix0, iy0)
 		mid := (a0 + a1) / 2
-		lx, ly := pt(outer+5, mid)
-		anchor := "middle"
+		anchor, off := "middle", 10.0 // top and bottom labels need more room
 		if sn := math.Sin(mid * math.Pi / 180); sn > 0.3 {
-			anchor = "start"
+			anchor, off = "start", 5
 		} else if sn < -0.3 {
-			anchor = "end"
+			anchor, off = "end", 5
 		}
+		lx, ly := pt(outer+off, mid)
 		return Arc{Choice: w, Path: d, Lit: lit, LX: lx, LY: ly, Anchor: anchor}
 	}
 	cur := -1
