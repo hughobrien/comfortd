@@ -499,26 +499,30 @@ func TestSpCoolWithoutProfile(t *testing.T) {
 }
 
 // Apply checks each setpoint against the unit's limits for the mode it is
-// for (House's profile: heat 10–28, cool 19–30, auto 19–28; its status says
-// 19.5–28, which must not cap heat or cool).
+// for. With House's profile alone (heat 10–28, cool 19–30, auto 19–28) a low
+// cool setpoint must not pass on the heat range; with its status range
+// (19.5–28) as well, that narrower range holds for every mode.
 func TestApplyPerModeRanges(t *testing.T) {
 	prof, err := os.ReadFile("../../pkg/kumo/kumotest/fixtures/profile_house.json")
 	if err != nil {
 		t.Fatal(err)
 	}
 	for _, tc := range []struct {
-		name string
-		mode string // the unit's current mode
-		in   Intent
-		ok   bool
+		name   string
+		mode   string // the unit's current mode
+		in     Intent
+		ok     bool
+		status bool // also store House's status range
 	}{
-		{"heat low", "heat", Intent{SpHeat: f(12)}, true},
-		{"heat above max", "heat", Intent{SpHeat: f(28.5)}, false},
-		{"cool high", "cool", Intent{SpCool: f(30)}, true},
-		{"cool below cool min", "cool", Intent{SpCool: f(18)}, false},
-		{"switch to cool with cool setpoint", "heat", Intent{Mode: s("cool"), SpCool: f(29.5)}, true},
-		{"auto below auto min", "auto", Intent{SpHeat: f(18)}, false},
-		{"auto heat pushes cool within auto max", "auto", Intent{SpHeat: f(27)}, false},
+		{"heat low, profile only", "heat", Intent{SpHeat: f(12)}, true, false},
+		{"heat low, status says 19.5", "heat", Intent{SpHeat: f(12)}, false, true},
+		{"heat above max", "heat", Intent{SpHeat: f(28.5)}, false, false},
+		{"cool high, profile only", "cool", Intent{SpCool: f(30)}, true, false},
+		{"cool high, status says 28", "cool", Intent{SpCool: f(30)}, false, true},
+		{"cool below cool min (heat range would allow it)", "cool", Intent{SpCool: f(18)}, false, false},
+		{"switch to cool with cool setpoint", "heat", Intent{Mode: s("cool"), SpCool: f(29.5)}, true, false},
+		{"auto below auto min", "auto", Intent{SpHeat: f(18)}, false, false},
+		{"auto heat pushes cool past auto max", "auto", Intent{SpHeat: f(27)}, false, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			st := store.New([]store.Unit{{Slug: "house", Serial: "x"}})
@@ -526,8 +530,10 @@ func TestApplyPerModeRanges(t *testing.T) {
 			if err := st.Put("house", store.EndpointProfile, prof, now); err != nil {
 				t.Fatal(err)
 			}
-			if err := st.Put("house", store.EndpointStatus, []byte(`{"minSetPoint":19.5,"maxSetPoint":28}`), now); err != nil {
-				t.Fatal(err)
+			if tc.status {
+				if err := st.Put("house", store.EndpointStatus, []byte(`{"minSetPoint":19.5,"maxSetPoint":28}`), now); err != nil {
+					t.Fatal(err)
+				}
 			}
 			dev := `{"operationMode":"` + tc.mode + `","power":1,"spHeat":20,"spCool":25}`
 			if err := st.Put("house", store.EndpointDevice, []byte(dev), now); err != nil {

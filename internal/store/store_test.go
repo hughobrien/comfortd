@@ -96,9 +96,11 @@ func TestSetpointRangePerMode(t *testing.T) {
 		lo, hi float64
 		ok     bool
 	}{
-		{"profile heat", Snapshot{Profile: prof, Raw: status}, "heat", 10, 28, true},
-		{"profile cool", Snapshot{Profile: prof, Raw: status}, "cool", 19, 30, true},
-		{"profile auto", Snapshot{Profile: prof, Raw: status}, "auto", 19, 28, true},
+		{"profile heat, narrowed by status", Snapshot{Profile: prof, Raw: status}, "heat", 19.5, 28, true},
+		{"profile heat alone", Snapshot{Profile: prof}, "heat", 10, 28, true},
+		{"profile cool, narrowed by status", Snapshot{Profile: prof, Raw: status}, "cool", 19.5, 28, true},
+		{"profile cool alone", Snapshot{Profile: prof}, "cool", 19, 30, true},
+		{"profile auto, narrowed by status", Snapshot{Profile: prof, Raw: status}, "auto", 19.5, 28, true},
 		{"profile without the key", Snapshot{Profile: &kumo.Profile{}, Raw: status}, "cool", 0, 0, false},
 		{"status only", Snapshot{Raw: status}, "cool", 19.5, 28, true},
 		{"nothing", Snapshot{}, "heat", 0, 0, false},

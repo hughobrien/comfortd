@@ -67,24 +67,32 @@ type Snapshot struct {
 }
 
 // SetpointRange is the setpoint range the unit allows under a profile limit
-// key ("heat", "cool" or "auto"): the capability profile's per-mode limits.
-// Without a profile it falls back to the adapter's minSetPoint/maxSetPoint
-// from the status endpoint, which is one range for every mode (House reports
-// 19.5–28 there while its profile allows heat from 10).
+// key ("heat", "cool" or "auto"): the capability profile's limits for that
+// key, narrowed to the adapter's minSetPoint/maxSetPoint from the status
+// endpoint when it has them (House's status says 19.5–28, inside every one of
+// its profile ranges; what the unit does outside it is untested). With no
+// profile, the status range alone.
 func (s Snapshot) SetpointRange(key string) (lo, hi float64, ok bool) {
-	if s.Profile != nil {
-		lo, hasLo := s.Profile.Min[key]
-		hi, hasHi := s.Profile.Max[key]
-		return lo, hi, hasLo && hasHi && lo < hi
-	}
 	var st struct {
 		Min *float64 `json:"minSetPoint"`
 		Max *float64 `json:"maxSetPoint"`
 	}
-	if json.Unmarshal(s.Raw[EndpointStatus], &st) == nil && st.Min != nil && st.Max != nil && *st.Min < *st.Max {
-		return *st.Min, *st.Max, true
+	hasStatus := json.Unmarshal(s.Raw[EndpointStatus], &st) == nil && st.Min != nil && st.Max != nil && *st.Min < *st.Max
+	if s.Profile == nil {
+		if hasStatus {
+			return *st.Min, *st.Max, true
+		}
+		return 0, 0, false
 	}
-	return 0, 0, false
+	lo, hasLo := s.Profile.Min[key]
+	hi, hasHi := s.Profile.Max[key]
+	if !hasLo || !hasHi {
+		return 0, 0, false
+	}
+	if hasStatus {
+		lo, hi = max(lo, *st.Min), min(hi, *st.Max)
+	}
+	return lo, hi, lo < hi
 }
 
 // Stale reports whether the device data is too old or the unit is offline.
