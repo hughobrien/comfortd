@@ -67,7 +67,7 @@ in {
     writableUnits = lib.mkOption {
       type = lib.types.listOf lib.types.str;
       default = [ ];
-      description = "Unit slugs allowed to receive commands (not implemented yet).";
+      description = "Unit slugs allowed to receive commands (web UI and API). Empty = read-only.";
     };
 
     openFirewall = lib.mkOption {
@@ -84,13 +84,6 @@ in {
   };
 
   config = lib.mkIf cfg.enable {
-    assertions = [
-      {
-        assertion = cfg.writableUnits == [ ];
-        message = "comfortd: writableUnits not implemented yet";
-      }
-    ];
-
     users.users.comfortd = {
       isSystemUser = true;
       group = "comfortd";
@@ -111,6 +104,8 @@ in {
           "--state-dir" "/var/lib/comfortd"
           "--credentials" "%d/credentials"
           "--poll-interval" cfg.pollInterval
+        ] ++ lib.optionals (cfg.writableUnits != [ ]) [
+          "--writable-units" (lib.escapeShellArg (lib.concatStringsSep "," cfg.writableUnits))
         ] ++ lib.optionals cfg.homekit.enable [
           "--hap-port" (toString cfg.homekit.port)
           "--homekit-units" (lib.escapeShellArg (lib.concatStringsSep "," cfg.homekit.units))

@@ -9,17 +9,35 @@ templ Card(c ui.CardView) {
 		if c.Stale {
 			<p class="stale-banner">stale: no fresh data since { c.LastOK }</p>
 		}
-		<div class="big">{ c.Mode }</div>
+		<div class="big">{ c.Mode } @pendingBadge(c, "operationMode")</div>
 		<dl>
 			<dt>Power</dt><dd>{ c.Power }</dd>
 			<dt>Room</dt><dd>{ c.RoomTemp } °C</dd>
-			<dt>Heat to</dt><dd>{ c.SpHeat } °C</dd>
+			<dt>Heat to</dt><dd>{ c.SpHeat } °C @pendingBadge(c, "spHeat")</dd>
 			<dt>Cool to</dt><dd>{ c.SpCool } °C</dd>
 			<dt>Humidity</dt><dd>{ c.Humidity }</dd>
 			<dt>Schedule</dt><dd>{ yesNo(c.ScheduleActive) }{ holdSuffix(c.HoldEnabled) }</dd>
 			<dt>Adapter</dt><dd>{ connText(c.Connected) }</dd>
 		</dl>
+		if c.Control.LastError != "" {
+			<p class="ctl-error">last command failed: { c.Control.LastError }</p>
+		}
+		if c.Control.Writable {
+			<div class="controls">
+				<button data-on:click={ "@post('/ui/units/" + c.Slug + "/mode?m=off')" }>Off</button>
+				<button data-on:click={ "@post('/ui/units/" + c.Slug + "/mode?m=heat')" }>Heat</button>
+				<button data-on:click={ "@post('/ui/units/" + c.Slug + "/mode?m=vent')" }>Fan only</button>
+				<button data-on:click={ "@post('/ui/units/" + c.Slug + "/spheat?delta=-0.5')" }>−</button>
+				<button data-on:click={ "@post('/ui/units/" + c.Slug + "/spheat?delta=0.5')" }>+</button>
+			</div>
+		}
 	</div>
+}
+
+templ pendingBadge(c ui.CardView, field string) {
+	if _, ok := c.Control.Pending[field]; ok {
+		<span class="pending">pending</span>
+	}
 }
 
 func yesNo(b bool) string {

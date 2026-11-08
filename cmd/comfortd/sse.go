@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/hughobrien/comfortd/cmd/comfortd/ui"
 	"github.com/hughobrien/comfortd/cmd/comfortd/ui/templates"
 	"github.com/starfederation/datastar-go/datastar"
 )
@@ -88,7 +87,7 @@ func (d deps) emit(sse *datastar.ServerSentEventGenerator, ev pushEvent) error {
 		return nil
 	}
 	now := d.Now()
-	v := ui.BuildUnitView(sn, d.changed(sn.Unit.Slug, now), now, d.Interval, d.Ann, ui.CardControl{})
+	v := d.viewFor(sn, now)
 	return sse.PatchElementTempl(templates.UnitSection(v),
 		datastar.WithSelectorf("#unit-%s", v.Slug), datastar.WithModeOuter(),
 		datastar.WithPatchElementsEventID("unit:"+v.Slug))

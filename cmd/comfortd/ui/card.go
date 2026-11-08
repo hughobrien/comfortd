@@ -10,7 +10,7 @@ import (
 	"github.com/hughobrien/comfortd/internal/store"
 )
 
-// CardControl carries control state into the card. Segment 5 fills it.
+// CardControl carries control state into the card.
 type CardControl struct {
 	Writable  bool
 	Pending   map[string]string // field → display value
@@ -18,6 +18,7 @@ type CardControl struct {
 }
 
 type CardView struct {
+	Slug                                            string
 	Control                                         CardControl
 	Mode, Power, SpHeat, SpCool, RoomTemp, Humidity string // "–" when missing
 	Connected, Stale, ScheduleActive, HoldEnabled   bool
@@ -34,7 +35,7 @@ func fmtTemp(v *float64) string {
 }
 
 func BuildCard(s store.Snapshot, ann *annotate.Set, ctl CardControl, now time.Time, interval time.Duration) CardView {
-	c := CardView{Control: ctl, Mode: dash, Power: dash, SpHeat: dash, SpCool: dash, RoomTemp: dash, Humidity: dash,
+	c := CardView{Slug: s.Unit.Slug, Control: ctl, Mode: dash, Power: dash, SpHeat: dash, SpCool: dash, RoomTemp: dash, Humidity: dash,
 		Stale: s.Stale(now, interval), LastOK: "never"}
 	if !s.LastDeviceOK.IsZero() {
 		c.LastOK = s.LastDeviceOK.Local().Format("15:04:05")

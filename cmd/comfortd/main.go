@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/hughobrien/comfortd/internal/annotate"
+	"github.com/hughobrien/comfortd/internal/control"
 	"github.com/hughobrien/comfortd/internal/history"
 	"github.com/hughobrien/comfortd/internal/homekit"
 	"github.com/hughobrien/comfortd/internal/poller"
@@ -81,6 +82,7 @@ func runContext(ctx context.Context, args []string, stdout io.Writer, ready func
 	fake := fs.Bool("fake", false, "run against an in-process fake Kumo server")
 	hapPort := fs.Int("hap-port", 0, "HomeKit (HAP) TCP port; 0 = ephemeral")
 	hkUnits := fs.String("homekit-units", envOr("homekit-units", ""), "comma-separated unit slugs to expose to HomeKit; empty = HomeKit off")
+	writable := fs.String("writable-units", envOr("writable-units", ""), "comma-separated unit slugs that may receive commands; empty = read-only")
 	bridgeName := fs.String("bridge-name", "comfortd", "HomeKit bridge name")
 	forceStale := fs.String("force-stale", "", "debug: comma-separated unit slugs HomeKit treats as stale (to check \"No Response\")")
 	if v := os.Getenv("COMFORTD_POLL_INTERVAL"); v != "" {
@@ -151,6 +153,15 @@ func runContext(ctx context.Context, args []string, stdout io.Writer, ready func
 		return 1
 	}
 	hub := newPushHub()
+	var p *poller.Poller
+	ctl := control.New(control.Options{
+		Sender: client, Store: st, History: hist, Writable: splitList(*writable),
+		LastModePath: filepath.Join(*stateDir, "lastmode.json"),
+		Kick:         func(slug string) { p.Kick(slug) },
+		OnChange:     func(slug string) { hub.Publish(pushEvent{Slug: slug}) },
+	})
+	st.Subscribe(ctl.Observe) // before the hub and HomeKit, so they see a cleared hold
+	go ctl.Run(ctx)
 	st.Subscribe(func(u store.Update) { hub.Publish(pushEvent{Slug: u.Slug}) })
 	hist.Subscribe(func(r history.Record) { hub.Publish(pushEvent{Record: &r}) })
 	var bridge *homekit.Bridge
@@ -185,7 +196,7 @@ func runContext(ctx context.Context, args []string, stdout io.Writer, ready func
 		}()
 		slog.Info("homekit enabled", "units", slugs, "port", *hapPort)
 	}
-	p := poller.New(client, st, *interval)
+	p = poller.New(client, st, *interval)
 	go p.Run(ctx)
 
 	ln, err := net.Listen("tcp", *listen)
@@ -194,7 +205,7 @@ func runContext(ctx context.Context, args []string, stdout io.Writer, ready func
 		return 1
 	}
 	httpSrv := &http.Server{
-		Handler:           newMux(deps{Store: st, History: hist, Ann: ann, Homekit: bridge, Hub: hub, Interval: *interval, Now: time.Now}),
+		Handler:           newMux(deps{Store: st, History: hist, Ann: ann, Homekit: bridge, Ctl: ctl, Hub: hub, Interval: *interval, Now: time.Now}),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 	slog.Info("listening", "addr", ln.Addr().String())

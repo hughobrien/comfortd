@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/hughobrien/comfortd/internal/annotate"
+	"github.com/hughobrien/comfortd/internal/control"
 	"github.com/hughobrien/comfortd/internal/history"
 	"github.com/hughobrien/comfortd/internal/homekit"
 	"github.com/hughobrien/comfortd/internal/store"
@@ -22,7 +23,8 @@ type deps struct {
 	History  *history.Log
 	Hub      *pushHub
 	Ann      *annotate.Set
-	Homekit  *homekit.Bridge // nil when HomeKit is off
+	Homekit  *homekit.Bridge     // nil when HomeKit is off
+	Ctl      *control.Controller // nil when control is off
 	Interval time.Duration
 	Now      func() time.Time
 }
@@ -35,6 +37,8 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 
 func newMux(d deps) *http.ServeMux {
 	mux := http.NewServeMux()
+
+	d.registerControl(mux)
 
 	mux.HandleFunc("GET /homekit", func(w http.ResponseWriter, r *http.Request) {
 		if d.Homekit == nil {

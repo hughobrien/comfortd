@@ -4,6 +4,7 @@ package main
 
 import (
 	"embed"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -11,6 +12,7 @@ import (
 	"github.com/hughobrien/comfortd/cmd/comfortd/ui"
 	"github.com/hughobrien/comfortd/cmd/comfortd/ui/templates"
 	"github.com/hughobrien/comfortd/internal/history"
+	"github.com/hughobrien/comfortd/internal/store"
 )
 
 // datastarFile is the vendored datastar bundle; see ui/vendor/README.md.
@@ -36,9 +38,25 @@ func (d deps) unitViews() []ui.UnitView {
 	now := d.Now()
 	var out []ui.UnitView
 	for _, sn := range d.Store.All() {
-		out = append(out, ui.BuildUnitView(sn, d.changed(sn.Unit.Slug, now), now, d.Interval, d.Ann, ui.CardControl{}))
+		out = append(out, d.viewFor(sn, now))
 	}
 	return out
+}
+
+// viewFor builds a unit's view with pending control state overlaid.
+func (d deps) viewFor(sn store.Snapshot, now time.Time) ui.UnitView {
+	var cc ui.CardControl
+	if d.Ctl != nil {
+		slug := sn.Unit.Slug
+		cc.Writable = d.Ctl.Writable(slug)
+		cc.LastError = d.Ctl.LastError(slug)
+		cc.Pending = map[string]string{}
+		for k, v := range d.Ctl.Pending(slug) {
+			cc.Pending[k] = fmt.Sprint(v)
+		}
+		sn = d.Ctl.Overlay(sn)
+	}
+	return ui.BuildUnitView(sn, d.changed(sn.Unit.Slug, now), now, d.Interval, d.Ann, cc)
 }
 
 func (d deps) changed(slug string, now time.Time) func(string) map[string]bool {
