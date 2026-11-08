@@ -70,3 +70,15 @@ func TestFanSpeedMapping(t *testing.T) {
 		}
 	}
 }
+
+func TestFromDeviceModeSwitches(t *testing.T) {
+	for mode, want := range map[string][2]bool{"dry": {true, false}, "vent": {false, true}, "heat": {false, false}, "off": {false, false}} {
+		st := FromDevice(kumo.Device{OperationMode: mode, Power: 1}, allowedTargets)
+		if st.Dry != want[0] || st.FanOnly != want[1] {
+			t.Errorf("%s: dry=%v fan=%v", mode, st.Dry, st.FanOnly)
+		}
+	}
+	if st := FromDevice(kumo.Device{OperationMode: "dry", Power: 0}, allowedTargets); st.Dry {
+		t.Error("power off should clear the Dry switch")
+	}
+}

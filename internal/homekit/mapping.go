@@ -25,14 +25,15 @@ const (
 // HKState is what a device looks like to HomeKit. Nil pointers mean
 // "leave the characteristic as it is".
 type HKState struct {
-	Active      int
-	Current     int
-	Target      *int
-	HeatThresh  *float64
-	CoolThresh  *float64
-	CurrentTemp *float64
-	Speed       *float64 // Rotation Speed 20..100; nil when the fan is on auto or unknown
-	Swing       int      // 0 off, 1 swinging
+	Active       int
+	Current      int
+	Target       *int
+	HeatThresh   *float64
+	CoolThresh   *float64
+	CurrentTemp  *float64
+	Speed        *float64 // Rotation Speed 20..100; nil when the fan is on auto or unknown
+	Swing        int      // 0 off, 1 swinging
+	Dry, FanOnly bool     // the Dry and Fan only switches
 }
 
 // fanSteps are the manual fan speeds, slowest first. Rotation Speed is
@@ -67,6 +68,7 @@ func FromDevice(d kumo.Device, allowedTargets []int) HKState {
 		return st
 	}
 	st.Active = 1
+	st.Dry, st.FanOnly = d.OperationMode == "dry", d.OperationMode == "vent"
 	target := -1
 	switch d.OperationMode {
 	case "heat":

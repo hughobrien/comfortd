@@ -43,7 +43,7 @@ const (
 
 // allowedTargets are the TargetHeaterCoolerState values Home may set: Auto,
 // Heat and Cool. Dry and fan-only have no HeaterCooler equivalent; they show
-// as active/idle and are set from the web UI.
+// as active/idle there and have their own switches.
 var allowedTargets = []int{TargetAuto, TargetHeat, TargetCool}
 
 type Options struct {
@@ -72,6 +72,8 @@ type unitAcc struct {
 	cool   *characteristic.CoolingThresholdTemperature
 	speed  *characteristic.RotationSpeed
 	swing  *characteristic.SwingMode
+	dry    *service.Switch // on while the unit is in dry mode
+	fan    *service.Switch // on while the unit is in fan-only mode
 }
 
 type Bridge struct {
@@ -164,8 +166,11 @@ func (b *Bridge) buildUnit(u store.Unit, aid uint64) *unitAcc {
 	swing := characteristic.NewSwingMode()
 	hc.AddC(swing.C)
 	acc.AddS(hc.S)
+	dry, fan := modeSwitch("Dry"), modeSwitch("Fan only")
+	acc.AddS(dry.S)
+	acc.AddS(fan.S)
 
-	ua := &unitAcc{unit: u, aid: aid, acc: acc, hc: hc, thresh: thresh, cool: cool, speed: speed, swing: swing}
+	ua := &unitAcc{unit: u, aid: aid, acc: acc, hc: hc, thresh: thresh, cool: cool, speed: speed, swing: swing, dry: dry, fan: fan}
 	slug := u.Slug
 	hc.Active.OnSetRemoteValue(func(v int) error { return b.onSetActive(slug, v) })
 	hc.TargetHeaterCoolerState.OnSetRemoteValue(func(v int) error { return b.onSetTarget(slug, v) })
@@ -173,10 +178,24 @@ func (b *Bridge) buildUnit(u store.Unit, aid uint64) *unitAcc {
 	cool.OnSetRemoteValue(func(v float64) error { return b.onSetCoolThresh(slug, v) })
 	speed.OnSetRemoteValue(func(v float64) error { return b.onSetSpeed(slug, v) })
 	swing.OnSetRemoteValue(func(v int) error { return b.onSetSwing(slug, v) })
-	for _, c := range []*characteristic.C{hc.Active.C, hc.CurrentHeaterCoolerState.C, hc.TargetHeaterCoolerState.C, hc.CurrentTemperature.C, thresh.C, cool.C, speed.C, swing.C} {
+	dry.On.OnSetRemoteValue(func(v bool) error { return b.onSetModeSwitch(slug, "dry", v) })
+	fan.On.OnSetRemoteValue(func(v bool) error { return b.onSetModeSwitch(slug, "vent", v) })
+	for _, c := range []*characteristic.C{dry.On.C, fan.On.C, hc.Active.C, hc.CurrentHeaterCoolerState.C, hc.TargetHeaterCoolerState.C, hc.CurrentTemperature.C, thresh.C, cool.C, speed.C, swing.C} {
 		c.ValueRequestFunc = b.valueRequest(slug, c)
 	}
 	return ua
+}
+
+// modeSwitch is a named on/off switch for a mode the HeaterCooler can't show.
+func modeSwitch(name string) *service.Switch {
+	sw := service.NewSwitch()
+	n := characteristic.NewName()
+	n.SetValue(name)
+	sw.AddC(n.C)
+	cn := characteristic.NewConfiguredName()
+	cn.SetValue(name)
+	sw.AddC(cn.C)
+	return sw
 }
 
 // writable reports whether Home may write to slug.
@@ -204,6 +223,26 @@ func (b *Bridge) onSetActive(slug string, v int) error {
 	}
 	mode := ctl.LastMode(slug)
 	return ctl.Apply(slug, control.Intent{Mode: &mode}, "homekit")
+}
+
+// onSetModeSwitch: on selects mode (dry or vent); off turns the unit off, but
+// only if it is in that mode (a stale "off" must not stop another mode).
+func (b *Bridge) onSetModeSwitch(slug, mode string, on bool) error {
+	if !b.writable(slug) {
+		return ErrReadOnly
+	}
+	ctl := b.o.Control
+	if on {
+		return ctl.Apply(slug, control.Intent{Mode: &mode}, "homekit")
+	}
+	if snap, ok := b.o.Snapshot(slug); ok && snap.Device != nil {
+		d := ctl.Overlay(snap).Device
+		if d.Power != 1 || d.OperationMode != mode {
+			return nil
+		}
+	}
+	off := "off"
+	return ctl.Apply(slug, control.Intent{Mode: &off}, "homekit")
 }
 
 func (b *Bridge) onSetTarget(slug string, v int) error {
@@ -315,6 +354,8 @@ func (b *Bridge) Sync(slug string) {
 		ua.speed.SetValue(*st.Speed)
 	}
 	ua.swing.SetValue(st.Swing)
+	ua.dry.On.SetValue(st.Dry)
+	ua.fan.On.SetValue(st.FanOnly)
 	ua.hc.Active.SetValue(st.Active)
 	ua.hc.CurrentHeaterCoolerState.SetValue(st.Current)
 	if st.Target != nil {

@@ -258,3 +258,34 @@ func TestTargetStatesAndCoolThreshold(t *testing.T) {
 		t.Fatalf("sent %+v", cmds[n])
 	}
 }
+
+func TestModeSwitches(t *testing.T) {
+	r := newCtlRig(t, "heat")
+	if err := r.b.onSetModeSwitch("office", "dry", true); err != nil {
+		t.Fatal(err)
+	}
+	cmds := r.waitCommands(t, 1)
+	if cmds[0].Commands["operationMode"] != "dry" {
+		t.Fatalf("got %+v", cmds)
+	}
+	r.p.PollOnce(context.Background())
+	if !r.b.by["office"].dry.On.Value() || r.b.by["office"].fan.On.Value() {
+		t.Fatal("dry switch should be on, fan off")
+	}
+	// Off for a mode the unit is not in does nothing.
+	if err := r.b.onSetModeSwitch("office", "vent", false); err != nil {
+		t.Fatal(err)
+	}
+	r.waitCommands(t, 1)
+	// Off for the current mode turns the unit off.
+	if err := r.b.onSetModeSwitch("office", "dry", false); err != nil {
+		t.Fatal(err)
+	}
+	cmds = r.waitCommands(t, 2)
+	if cmds[1].Commands["operationMode"] != "off" {
+		t.Fatalf("got %+v", cmds)
+	}
+	if err := r.b.onSetModeSwitch("house", "dry", true); !errors.Is(err, ErrReadOnly) {
+		t.Fatalf("got %v", err)
+	}
+}
