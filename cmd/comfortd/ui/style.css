@@ -124,3 +124,5 @@ details.unknown { margin-bottom:.5rem; }
 .schedule-table th { text-align:left; color:var(--weak); font-weight:500; font-size:.75rem; padding:.1rem .4rem .1rem 0; }
 .schedule-table td { padding:.15rem .4rem .15rem 0; }
 .schedule-table tr.next td { font-weight:600; background:var(--hl); }
+.hold-flag { font-size:.75rem; font-weight:600; padding:.05rem .5rem; margin-left:.5rem; border-radius:3px; border:1.5px solid #e8832e; color:#e8832e; }
+.room .rh { font-size:.8rem; color:var(--weak); margin-top:.1rem; }

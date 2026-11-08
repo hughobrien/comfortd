@@ -43,14 +43,6 @@ templ Card(c ui.CardView) {
 				</div>
 			}
 		</div>
-		<details class="kv" data-preserve-attr="open">
-			<summary>Status</summary>
-			<div class="row"><span>Power</span><span>{ c.Power }</span></div>
-			<div class="row"><span>Heat to / cool to</span><span>{ c.SpHeat } / { c.SpCool } °C</span></div>
-			<div class="row"><span>Humidity</span><span>{ c.Humidity }</span></div>
-			<div class="row"><span>Schedule</span><span>{ yesNo(c.ScheduleActive) }{ holdSuffix(c.HoldEnabled) }</span></div>
-			<div class="row"><span>Adapter</span><span>{ connText(c.Connected) }</span></div>
-		</details>
 		@scheduleSection(c.Schedule)
 	</div>
 }
@@ -99,27 +91,6 @@ func boolStr(b bool) string {
 		return "true"
 	}
 	return "false"
-}
-
-func yesNo(b bool) string {
-	if b {
-		return "active"
-	}
-	return "none"
-}
-
-func holdSuffix(b bool) string {
-	if b {
-		return ", hold on"
-	}
-	return ""
-}
-
-func connText(b bool) string {
-	if b {
-		return "connected"
-	}
-	return "offline"
 }
 
 // tempDial is the temperature wheel: drag a handle round the ring (dial.js);
@@ -179,7 +150,13 @@ templ tempDial(c ui.CardView, w *TempWheel) {
 
 // roomTemp is the measured room temperature, shown under the target wheel.
 templ roomTemp(c ui.CardView) {
-	<div class="room"><span>now</span><b>{ c.RoomTemp } °C</b></div>
+	<div class="room">
+		<span>now</span>
+		<b>{ c.RoomTemp } °C</b>
+		if c.Humidity != "–" {
+			<span class="rh">{ c.Humidity } % RH</span>
+		}
+	</div>
 }
 
 // scheduleSection is the read-only schedule: the next event in the summary,
@@ -189,7 +166,9 @@ templ scheduleSection(sc ui.ScheduleView) {
 		<details class="kv schedule" data-preserve-attr="open">
 			<summary>
 				Schedule
-				if sc.Next != "" {
+				if !sc.Active {
+					<span class="next-event">switched off</span>
+				} else if sc.Next != "" {
 					<span class="next-event">next: { sc.Next }</span>
 				}
 			</summary>

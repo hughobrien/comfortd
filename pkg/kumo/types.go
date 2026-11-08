@@ -5,6 +5,7 @@ package kumo
 import (
 	"encoding/json"
 	"fmt"
+	"time"
 )
 
 type Site struct{ ID, Name string }
@@ -13,6 +14,7 @@ type Zone struct {
 	ID, Name, Serial  string
 	HasActiveSchedule bool
 	HoldEnabled       bool
+	HoldEnd           time.Time // when the hold lapses (the next schedule event); zero if unknown
 }
 
 type Device struct {
@@ -65,7 +67,8 @@ func ParseZones(raw json.RawMessage) ([]Zone, error) {
 		Name              string `json:"name"`
 		HasActiveSchedule bool   `json:"hasActiveSchedule"`
 		HoldMode          *struct {
-			Enabled bool `json:"enabled"`
+			Enabled bool   `json:"enabled"`
+			EndTime string `json:"endTime"`
 		} `json:"holdMode"`
 		Adapter struct {
 			DeviceSerial string `json:"deviceSerial"`
@@ -79,6 +82,9 @@ func ParseZones(raw json.RawMessage) ([]Zone, error) {
 		out[i] = Zone{ID: z.ID, Name: z.Name, Serial: z.Adapter.DeviceSerial, HasActiveSchedule: z.HasActiveSchedule}
 		if z.HoldMode != nil {
 			out[i].HoldEnabled = z.HoldMode.Enabled
+			if t, err := time.Parse(time.RFC3339, z.HoldMode.EndTime); err == nil {
+				out[i].HoldEnd = t
+			}
 		}
 	}
 	return out, nil

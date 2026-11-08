@@ -167,3 +167,20 @@ func pressed(cs []Choice, v string) bool {
 	}
 	return false
 }
+
+func TestCardHoldAndScheduleActive(t *testing.T) {
+	zone := json.RawMessage(`{"id":"z","name":"Office","hasActiveSchedule":true,"holdMode":{"enabled":true,"endTime":"2026-11-08T06:00:00.000Z"},"adapter":{"deviceSerial":"X"}}`)
+	sn := fixtureSnap(t, "office", "device_office.json", map[string]json.RawMessage{"zone": zone})
+	la, _ := time.LoadLocation("America/Los_Angeles")
+	now := time.Date(2026, 11, 7, 20, 40, 0, 0, la)
+	c := BuildCard(sn, mustAnn(t), CardControl{}, now, time.Minute)
+	if c.HoldUntil != "hold until today 22:00" || !c.Schedule.Active {
+		t.Fatalf("hold %q active %v", c.HoldUntil, c.Schedule.Active)
+	}
+	zone = json.RawMessage(`{"id":"z","name":"Office","hasActiveSchedule":false,"holdMode":{"enabled":false,"endTime":"2026-11-08T06:00:00.000Z"},"adapter":{"deviceSerial":"X"}}`)
+	sn = fixtureSnap(t, "office", "device_office.json", map[string]json.RawMessage{"zone": zone})
+	c = BuildCard(sn, mustAnn(t), CardControl{}, now, time.Minute)
+	if c.HoldUntil != "" || c.Schedule.Active {
+		t.Fatalf("hold %q active %v", c.HoldUntil, c.Schedule.Active)
+	}
+}

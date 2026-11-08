@@ -15,6 +15,7 @@ import (
 // ScheduleView is the card's read-only schedule section.
 type ScheduleView struct {
 	Present bool
+	Active  bool // the zone's schedule is switched on (hasActiveSchedule)
 	Season  string
 	Next    string // "tonight 22:00 → Heat 19 °C", empty when there is no next event
 	Rows    []ScheduleRow
@@ -110,6 +111,17 @@ func whenWords(now, t time.Time) string {
 	return t.Format("Mon") + " " + clock
 }
 
+// scheduleLoc is the unit's own time zone (schedule times and holds are in it),
+// else now's.
+func scheduleLoc(s store.Snapshot, now time.Time) *time.Location {
+	if s.Device != nil && s.Device.TimeZone != "" {
+		if loc, err := time.LoadLocation(s.Device.TimeZone); err == nil {
+			return loc
+		}
+	}
+	return now.Location()
+}
+
 // BuildSchedule builds the section from the unit's stored schedule. now is in
 // the viewer's zone; times are shown in the unit's own zone.
 func BuildSchedule(s store.Snapshot, now time.Time) ScheduleView {
@@ -122,11 +134,7 @@ func BuildSchedule(s store.Snapshot, now time.Time) ScheduleView {
 		return ScheduleView{Error: err.Error()}
 	}
 	v := ScheduleView{Present: true, Season: sch.Season}
-	if s.Device != nil && s.Device.TimeZone != "" {
-		if loc, err := time.LoadLocation(s.Device.TimeZone); err == nil {
-			now = now.In(loc)
-		}
-	}
+	now = now.In(scheduleLoc(s, now))
 	next, at, hasNext := sch.Next(now)
 	if hasNext {
 		v.Next = whenWords(now, at) + " → " + modeLabel(next.Mode)

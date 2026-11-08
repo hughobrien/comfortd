@@ -38,6 +38,7 @@ type CardView struct {
 	// them; Pressed marks the current one.
 	Modes, Fans, Vanes []Choice
 	Schedule           ScheduleView
+	HoldUntil          string // "hold until today 22:00" while the app's temporary override is on, else empty
 }
 
 type Choice struct {
@@ -132,6 +133,14 @@ func BuildCard(s store.Snapshot, ann *annotate.Set, ctl CardControl, now time.Ti
 	c.Schedule = BuildSchedule(s, now)
 	if z := s.Zone; z != nil {
 		c.ScheduleActive, c.HoldEnabled = z.HasActiveSchedule, z.HoldEnabled
+		c.Schedule.Active = z.HasActiveSchedule
+		if z.HoldEnabled {
+			c.HoldUntil = "hold"
+			if !z.HoldEnd.IsZero() {
+				t := z.HoldEnd.In(scheduleLoc(s, now))
+				c.HoldUntil = "hold until " + whenWords(now.In(t.Location()), t)
+			}
+		}
 	}
 	return c
 }

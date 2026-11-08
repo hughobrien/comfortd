@@ -26,6 +26,9 @@ templ activeUnit(v ui.UnitView) {
 			for _, a := range v.Card.Alerts {
 				<span class="alert-flag">{ a }</span>
 			}
+			if v.Card.HoldUntil != "" {
+				<span class="hold-flag">{ v.Card.HoldUntil }</span>
+			}
 			<small>{ v.Serial }</small>
 			if v.Stale {
 				<span class="badge stale">stale</span>
