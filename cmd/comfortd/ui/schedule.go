@@ -159,3 +159,70 @@ func BuildSchedule(s store.Snapshot, now time.Time) ScheduleView {
 	}
 	return v
 }
+
+// EditRow is one row of the schedule editor. Key is the event's cloud id, or a
+// fresh "n…" key for a row added in the editor.
+type EditRow struct {
+	Key, At, Mode, SpHeat, SpCool, Fan, Vane string
+	Days                                     map[string]bool
+}
+
+// DayChip is one weekday checkbox.
+type DayChip struct{ Code, Short string }
+
+var DayChips = []DayChip{{"Mo", "M"}, {"Tu", "T"}, {"We", "W"}, {"Th", "T"}, {"Fr", "F"}, {"Sa", "S"}, {"Su", "S"}}
+
+// ScheduleModeChoices and ScheduleFanChoices are what an event can set.
+var (
+	ScheduleModeChoices = []Choice{{Value: "heat", Label: "Heat"}, {Value: "cool", Label: "Cool"}, {Value: "auto", Label: "Auto"}, {Value: "dry", Label: "Dry"}, {Value: "vent", Label: "Fan"}, {Value: "off", Label: "Off"}}
+	ScheduleFanChoices  = []Choice{{Value: "auto", Label: "Auto"}, {Value: "superQuiet", Label: "Quiet"}, {Value: "quiet", Label: "Low"}, {Value: "low", Label: "Medium"}, {Value: "powerful", Label: "High"}, {Value: "superPowerful", Label: "Powerful"}}
+)
+
+// NewEditRow is a blank row: weekdays at 08:00, heat 20.
+func NewEditRow(key string) EditRow {
+	return EditRow{Key: key, At: "08:00", Mode: "heat", SpHeat: "20", SpCool: "26", Fan: "auto", Vane: "auto",
+		Days: map[string]bool{"Mo": true, "Tu": true, "We": true, "Th": true, "Fr": true}}
+}
+
+func editTemp(v *float64, def string) string {
+	if v == nil {
+		return def
+	}
+	return fmtTemp(v)
+}
+
+// BuildScheduleEdit lists the unit's stored events as editor rows, in the
+// same order as the read-only table.
+func BuildScheduleEdit(s store.Snapshot) []EditRow {
+	raw, ok := s.Raw[store.EndpointSchedule]
+	if !ok {
+		return nil
+	}
+	sch, err := kumo.ParseSchedule(raw)
+	if err != nil {
+		return nil
+	}
+	events := slices.Clone(sch.Events)
+	sort.SliceStable(events, func(i, j int) bool {
+		if events[i].StartTime != events[j].StartTime {
+			return events[i].StartTime < events[j].StartTime
+		}
+		return scheduleDays(events[i].Days) < scheduleDays(events[j].Days)
+	})
+	var out []EditRow
+	for _, e := range events {
+		r := EditRow{Key: e.ID, At: fmtClock(e.StartTime), Mode: e.Mode, Fan: e.Fan, Vane: e.Vane,
+			SpHeat: editTemp(e.SpHeat, "20"), SpCool: editTemp(e.SpCool, "26"), Days: map[string]bool{}}
+		if r.Fan == "" {
+			r.Fan = "auto"
+		}
+		if r.Vane == "" {
+			r.Vane = "auto"
+		}
+		for _, d := range e.Days {
+			r.Days[d] = true
+		}
+		out = append(out, r)
+	}
+	return out
+}

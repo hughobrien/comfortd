@@ -126,3 +126,21 @@ details.unknown { margin-bottom:.5rem; }
 .schedule-table tr.next td { font-weight:600; background:var(--hl); }
 .hold-flag { font-size:.75rem; font-weight:600; padding:.05rem .5rem; margin-left:.5rem; border-radius:3px; border:1.5px solid #e8832e; color:#e8832e; }
 .room .rh { font-size:.8rem; color:var(--weak); margin-top:.1rem; }
+
+/* schedule editor */
+.sched-actions { margin:.4rem 0 0; display:flex; gap:.5rem; }
+.sched-actions button { font:inherit; font-size:.8rem; padding:.2rem .7rem; border:1px solid var(--weak); border-radius:.3rem; background:transparent; color:inherit; cursor:pointer; }
+.sched-actions button.save { border-color:currentColor; font-weight:600; }
+.sched-msg { margin:.4rem 0 0; min-height:1em; font-size:.8rem; color:var(--weak); }
+.sched-msg.err { color:var(--err); }
+.sched-edit input, .sched-edit select { font:inherit; font-size:.8rem; color:inherit; background:transparent; border:1px solid var(--weak); border-radius:.25rem; padding:.1rem .2rem; max-width:100%; }
+.sched-edit input[type=number] { width:3.6rem; }
+.sched-edit td.days { white-space:nowrap; }
+.sched-edit .day { position:relative; }
+.sched-edit .day input { position:absolute; opacity:0; pointer-events:none; }
+.sched-edit .day span { display:inline-block; width:1.2rem; text-align:center; border:1px solid var(--weak); border-radius:.25rem; font-size:.75rem; margin-right:1px; color:var(--weak); cursor:pointer; }
+.sched-edit .day input:checked + span { color:inherit; border-color:currentColor; font-weight:600; background:var(--hl); }
+.sched-edit .day input:focus-visible + span { outline:2px solid currentColor; }
+.sched-edit .del { font:inherit; border:0; background:transparent; color:var(--weak); cursor:pointer; font-size:1rem; }
+.sched-edit tr[data-mode=heat] .sp-cool, .sched-edit tr[data-mode=cool] .sp-heat, .sched-edit tr[data-mode=dry] .sp-heat,
+.sched-edit tr[data-mode=vent] .sp input, .sched-edit tr[data-mode=off] .sp input { display:none; }

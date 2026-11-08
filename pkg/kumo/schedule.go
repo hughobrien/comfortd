@@ -12,8 +12,9 @@ import (
 // ScheduleEvent is one entry of a zone's schedule: at StartTime on the given
 // days the unit is set to the mode, fan and setpoints (nil/empty = unchanged).
 type ScheduleEvent struct {
-	Days      []string `json:"days"`      // "Su" "Mo" "Tu" "We" "Th" "Fr" "Sa"
-	StartTime string   `json:"startTime"` // "HHMM", site local time
+	ID        string   `json:"id,omitempty"` // the cloud's id; empty for an event not yet created
+	Days      []string `json:"days"`         // "Su" "Mo" "Tu" "We" "Th" "Fr" "Sa"
+	StartTime string   `json:"startTime"`    // "HHMM", site local time
 	Mode      string   `json:"operationMode"`
 	Fan       string   `json:"fanSpeed"`
 	Vane      string   `json:"airDirection"`
@@ -24,8 +25,10 @@ type ScheduleEvent struct {
 // Schedule is a zone's events in the running season. The cloud returns the
 // events unsorted.
 type Schedule struct {
-	Season string          `json:"season"`
-	Events []ScheduleEvent `json:"events"`
+	Season     string          `json:"season"`
+	SeasonID   string          `json:"seasonId"`
+	ScheduleID string          `json:"scheduleId"` // the zone's schedule within the season
+	Events     []ScheduleEvent `json:"events"`
 }
 
 var dayCodes = [7]string{"Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"}

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/hughobrien/comfortd/cmd/comfortd/ui/templates"
+	"github.com/hughobrien/comfortd/internal/store"
 	"github.com/starfederation/datastar-go/datastar"
 )
 
@@ -61,6 +62,14 @@ func (d deps) handleSSE(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// The schedule body ignores unit patches, so push it when the cloud's schedule changes.
+	seen := map[string]string{}
+	for _, v := range views {
+		if sn, ok := d.Store.Get(v.Slug); ok {
+			seen[v.Slug] = string(sn.Raw[store.EndpointSchedule])
+		}
+	}
+
 	keepalive := time.NewTicker(keepaliveInterval)
 	defer keepalive.Stop()
 	for {
@@ -68,7 +77,7 @@ func (d deps) handleSSE(w http.ResponseWriter, r *http.Request) {
 		case <-r.Context().Done():
 			return
 		case ev := <-events:
-			if err := d.emit(sse, ev); err != nil {
+			if err := d.emit(sse, ev, seen); err != nil {
 				return
 			}
 		case <-keepalive.C:
@@ -82,7 +91,7 @@ func (d deps) handleSSE(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (d deps) emit(sse *datastar.ServerSentEventGenerator, ev pushEvent) error {
+func (d deps) emit(sse *datastar.ServerSentEventGenerator, ev pushEvent, seen map[string]string) error {
 	if ev.Record != nil {
 		if d.inactive(ev.Record.Unit) {
 			return nil
@@ -96,7 +105,17 @@ func (d deps) emit(sse *datastar.ServerSentEventGenerator, ev pushEvent) error {
 	}
 	now := d.Now()
 	v := d.viewFor(sn, now)
-	return sse.PatchElementTempl(templates.UnitSection(v),
+	if err := sse.PatchElementTempl(templates.UnitSection(v),
 		datastar.WithSelectorf("#unit-%s", v.Slug), datastar.WithModeOuter(),
-		datastar.WithPatchElementsEventID("unit:"+v.Slug))
+		datastar.WithPatchElementsEventID("unit:"+v.Slug)); err != nil {
+		return err
+	}
+	if cur := string(sn.Raw[store.EndpointSchedule]); cur != seen[v.Slug] {
+		seen[v.Slug] = cur
+		if v.Card.Schedule.Present {
+			return sse.PatchElementTempl(templates.ScheduleBody(v.Card),
+				datastar.WithSelectorf("#sched-body-%s", v.Slug), datastar.WithMode(datastar.ElementPatchModeReplace))
+		}
+	}
+	return nil
 }

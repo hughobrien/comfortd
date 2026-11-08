@@ -54,6 +54,16 @@ type Server struct {
 	commands      []Command
 	fails         map[string]*failure
 	requests      map[string]int
+	schedules     []map[string]any // the winter season's per-zone schedules, loaded on first use
+	scheduleSeq   int
+	schedWrites   []ScheduleWrite
+}
+
+// ScheduleWrite is a recorded schedule change: "add" with the event's fields,
+// or "delete" with the event's id in Event["id"].
+type ScheduleWrite struct {
+	Op    string
+	Event map[string]any
 }
 
 func fixture(name string) []byte {
@@ -94,6 +104,8 @@ func New() *Server {
 	mux.HandleFunc("GET /devices/{serial}/sensor", s.authed(s.handleFixtureBySerial("sensor_%s_404.json", 404)))
 	mux.HandleFunc("GET /v4/sites/{site}/schedule-seasons", s.authed(s.handleFixture("schedule_seasons.json")))
 	mux.HandleFunc("GET /v4/schedule-seasons/{season}/schedules", s.authed(s.handleSeasonSchedules))
+	mux.HandleFunc("POST /v4/schedule-seasons/{season}/schedules", s.authed(s.handleAddEvents))
+	mux.HandleFunc("DELETE /v4/schedules/{schedule}/events", s.authed(s.handleDeleteEvents))
 	mux.HandleFunc("POST /devices/send-command", s.authed(s.handleSendCommand))
 	s.srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		s.mu.Lock()
@@ -356,10 +368,98 @@ func (s *Server) handleFixture(name string) http.HandlerFunc {
 // WinterSeasonID is the running season in the fake; any other season has no schedules.
 const WinterSeasonID = "00000000-0000-4000-8000-0000000000a1"
 
+// loadSchedules must be called with s.mu held.
+func (s *Server) loadSchedules() {
+	if s.schedules == nil {
+		if err := json.Unmarshal(fixture("schedule_winter.json"), &s.schedules); err != nil {
+			panic(err)
+		}
+	}
+}
+
 func (s *Server) handleSeasonSchedules(w http.ResponseWriter, r *http.Request) {
 	if r.PathValue("season") != WinterSeasonID {
 		writeJSON(w, 200, []byte("[]"))
 		return
 	}
-	writeJSON(w, 200, fixture("schedule_winter.json"))
+	s.mu.Lock()
+	s.loadSchedules()
+	b, _ := json.Marshal(s.schedules)
+	s.mu.Unlock()
+	writeJSON(w, 200, b)
+}
+
+// ScheduleWrites returns the schedule changes made so far.
+func (s *Server) ScheduleWrites() []ScheduleWrite {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]ScheduleWrite(nil), s.schedWrites...)
+}
+
+func (s *Server) handleAddEvents(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Schedules []struct {
+			Zone   string           `json:"zone"`
+			Events []map[string]any `json:"events"`
+		} `json:"schedules"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || r.PathValue("season") != WinterSeasonID {
+		writeJSON(w, 400, []byte(`{}`))
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.loadSchedules()
+	for _, in := range body.Schedules {
+		for _, sc := range s.schedules {
+			if zone, _ := sc["zone"].(map[string]any); zone["id"] != in.Zone {
+				continue
+			}
+			evs, _ := sc["events"].([]any)
+			for _, e := range in.Events {
+				s.scheduleSeq++
+				e["id"] = fmt.Sprintf("00000000-0000-4000-8000-%012d", 900000+s.scheduleSeq)
+				evs = append(evs, e)
+				s.schedWrites = append(s.schedWrites, ScheduleWrite{"add", e})
+			}
+			sc["events"] = evs
+		}
+	}
+	writeJSON(w, 201, []byte(`{}`))
+}
+
+func (s *Server) handleDeleteEvents(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Events []string `json:"events"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeJSON(w, 400, []byte(`{}`))
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.loadSchedules()
+	for _, sc := range s.schedules {
+		if sc["id"] != r.PathValue("schedule") {
+			continue
+		}
+		evs, _ := sc["events"].([]any)
+		var keep []any
+		for _, e := range evs {
+			m, _ := e.(map[string]any)
+			del := false
+			for _, id := range body.Events {
+				del = del || m["id"] == id
+			}
+			if del {
+				s.schedWrites = append(s.schedWrites, ScheduleWrite{"delete", m})
+			} else {
+				keep = append(keep, e)
+			}
+		}
+		sc["events"] = keep
+		w.WriteHeader(204)
+		return
+	}
+	writeJSON(w, 404, []byte(`{}`))
 }

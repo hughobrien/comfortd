@@ -128,6 +128,8 @@ type Sender interface {
 
 type Options struct {
 	Sender        Sender
+	Schedules     ScheduleWriter            // nil = schedule edits are off
+	AfterSchedule func(ctx context.Context) // refetch the schedules after an edit
 	Store         *store.Store
 	History       *history.Log
 	Kick          func(slug string)

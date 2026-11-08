@@ -134,6 +134,7 @@ type scheduleSeason struct {
 }
 
 type zoneSchedule struct {
+	ID     string              `json:"id"`
 	Zone   struct{ ID string } `json:"zone"`
 	Events json.RawMessage     `json:"events"`
 }
@@ -184,7 +185,7 @@ func (p *Poller) PollSchedule(ctx context.Context) {
 				p.record(u.Slug, store.EndpointSchedule, nil, errors.New("no schedule for this zone in the running season"))
 				continue
 			}
-			out, _ := json.Marshal(map[string]any{"season": season.Name, "events": scheds[j].Events})
+			out, _ := json.Marshal(map[string]any{"season": season.Name, "seasonId": season.ID, "scheduleId": scheds[j].ID, "events": scheds[j].Events})
 			p.record(u.Slug, store.EndpointSchedule, out, nil)
 		}
 	}

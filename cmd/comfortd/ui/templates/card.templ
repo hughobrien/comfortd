@@ -43,7 +43,7 @@ templ Card(c ui.CardView) {
 				</div>
 			}
 		</div>
-		@scheduleSection(c.Schedule)
+		@scheduleSection(c)
 	</div>
 }
 
@@ -159,9 +159,12 @@ templ roomTemp(c ui.CardView) {
 	</div>
 }
 
-// scheduleSection is the read-only schedule: the next event in the summary,
-// every event of the running season in the table.
-templ scheduleSection(sc ui.ScheduleView) {
+// scheduleSection is the schedule: the next event in the summary, the events
+// of the running season in the body. The body is an island the unit's
+// patches leave alone (data-ignore-morph), so an edit in progress survives
+// them; the server swaps it with ScheduleBody / ScheduleEditor.
+templ scheduleSection(c ui.CardView) {
+	{{ sc := c.Schedule }}
 	if sc.Present {
 		<details class="kv schedule" data-preserve-attr="open">
 			<summary>
@@ -172,21 +175,7 @@ templ scheduleSection(sc ui.ScheduleView) {
 					<span class="next-event">next: { sc.Next }</span>
 				}
 			</summary>
-			<p class="season">{ sc.Season } season</p>
-			<table class="schedule-table">
-				<thead><tr><th>days</th><th>at</th><th>mode</th><th>target</th><th>fan</th></tr></thead>
-				<tbody>
-					for _, r := range sc.Rows {
-						<tr class={ templ.KV("next", r.IsNext) }>
-							<td>{ r.Days }</td>
-							<td>{ r.At }</td>
-							<td>{ r.Mode }</td>
-							<td>{ r.Target }</td>
-							<td>{ r.Fan }</td>
-						</tr>
-					}
-				</tbody>
-			</table>
+			@ScheduleBody(c)
 		</details>
 	} else if sc.Error != "" {
 		<details class="kv schedule">
@@ -194,4 +183,88 @@ templ scheduleSection(sc ui.ScheduleView) {
 			<p class="season">{ sc.Error }</p>
 		</details>
 	}
+}
+
+// ScheduleBody is the read-only table, with an edit button when the unit is writable.
+templ ScheduleBody(c ui.CardView) {
+	<div id={ "sched-body-" + c.Slug } class="sched-body" data-ignore-morph>
+		<p class="season">{ c.Schedule.Season } season</p>
+		<table class="schedule-table">
+			<thead><tr><th>days</th><th>at</th><th>mode</th><th>target</th><th>fan</th></tr></thead>
+			<tbody>
+				for _, r := range c.Schedule.Rows {
+					<tr class={ templ.KV("next", r.IsNext) }>
+						<td>{ r.Days }</td>
+						<td>{ r.At }</td>
+						<td>{ r.Mode }</td>
+						<td>{ r.Target }</td>
+						<td>{ r.Fan }</td>
+					</tr>
+				}
+			</tbody>
+		</table>
+		if c.Control.Writable {
+			<div class="sched-actions">
+				<button type="button" class="btn-inline" data-on:click={ "@get('/ui/units/" + c.Slug + "/schedule/edit')" }>Edit schedule</button>
+			</div>
+		}
+	</div>
+}
+
+// ScheduleEditor is the editable table with Save and Cancel. msg shows above
+// the buttons (an error from a failed save).
+templ ScheduleEditor(slug, season string, rows []ui.EditRow, msg string) {
+	<div id={ "sched-body-" + slug } class="sched-body editing" data-ignore-morph>
+		<p class="season">{ season } season: editing</p>
+		<form>
+			<table class="schedule-table sched-edit">
+				<thead><tr><th>days</th><th>at</th><th>mode</th><th>target °C</th><th>fan</th><th></th></tr></thead>
+				<tbody id={ "sched-rows-" + slug }>
+					for _, r := range rows {
+						@ScheduleEditRow(slug, r)
+					}
+				</tbody>
+			</table>
+			<div class="sched-actions">
+				<button type="button" class="btn-inline" data-on:click={ "@get('/ui/units/" + slug + "/schedule/new-row')" }>+ add row</button>
+			</div>
+			<p class="sched-msg" id={ "sched-msg-" + slug }>{ msg }</p>
+			<div class="sched-actions">
+				<button type="button" class="btn-inline save" data-on:click={ "@post('/ui/units/" + slug + "/schedule', {contentType: 'form'})" }>Save</button>
+				<button type="button" class="btn-inline" data-on:click={ "@get('/ui/units/" + slug + "/schedule/read')" }>Cancel</button>
+			</div>
+		</form>
+	</div>
+}
+
+templ ScheduleEditRow(slug string, r ui.EditRow) {
+	<tr data-mode={ r.Mode }>
+		<td class="days">
+			<input type="hidden" name="key" value={ r.Key }/>
+			<input type="hidden" name="vane" value={ r.Vane }/>
+			for _, d := range ui.DayChips {
+				<label class="day"><input type="checkbox" name={ "days-" + r.Key } value={ d.Code } checked?={ r.Days[d.Code] }/><span>{ d.Short }</span></label>
+			}
+		</td>
+		<td><input type="time" name="at" value={ r.At } required/></td>
+		<td>
+			<select name="mode" data-on:change="el.closest('tr').dataset.mode = el.value">
+				for _, m := range ui.ScheduleModeChoices {
+					<option value={ m.Value } selected?={ m.Value == r.Mode }>{ m.Label }</option>
+				}
+			</select>
+		</td>
+		<td class="sp">
+			<input type="number" name="sph" class="sp-heat" step="0.5" min="10" max="31" value={ r.SpHeat } aria-label="heat to"/>
+			<input type="number" name="spc" class="sp-cool" step="0.5" min="10" max="31" value={ r.SpCool } aria-label="cool to"/>
+		</td>
+		<td>
+			<select name="fan">
+				for _, f := range ui.ScheduleFanChoices {
+					<option value={ f.Value } selected?={ f.Value == r.Fan }>{ f.Label }</option>
+				}
+			</select>
+		</td>
+		<td><button type="button" class="del" aria-label="delete row" data-on:click="el.closest('tr').remove()">×</button></td>
+	</tr>
 }
