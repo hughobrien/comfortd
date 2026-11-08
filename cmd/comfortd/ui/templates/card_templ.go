@@ -615,7 +615,7 @@ func tempDial(c ui.CardView, w *TempWheel) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 46, "</span><div class=\"dial\"><svg class=\"tdial\" viewBox=\"0 20 180 114\" role=\"group\" data-min=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 46, "</span><div class=\"dial\"><svg class=\"tdial\" viewBox=\"0 0 180 134\" role=\"group\" data-min=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

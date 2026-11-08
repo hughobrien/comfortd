@@ -103,7 +103,6 @@ details.unknown { margin-bottom:.5rem; }
 .room span, .room b { display:block; }
 .room b { color:var(--fg); font-size:1.3rem; line-height:1.2; }
 .dials > .room { flex:0 0 100%; }
-.dial svg.tdial { aspect-ratio:180/114; }
 .dials { row-gap:0; }
 .dials .ctrl { margin:-.1rem 0; }
 .dials img.model { margin:.5rem 0; }
