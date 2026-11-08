@@ -118,7 +118,7 @@ templ tempDial(c ui.CardView, w *TempWheel) {
 					data-min={ fnum(w.Min) }
 					data-max={ fnum(w.Max) }
 					data-step="0.5"
-					data-gap="1.5"
+					data-gap={ fnum(tGap) }
 					data-cx="90"
 					data-cy="70"
 					data-r="37"

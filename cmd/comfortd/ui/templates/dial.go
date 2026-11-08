@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/hughobrien/comfortd/cmd/comfortd/ui"
+	"github.com/hughobrien/comfortd/internal/control"
 )
 
 // Arc is one wedge of a dial.
@@ -145,7 +146,7 @@ type TempWheel struct {
 
 const (
 	tCX, tCY, tR = 90.0, 70.0, 37.0
-	tGap         = 1.5 // the unit's minimum auto gap
+	tGap         = control.MinAutoGap // the unit's minimum auto gap
 )
 
 func fnum(v float64) string { return strconv.FormatFloat(v, 'f', -1, 64) }
