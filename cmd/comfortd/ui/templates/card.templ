@@ -41,6 +41,16 @@ templ Card(c ui.CardView) {
 					<span class="ctrl-label">VANE</span>
 					@dial(c, c.Vanes, "vane", "v", "airDirection", "auto", false, "auto", "swing")
 				</div>
+			} else if len(c.Modes) > 0 {
+				<div class="ctrl">
+					<span class="ctrl-label">VANE</span>
+					<div class="dial na">
+						<svg viewBox="0 0 180 134" role="img" aria-label="Vane not available on this unit">
+							<circle class="hub" cx="90" cy="70" r="24"><title>No vane on this unit</title></circle>
+							<text class="center" x="90" y="70" text-anchor="middle" dominant-baseline="central">N/A</text>
+						</svg>
+					</div>
+				</div>
 			}
 		</div>
 		@scheduleSection(c)
