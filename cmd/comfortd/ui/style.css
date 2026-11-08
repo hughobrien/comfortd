@@ -36,7 +36,7 @@ details.unknown { margin-bottom:.5rem; }
 .card .head { display:flex; flex-wrap:wrap; gap:.25rem; justify-content:space-between; align-items:center; }
 .card .sub { color:var(--weak); margin-bottom:.4rem; }
 .ctrl { margin:.5rem 0; }
-.ctrl-label { color:var(--weak); font-size:.75rem; letter-spacing:.05em; display:block; margin-bottom:.15rem; }
+.ctrl-label { color:var(--weak); font-size:.95rem; letter-spacing:.05em; display:block; margin-bottom:.15rem; }
 .seg { display:flex; gap:.25rem; flex-wrap:wrap; }
 .seg button, .stepper button, .power-toggle { font:inherit; font-size:.85rem; padding:.3rem .6rem; border:1px solid var(--border); border-radius:4px; background:transparent; color:var(--fg); cursor:pointer; }
 .seg button { flex:1 1 auto; }
@@ -100,6 +100,6 @@ details.unknown { margin-bottom:.5rem; }
 .tdial[data-band] text.tval { font-size:11px; }
 .tdial text { pointer-events:none; }
 .room { text-align:center; color:var(--weak); font-size:.9rem; margin:0 0 .1rem; }
-.room b { color:var(--fg); font-size:1.3rem; }
+.room b { color:var(--fg); font-size:1.3rem; margin-left:.5rem; }
 .dials > .room { flex:0 0 100%; }
 .dial svg.tdial { aspect-ratio:180/114; }

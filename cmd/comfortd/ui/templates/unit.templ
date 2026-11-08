@@ -23,15 +23,15 @@ templ activeUnit(v ui.UnitView) {
 	<section id={ "unit-" + v.Slug } class="unit">
 		<h2>
 			{ v.Name }
+			for _, a := range v.Card.Alerts {
+				<span class="alert-flag">{ a }</span>
+			}
 			<small>{ v.Serial }</small>
 			if v.Stale {
 				<span class="badge stale">stale</span>
 			}
-			for _, a := range v.Card.Alerts {
-				<span class="alert-flag">{ a }</span>
-			}
 			if v.LastOK != "" {
-				<small>last ok { v.LastOK }</small>
+				<small>as at { v.LastOK }</small>
 			}
 		</h2>
 		@Card(v.Card)

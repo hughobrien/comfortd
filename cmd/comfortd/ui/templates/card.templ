@@ -88,7 +88,7 @@ templ dial(c ui.CardView, opts []ui.Choice, path, param, field, hubValue string,
 					data-on:click={ "@post('/ui/units/" + c.Slug + "/" + path + "?" + param + "=" + hub.Value + "')" }
 				><title>{ hub.Label }</title></circle>
 			}
-			<text class="center" x="90" y="70" text-anchor="middle" dominant-baseline="central">{ dialCenter(opts) }</text>
+			<text class="center" x="90" y="70" text-anchor="middle" dominant-baseline="central">{ dialCenter(opts, path == "mode", hub) }</text>
 		</svg>
 	</div>
 }
@@ -176,5 +176,5 @@ templ tempDial(c ui.CardView, w *TempWheel) {
 
 // roomTemp is the measured room temperature, shown under the target wheel.
 templ roomTemp(c ui.CardView) {
-	<div class="room">room <b>{ c.RoomTemp } °C</b></div>
+	<div class="room">currently <b>{ c.RoomTemp } °C</b></div>
 }
