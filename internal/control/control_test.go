@@ -250,11 +250,9 @@ func TestLastModePersists(t *testing.T) {
 func TestOnChangeCalled(t *testing.T) {
 	r := newRig(t)
 	r.c.Apply("office", Intent{SpHeat: f(21)}, "ui")
-	eventually(t, time.Second, func() bool { return len(r.srv.Commands()) == 1 }, "sent")
+	// Queued, then sent: the second call comes after the server saw the command.
+	eventually(t, time.Second, func() bool { return len(r.changes()) >= 2 }, "queued and sent notifications")
 	n := len(r.changes())
-	if n < 2 {
-		t.Fatalf("changes %v", r.changes())
-	}
 	r.p.PollOnce(context.Background())
 	if len(r.changes()) <= n {
 		t.Fatal("no change on confirm")
