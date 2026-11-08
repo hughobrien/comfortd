@@ -23,6 +23,9 @@ Base `https://app-prod.kumocloud.com/v3`, header `x-app-version: 3.2.4`, bearer 
 | `/devices/{serial}/status` | GET | [observed] 200 | firmware, wifi, setpoint limits |
 | `/devices/{serial}/sensor` | GET | [observed] 404 | no wireless sensor on either unit |
 | `/zones/{id}/notification-preferences` | GET | [observed] 200 | alert settings, filter reminder |
+| `/sites/{id}`, `/zones/{id}` | GET | [observed] 200 | same fields as the list endpoints; nothing new |
+| `/zones/{id}/schedules` | GET | [observed] **426** `{"error":"invalidScheduleVersion"}` | the schedule endpoint exists; it wants a schedule version we haven't found. Not a query `version`/`scheduleVersion` (1-3), not a header `x-schedule-version`/`schedule-version`/`x-app-schedule-version` (1-3), not a newer `x-app-version` (3.3.0 to 5.0.0). Next step is a capture of the Comfort app |
+| `/sites/{id}/schedules`, `/sites/{id}/schedule`, `/sites/{id}/events`, `/zones/{id}/schedule`, `/zones/{id}/events`, `/zones/{id}/hold`, `/zones/{id}/programs`, `/devices/{serial}/schedule`, `/devices/{serial}/schedules`, `/devices/{serial}/events`, `/schedules` | GET | [observed] 404 | do not exist |
 | `/devices/send-command` | POST | [comfort_HA] **untested by us** | `{deviceSerial, commands:{...}}` |
 
 ## Office (ductless MSZ-FX12NL) — device state fields
