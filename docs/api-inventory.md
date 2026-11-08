@@ -93,6 +93,7 @@ All times 2026-11-07. Raw copies in the gitignored `spike/out/probe_log.jsonl` (
 | `{"operationMode":"vent"}` | 200 `{"devices":[serial]}` | mode heat -> vent, power stayed 1, setpoints unchanged, `roomTemp` 20.5 -> 22.5 (-> 23 by ~90 s), app agreed | <= 5 s |
 | `{"operationMode":"off"}` | 200 `{"devices":[serial]}` | `operationMode` vent -> off and `power` 1 -> 0 in one step, setpoints unchanged, `roomTemp` stayed 23, app showed off | <= 5 s |
 | `{"operationMode":"heat","spHeat":19}` (from off) | 200 `{"devices":[serial]}` | multi-field accepted; mode off -> heat, `power` 0 -> 1 automatically, `spHeat` 21 -> 19; `realValues.spHeat` showed old 21 at +4.4 s then cleared; `roomTemp` 23 -> 21 by +8.6 s; app "happy" | <= 5 s |
+| `{"spHeat":19.5}` via comfortd (UI "+", from 19) | 202, command sent after the 1 s window | confirmed by the next device poll about 3 s later (`spHeat` 19 -> 19.5; `realValues.spHeat` showed the old 19 for one poll, then cleared); zone view followed about 1 min later; app showed 19.5 | ~3 s |
 
 ## Candidate HomeKit mapping (Office, MVP first)
 
