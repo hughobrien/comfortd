@@ -14,6 +14,9 @@ type Arc struct {
 	ui.Choice
 	Path string
 	Lit  bool // filled up to the current wedge (fan level), as well as the current one
+	// Label position, just outside the ring.
+	LX, LY float64
+	Anchor string
 }
 
 // dialSplit separates the wedge choices from the side buttons (the choices
@@ -40,8 +43,8 @@ func dialSplit(opts []ui.Choice, extra ...string) (wedges, buttons []ui.Choice) 
 // the pressed one is lit (a level); otherwise only the pressed one.
 func dialArcs(wedges []ui.Choice, cumulative bool) []Arc {
 	const (
-		cx, cy       = 60.0, 60.0
-		outer, inner = 56.0, 34.0
+		cx, cy       = 90.0, 60.0
+		outer, inner = 46.0, 28.0
 		start, sweep = 210.0, 300.0
 		gap          = 3.0
 	)
@@ -66,7 +69,15 @@ func dialArcs(wedges []ui.Choice, cumulative bool) []Arc {
 		ix0, iy0 := pt(inner, a0)
 		d := fmt.Sprintf("M%.2f %.2fA%.0f %.0f 0 0 1 %.2f %.2fL%.2f %.2fA%.0f %.0f 0 0 0 %.2f %.2fZ",
 			ox0, oy0, outer, outer, ox1, oy1, ix1, iy1, inner, inner, ix0, iy0)
-		out[i] = Arc{Choice: w, Path: d, Lit: cumulative && i <= cur}
+		mid := (a0 + a1) / 2
+		lx, ly := pt(outer+5, mid)
+		anchor := "middle"
+		if sn := math.Sin(mid * math.Pi / 180); sn > 0.3 {
+			anchor = "start"
+		} else if sn < -0.3 {
+			anchor = "end"
+		}
+		out[i] = Arc{Choice: w, Path: d, Lit: cumulative && i <= cur, LX: lx, LY: ly, Anchor: anchor}
 	}
 	return out
 }

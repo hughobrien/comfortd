@@ -2,7 +2,11 @@
 
 package templates
 
-import "github.com/hughobrien/comfortd/cmd/comfortd/ui"
+import (
+	"fmt"
+
+	"github.com/hughobrien/comfortd/cmd/comfortd/ui"
+)
 
 templ Card(c ui.CardView) {
 	<div class="card">
@@ -123,7 +127,7 @@ templ seg(c ui.CardView, opts []ui.Choice, path, param, field string) {
 templ dial(c ui.CardView, opts []ui.Choice, path, field string, level bool, extra ...string) {
 	{{ wedges, buttons := dialSplit(opts, extra...) }}
 	<div class="dial">
-		<svg viewBox="0 0 120 120" role="group">
+		<svg viewBox="0 0 180 106" role="group">
 			for _, a := range dialArcs(wedges, level) {
 				<path
 					d={ a.Path }
@@ -135,8 +139,9 @@ templ dial(c ui.CardView, opts []ui.Choice, path, field string, level bool, extr
 					class={ templ.KV("lit", a.Lit), templ.KV("pending", a.Pressed && c.Control.Pending[field] != "") }
 					data-on:click={ "@post('/ui/units/" + c.Slug + "/" + path + "?v=" + a.Value + "')" }
 				><title>{ a.Label }</title></path>
+				<text class="wl" x={ fmt.Sprintf("%.1f", a.LX) } y={ fmt.Sprintf("%.1f", a.LY) } text-anchor={ a.Anchor } dominant-baseline="middle">{ a.Label }</text>
 			}
-			<text x="60" y="60" text-anchor="middle" dominant-baseline="central">{ dialCenter(opts) }</text>
+			<text class="center" x="90" y="60" text-anchor="middle" dominant-baseline="central">{ dialCenter(opts) }</text>
 		</svg>
 		if len(buttons) > 0 {
 			<div class="seg dial-btns">
