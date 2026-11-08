@@ -58,6 +58,7 @@ func (d deps) handleCommand(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Mode   *string  `json:"mode"`
 		SpHeat *float64 `json:"spHeat"`
+		SpCool *float64 `json:"spCool"`
 		Fan    *string  `json:"fanSpeed"`
 		Vane   *string  `json:"airDirection"`
 	}
@@ -67,7 +68,7 @@ func (d deps) handleCommand(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "bad body: " + err.Error()})
 		return
 	}
-	if err := d.Ctl.Apply(slug, control.Intent{Mode: body.Mode, SpHeat: body.SpHeat, Fan: body.Fan, Vane: body.Vane}, "api"); err != nil {
+	if err := d.Ctl.Apply(slug, control.Intent{Mode: body.Mode, SpHeat: body.SpHeat, SpCool: body.SpCool, Fan: body.Fan, Vane: body.Vane}, "api"); err != nil {
 		d.ctlError(w, err)
 		return
 	}

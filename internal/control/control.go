@@ -31,11 +31,12 @@ var (
 )
 
 // allowedModes are the modes Apply accepts. Extended per feature.
-var allowedModes = []string{"off", "heat", "vent"}
+var allowedModes = []string{"off", "heat", "vent", "dry", "cool"}
 
 const (
 	fieldMode   = "operationMode"
 	fieldSpHeat = "spHeat"
+	fieldSpCool = "spCool"
 	fieldFan    = "fanSpeed"
 	fieldVane   = "airDirection"
 	sendTimeout = 30 * time.Second
@@ -44,6 +45,7 @@ const (
 type Intent struct {
 	Mode   *string
 	SpHeat *float64
+	SpCool *float64
 	Fan    *string // "auto" or a speed name from FanSpeeds
 	Vane   *string // a direction from vaneDirections, or "swing"
 }
@@ -166,7 +168,7 @@ func (c *Controller) Apply(slug string, in Intent, source string) error {
 	if !c.Writable(slug) {
 		return ErrNotWritable
 	}
-	if in.Mode == nil && in.SpHeat == nil && in.Fan == nil && in.Vane == nil {
+	if in.Mode == nil && in.SpHeat == nil && in.SpCool == nil && in.Fan == nil && in.Vane == nil {
 		return fmt.Errorf("%w: nothing to change", ErrInvalid)
 	}
 	var prof *kumo.Profile
@@ -205,8 +207,28 @@ func (c *Controller) Apply(slug string, in Intent, source string) error {
 		}
 		sp = &v
 	}
+	var spc *float64
+	if in.SpCool != nil {
+		snap, ok := c.o.Store.Get(slug)
+		if !ok || snap.Profile == nil {
+			return fmt.Errorf("%w: cool setpoint range unknown", ErrInvalid)
+		}
+		lo, hasLo := snap.Profile.Min["cool"]
+		hi, hasHi := snap.Profile.Max["cool"]
+		if !hasLo || !hasHi {
+			return fmt.Errorf("%w: unit has no cool setpoint range", ErrInvalid)
+		}
+		v := math.Round(*in.SpCool*2) / 2
+		if math.IsNaN(v) || v < lo || v > hi {
+			return fmt.Errorf("%w: spCool %v outside %v–%v", ErrInvalid, *in.SpCool, lo, hi)
+		}
+		spc = &v
+	}
 	c.mu.Lock()
 	st := c.state(slug)
+	if spc != nil {
+		st.fields[fieldSpCool] = &field{val: *spc}
+	}
 	if mode != nil {
 		st.fields[fieldMode] = &field{val: *mode}
 	}
@@ -296,6 +318,9 @@ func (c *Controller) Overlay(s store.Snapshot) store.Snapshot {
 	if v, ok := pend[fieldSpHeat].(float64); ok {
 		d.SpHeat = &v
 	}
+	if v, ok := pend[fieldSpCool].(float64); ok {
+		d.SpCool = &v
+	}
 	if v, ok := pend[fieldFan].(string); ok {
 		d.FanSpeed = v
 	}
@@ -352,6 +377,9 @@ func matches(name string, val any, d kumo.Device) bool {
 	case fieldSpHeat:
 		v, _ := val.(float64)
 		return d.SpHeat != nil && *d.SpHeat == v
+	case fieldSpCool:
+		v, _ := val.(float64)
+		return d.SpCool != nil && *d.SpCool == v
 	case fieldFan:
 		return d.FanSpeed == val
 	case fieldVane:
@@ -371,6 +399,10 @@ func polledJSON(name string, d *kumo.Device) string {
 	case fieldSpHeat:
 		if d.SpHeat != nil {
 			return strconv.FormatFloat(*d.SpHeat, 'f', -1, 64)
+		}
+	case fieldSpCool:
+		if d.SpCool != nil {
+			return strconv.FormatFloat(*d.SpCool, 'f', -1, 64)
 		}
 	case fieldFan:
 		b, _ := json.Marshal(d.FanSpeed)

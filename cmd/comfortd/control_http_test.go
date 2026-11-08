@@ -130,7 +130,7 @@ func TestUIPostNeedsDatastarHeader(t *testing.T) {
 	if rec := post(h, "/ui/units/house/mode?m=off", "", "", map[string]string{"Datastar-Request": "true"}); rec.Code != 403 {
 		t.Fatal(rec.Code)
 	}
-	if rec := post(h, "/ui/units/office/mode?m=cool", "", "", map[string]string{"Datastar-Request": "true"}); rec.Code != 400 {
+	if rec := post(h, "/ui/units/office/mode?m=auto", "", "", map[string]string{"Datastar-Request": "true"}); rec.Code != 400 {
 		t.Fatal(rec.Code)
 	}
 }

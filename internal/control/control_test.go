@@ -103,8 +103,11 @@ func TestNotWritable(t *testing.T) {
 
 func TestInvalid(t *testing.T) {
 	r := newRig(t)
-	if err := r.c.Apply("office", Intent{Mode: s("cool")}, "ui"); err == nil {
-		t.Fatal("cool accepted")
+	if err := r.c.Apply("office", Intent{Mode: s("auto")}, "ui"); err == nil {
+		t.Fatal("auto accepted")
+	}
+	if err := r.c.Apply("office", Intent{SpCool: f(40)}, "ui"); err == nil {
+		t.Fatal("spCool 40 accepted")
 	}
 	if err := r.c.Apply("office", Intent{SpHeat: f(40)}, "ui"); err == nil {
 		t.Fatal("40 accepted")
@@ -244,7 +247,7 @@ func TestLastModePersists(t *testing.T) {
 		t.Fatal(r.c.LastMode("office"))
 	}
 	obs("off")
-	obs("cool")
+	obs("auto")
 	if r.c.LastMode("office") != "vent" {
 		t.Fatal(r.c.LastMode("office"))
 	}
@@ -309,6 +312,21 @@ func TestFanAndVaneValidation(t *testing.T) {
 	eventually(t, time.Second, func() bool { return len(r.srv.Commands()) == 1 }, "command")
 	cmds := r.srv.Commands()[0].Commands
 	if cmds["fanSpeed"] != "superQuiet" || cmds["airDirection"] != "swing" {
+		t.Fatalf("sent %v", cmds)
+	}
+}
+
+func TestDryThenCoolWithSetpoint(t *testing.T) {
+	r := newRig(t)
+	if err := r.c.Apply("office", Intent{Mode: s("dry")}, "api"); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.c.Apply("office", Intent{Mode: s("cool"), SpCool: f(21.2)}, "api"); err != nil {
+		t.Fatal(err)
+	}
+	eventually(t, time.Second, func() bool { return len(r.srv.Commands()) == 1 }, "command")
+	cmds := r.srv.Commands()[0].Commands
+	if cmds["operationMode"] != "cool" || cmds["spCool"] != 21.0 && cmds["spCool"] != 21.5 || len(cmds) != 2 {
 		t.Fatalf("sent %v", cmds)
 	}
 }
