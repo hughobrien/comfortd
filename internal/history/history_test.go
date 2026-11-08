@@ -131,3 +131,34 @@ func TestRingCapped(t *testing.T) {
 		t.Fatalf("n=%d", n)
 	}
 }
+
+// A rotation that cannot reopen the file must not leave the log writing to a
+// closed file forever: once the file can be opened again, appends work.
+func TestAppendRecoversAfterFailedRotation(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "h")
+	if err := os.Mkdir(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(dir, "history.jsonl")
+	l, err := Open(path, 200)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer l.Close()
+	rec := Record{T: time.Now(), Unit: "office", Endpoint: "device", Path: "spHeat", Old: "20", New: "21"}
+	if err := l.Append(rec); err != nil {
+		t.Fatal(err)
+	}
+	os.RemoveAll(dir)
+	for range 3 { // past the 200-byte limit, so it rotates, and the dir is gone
+		l.Append(rec)
+	}
+	if err := os.Mkdir(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	l.Append(rec) // may report the failed rename of the vanished file
+	b, err := os.ReadFile(path)
+	if err != nil || len(b) == 0 {
+		t.Fatalf("nothing written: %v", err)
+	}
+}
