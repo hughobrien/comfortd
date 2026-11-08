@@ -26,6 +26,7 @@ type deps struct {
 	Homekit  *homekit.Bridge     // nil when HomeKit is off
 	Ctl      *control.Controller // nil when control is off
 	Images   *imageCache         // nil = no model pictures
+	Metrics  *Metrics            // nil = no /metrics
 	Order    *orderStore         // nil = default order
 	Inactive []string            // unit slugs shown as a blank placeholder in the web UI
 	Interval time.Duration
@@ -122,6 +123,9 @@ func newMux(d deps) *http.ServeMux {
 	mux.HandleFunc("GET /{$}", d.handleIndex)
 	mux.HandleFunc("GET /ui/sse", d.handleSSE)
 	mux.HandleFunc("GET /ui/img/{slug}", d.handleImage)
+	if d.Metrics != nil {
+		mux.Handle("GET /metrics", d.Metrics.Handler(d.Store, d.Now, d.Interval))
+	}
 	mux.HandleFunc("GET /ui/static/style.css", serveAsset("ui/style.css", "text/css; charset=utf-8"))
 	mux.HandleFunc("GET /ui/static/dial.js", serveAsset("ui/dial.js", "text/javascript; charset=utf-8"))
 	mux.HandleFunc("GET /ui/static/reorder.js", serveAsset("ui/reorder.js", "text/javascript; charset=utf-8"))

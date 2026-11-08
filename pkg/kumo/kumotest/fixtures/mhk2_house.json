@@ -1,7 +1,7 @@
 {
   "model": "MHK2",
   "thermostat": true,
-  "thermostatBattery": "good",
+  "thermostatBattery": "ok",
   "humidity": 52,
   "scheduleOwner": "adapter",
   "scheduleEnabled": true,

@@ -34,6 +34,10 @@ type Options struct {
 	HTTP            *http.Client
 	Now             func() time.Time
 	Sleep           func(ctx context.Context, d time.Duration) error
+	// OnRequest, when set, is told about every request to the cloud: the
+	// method, the path with ids folded to {id}, the status (0 when the request
+	// failed before one came back) and how long it took.
+	OnRequest func(method, route string, status int, took time.Duration)
 }
 
 // Client talks to Kumo Cloud. It is safe for concurrent use.
@@ -122,14 +126,36 @@ func (c *Client) roundTrip(ctx context.Context, method, path, bearer string, bod
 	if bearer != "" {
 		req.Header.Set("Authorization", "Bearer "+bearer)
 	}
+	start := time.Now()
 	resp, err := c.o.HTTP.Do(req)
 	if err != nil {
+		c.observe(method, path, 0, start)
 		return 0, nil, err
 	}
 	defer resp.Body.Close()
+	c.observe(method, path, resp.StatusCode, start)
 	b, err := io.ReadAll(io.LimitReader(resp.Body, 8<<20))
 	if err != nil {
 		return 0, nil, err
 	}
 	return resp.StatusCode, b, nil
+}
+
+func (c *Client) observe(method, path string, status int, start time.Time) {
+	if c.o.OnRequest != nil {
+		c.o.OnRequest(method, Route(path), status, time.Since(start))
+	}
+}
+
+// Route folds the ids out of a request path so requests group by endpoint:
+// any segment with a digit and eight or more characters (serials, uuids)
+// becomes {id}.
+func Route(path string) string {
+	segs := strings.Split(path, "/")
+	for i, s := range segs {
+		if len(s) >= 8 && strings.ContainsAny(s, "0123456789") {
+			segs[i] = "{id}"
+		}
+	}
+	return strings.Join(segs, "/")
 }
