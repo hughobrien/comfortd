@@ -76,12 +76,6 @@ in {
       description = "Unit slugs shown as a blank placeholder in the web UI (the API still lists them).";
     };
 
-    sensorUnits = lib.mkOption {
-      type = lib.types.listOf lib.types.str;
-      default = [ ];
-      description = "Unit slugs that have a wireless sensor or thermostat. Only these have the sensor endpoint polled; the rest would 404 at every start.";
-    };
-
     openFirewall = lib.mkOption {
       type = lib.types.bool;
       default = false;
@@ -118,8 +112,6 @@ in {
           "--poll-interval" cfg.pollInterval
         ] ++ lib.optionals (cfg.writableUnits != [ ]) [
           "--writable-units" (lib.escapeShellArg (lib.concatStringsSep "," cfg.writableUnits))
-        ] ++ lib.optionals (cfg.sensorUnits != [ ]) [
-          "--sensor-units" (lib.escapeShellArg (lib.concatStringsSep "," cfg.sensorUnits))
         ] ++ lib.optionals (cfg.inactiveUnits != [ ]) [
           "--inactive-units" (lib.escapeShellArg (lib.concatStringsSep "," cfg.inactiveUnits))
         ] ++ lib.optionals cfg.homekit.enable [

@@ -22,7 +22,6 @@ type Poller struct {
 	interval   time.Duration
 	slowEvery  time.Duration
 	kickDelays []time.Duration
-	sensors    map[string]bool // slugs whose sensor endpoint is polled
 
 	mu  sync.Mutex
 	ctx context.Context
@@ -106,20 +105,26 @@ func (p *Poller) PollSlow(ctx context.Context) {
 	}
 }
 
-// SensorUnits sets which unit slugs have the sensor endpoint polled; the
-// default is none, since most units have no wireless sensor and would 404.
-// Call it before Run.
-func (p *Poller) SensorUnits(slugs ...string) {
-	p.sensors = map[string]bool{}
-	for _, s := range slugs {
-		p.sensors[s] = true
+// hasSensor reports whether the unit's zone says it has a wireless sensor
+// (adapter.hasSensor). It needs the zone to have been polled.
+func (p *Poller) hasSensor(slug string) bool {
+	sn, ok := p.st.Get(slug)
+	if !ok {
+		return false
 	}
+	var z struct {
+		Adapter struct {
+			HasSensor bool `json:"hasSensor"`
+		} `json:"adapter"`
+	}
+	return json.Unmarshal(sn.Raw[store.EndpointZone], &z) == nil && z.Adapter.HasSensor
 }
 
-// PollSensor fetches the sensor endpoint for the units named in SensorUnits.
+// PollSensor fetches the sensor endpoint for units whose zone reports a
+// wireless sensor; the others would answer 404.
 func (p *Poller) PollSensor(ctx context.Context) {
 	for _, u := range p.st.Units() {
-		if !p.sensors[u.Slug] {
+		if !p.hasSensor(u.Slug) {
 			continue
 		}
 		raw, err := p.api.Get(ctx, "/devices/"+u.Serial+"/sensor")
@@ -197,8 +202,8 @@ func (p *Poller) Run(ctx context.Context) error {
 	p.ctx = ctx
 	p.mu.Unlock()
 
-	p.PollSensor(ctx)
 	p.PollSlow(ctx)
+	p.PollSensor(ctx) // after the zones: they say which units have a sensor
 	p.PollSchedule(ctx)
 	p.PollOnce(ctx)
 	fast := time.NewTicker(p.interval)

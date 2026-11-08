@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -124,9 +125,17 @@ func TestPollErrorRecorded(t *testing.T) {
 	}
 }
 
+func setSensorFlag(t *testing.T, st *store.Store, slug string, has bool) {
+	t.Helper()
+	raw := []byte(fmt.Sprintf(`{"adapter":{"hasSensor":%v}}`, has))
+	if err := st.Put(slug, store.EndpointZone, raw, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestSensorNotFound(t *testing.T) {
 	_, st, p := newPoller(t)
-	p.SensorUnits("office")
+	setSensorFlag(t, st, "office", true)
 	p.PollSensor(context.Background())
 	o, _ := st.Get("office")
 	if o.Errors[store.EndpointSensor] != "not found" {
@@ -134,16 +143,17 @@ func TestSensorNotFound(t *testing.T) {
 	}
 }
 
-func TestSensorPolledOnlyWhenListed(t *testing.T) {
+func TestSensorPolledOnlyWhenZoneSaysSo(t *testing.T) {
 	srv, st, p := newPoller(t)
-	p.PollSensor(context.Background()) // default: none
+	p.PollSlow(context.Background()) // the fixtures' zones have hasSensor false
+	p.PollSensor(context.Background())
 	if n := srv.Requests("/devices/"+kumotest.OfficeSerial+"/sensor") + srv.Requests("/devices/"+kumotest.HouseSerial+"/sensor"); n != 0 {
-		t.Fatalf("polled %d times by default", n)
+		t.Fatalf("polled %d times with no sensors", n)
 	}
 	if o, _ := st.Get("office"); o.Errors[store.EndpointSensor] != "" {
 		t.Fatalf("errors = %v", o.Errors)
 	}
-	p.SensorUnits("house")
+	setSensorFlag(t, st, "house", true)
 	p.PollSensor(context.Background())
 	if n := srv.Requests("/devices/" + kumotest.HouseSerial + "/sensor"); n != 1 {
 		t.Fatalf("house polled %d times, want 1", n)
