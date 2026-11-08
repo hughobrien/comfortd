@@ -99,3 +99,15 @@ func TestScheduleRangesPerMode(t *testing.T) {
 		}
 	}
 }
+
+func TestScheduleTimeMustBeDigits(t *testing.T) {
+	lim := ScheduleLimitsFor(store.Snapshot{})
+	for _, at := range []string{"-130", "+930", "07 0", "7:00", "2400", "0760"} {
+		if _, err := ValidateSchedule([]kumo.ScheduleEvent{ev(at, "heat", 20, 26, "Mo")}, lim); !errors.Is(err, ErrInvalid) {
+			t.Errorf("%q: got %v", at, err)
+		}
+	}
+	if _, err := ValidateSchedule([]kumo.ScheduleEvent{ev("2359", "heat", 20, 26, "Mo")}, lim); err != nil {
+		t.Errorf("2359: %v", err)
+	}
+}

@@ -92,7 +92,10 @@ func ValidateSchedule(events []kumo.ScheduleEvent, lim ScheduleLimits) ([]kumo.S
 	out := make([]kumo.ScheduleEvent, len(events))
 	for i, e := range events {
 		var h, m int
-		if _, err := fmt.Sscanf(e.StartTime, "%02d%02d", &h, &m); err != nil || len(e.StartTime) != 4 || h > 23 || m > 59 {
+		if !allDigits(e.StartTime) || len(e.StartTime) != 4 {
+			return nil, bad(i, "time %q is not HH:MM", e.StartTime)
+		}
+		if _, err := fmt.Sscanf(e.StartTime, "%02d%02d", &h, &m); err != nil || h > 23 || m > 59 {
 			return nil, bad(i, "time %q is not HH:MM", e.StartTime)
 		}
 		if !lim.hasMode(e.Mode) {
@@ -148,6 +151,15 @@ func ValidateSchedule(events []kumo.ScheduleEvent, lim ScheduleLimits) ([]kumo.S
 		}
 	}
 	return out, nil
+}
+
+func allDigits(s string) bool {
+	for _, r := range s {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 func fmtHHMM(s string) string { return s[:2] + ":" + s[2:] }
