@@ -19,7 +19,7 @@
         src = ./.;
         # When go.mod/go.sum change, set this to
         # pkgs.lib.fakeHash, run the gate build, and paste the `got:` hash.
-        vendorHash = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
+        vendorHash = "sha256-60nWgX2/vmswisSvG0nn1lnlAq3UJf7FLG9pjxHdXro=";
         subPackages = [ "cmd/comfortd" ];
         ldflags = [ "-s" "-w" "-X main.version=${version}" ];
         doCheck = true;
