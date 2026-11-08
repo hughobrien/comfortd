@@ -17,17 +17,18 @@ import (
 )
 
 const (
-	EndpointZone    = "zone"
-	EndpointDevice  = "device"
-	EndpointProfile = "profile"
-	EndpointStatus  = "status"
-	EndpointSensor  = "sensor"
+	EndpointZone     = "zone"
+	EndpointDevice   = "device"
+	EndpointProfile  = "profile"
+	EndpointStatus   = "status"
+	EndpointSensor   = "sensor"
+	EndpointSchedule = "schedule" // this unit's events in the running season (built by the poller from the v4 API)
 )
 
 // ValidEndpoint reports whether e is a known endpoint name.
 func ValidEndpoint(e string) bool {
 	switch e {
-	case EndpointZone, EndpointDevice, EndpointProfile, EndpointStatus, EndpointSensor:
+	case EndpointZone, EndpointDevice, EndpointProfile, EndpointStatus, EndpointSensor, EndpointSchedule:
 		return true
 	}
 	return false

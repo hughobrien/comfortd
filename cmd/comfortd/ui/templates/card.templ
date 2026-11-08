@@ -51,6 +51,7 @@ templ Card(c ui.CardView) {
 			<div class="row"><span>Schedule</span><span>{ yesNo(c.ScheduleActive) }{ holdSuffix(c.HoldEnabled) }</span></div>
 			<div class="row"><span>Adapter</span><span>{ connText(c.Connected) }</span></div>
 		</details>
+		@scheduleSection(c.Schedule)
 	</div>
 }
 
@@ -179,4 +180,39 @@ templ tempDial(c ui.CardView, w *TempWheel) {
 // roomTemp is the measured room temperature, shown under the target wheel.
 templ roomTemp(c ui.CardView) {
 	<div class="room"><span>now</span><b>{ c.RoomTemp } °C</b></div>
+}
+
+// scheduleSection is the read-only schedule: the next event in the summary,
+// every event of the running season in the table.
+templ scheduleSection(sc ui.ScheduleView) {
+	if sc.Present {
+		<details class="kv schedule" data-preserve-attr="open">
+			<summary>
+				Schedule
+				if sc.Next != "" {
+					<span class="next-event">next: { sc.Next }</span>
+				}
+			</summary>
+			<p class="season">{ sc.Season } season</p>
+			<table class="schedule-table">
+				<thead><tr><th>days</th><th>at</th><th>mode</th><th>target</th><th>fan</th></tr></thead>
+				<tbody>
+					for _, r := range sc.Rows {
+						<tr class={ templ.KV("next", r.IsNext) }>
+							<td>{ r.Days }</td>
+							<td>{ r.At }</td>
+							<td>{ r.Mode }</td>
+							<td>{ r.Target }</td>
+							<td>{ r.Fan }</td>
+						</tr>
+					}
+				</tbody>
+			</table>
+		</details>
+	} else if sc.Error != "" {
+		<details class="kv schedule">
+			<summary>Schedule <span class="next-event">unavailable</span></summary>
+			<p class="season">{ sc.Error }</p>
+		</details>
+	}
 }

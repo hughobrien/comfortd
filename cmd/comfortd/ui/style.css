@@ -117,3 +117,10 @@ details.unknown { margin-bottom:.5rem; }
 /* two columns: centre it in the gutter between the mode and target wheels */
 @container (min-width: 35.5rem) { .ctrl.target .room { left:50%; top:10.3rem; transform:translate(-50%, -50%); } }
 .tdial text.tval.na { fill:var(--weak); font-size:13px; font-weight:500; }
+.schedule .next-event { margin-left:.6rem; text-transform:none; letter-spacing:0; font-weight:400; }
+.schedule .season { margin:.3rem 0; color:var(--weak); font-size:.8rem; }
+.schedule-table, .schedule-table td { font-family:inherit; }
+.schedule-table { width:100%; border-collapse:collapse; font-size:.85rem; }
+.schedule-table th { text-align:left; color:var(--weak); font-weight:500; font-size:.75rem; padding:.1rem .4rem .1rem 0; }
+.schedule-table td { padding:.15rem .4rem .15rem 0; }
+.schedule-table tr.next td { font-weight:600; background:var(--hl); }

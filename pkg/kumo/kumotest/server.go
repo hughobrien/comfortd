@@ -92,6 +92,8 @@ func New() *Server {
 	mux.HandleFunc("GET /devices/{serial}/profile", s.authed(s.handleFixtureBySerial("profile_%s.json", 200)))
 	mux.HandleFunc("GET /devices/{serial}/status", s.authed(s.handleFixtureBySerial("status_%s.json", 200)))
 	mux.HandleFunc("GET /devices/{serial}/sensor", s.authed(s.handleFixtureBySerial("sensor_%s_404.json", 404)))
+	mux.HandleFunc("GET /v4/sites/{site}/schedule-seasons", s.authed(s.handleFixture("schedule_seasons.json")))
+	mux.HandleFunc("GET /v4/schedule-seasons/{season}/schedules", s.authed(s.handleSeasonSchedules))
 	mux.HandleFunc("POST /devices/send-command", s.authed(s.handleSendCommand))
 	s.srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		s.mu.Lock()
@@ -345,4 +347,19 @@ func (s *Server) handleSendCommand(w http.ResponseWriter, r *http.Request) {
 	}
 	s.mu.Unlock()
 	writeValue(w, 200, map[string]any{"devices": []string{body.DeviceSerial}})
+}
+
+func (s *Server) handleFixture(name string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) { writeJSON(w, 200, fixture(name)) }
+}
+
+// WinterSeasonID is the running season in the fake; any other season has no schedules.
+const WinterSeasonID = "00000000-0000-4000-8000-0000000000a1"
+
+func (s *Server) handleSeasonSchedules(w http.ResponseWriter, r *http.Request) {
+	if r.PathValue("season") != WinterSeasonID {
+		writeJSON(w, 200, []byte("[]"))
+		return
+	}
+	writeJSON(w, 200, fixture("schedule_winter.json"))
 }

@@ -93,6 +93,15 @@ func (c *Client) RefreshCount() int {
 	return c.refreshes
 }
 
+// url joins path to the base. Paths starting with /v4/ go to the v4 API
+// (schedules live there), which sits beside /v3 on the same host.
+func (c *Client) url(path string) string {
+	if strings.HasPrefix(path, "/v4/") {
+		return strings.TrimSuffix(c.o.BaseURL, "/v3") + path
+	}
+	return c.o.BaseURL + path
+}
+
 // roundTrip sends one request and returns status and body. Errors never
 // include the response body.
 func (c *Client) roundTrip(ctx context.Context, method, path, bearer string, body any) (int, []byte, error) {
@@ -104,7 +113,7 @@ func (c *Client) roundTrip(ctx context.Context, method, path, bearer string, bod
 		}
 		rdr = bytes.NewReader(b)
 	}
-	req, err := http.NewRequestWithContext(ctx, method, c.o.BaseURL+path, rdr)
+	req, err := http.NewRequestWithContext(ctx, method, c.url(path), rdr)
 	if err != nil {
 		return 0, nil, err
 	}

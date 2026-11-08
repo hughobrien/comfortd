@@ -167,3 +167,18 @@ func TestKickPollsSoon(t *testing.T) {
 		t.Fatalf("kick polls = %d, want 3", got)
 	}
 }
+
+func TestPollScheduleStoresEachUnitsEvents(t *testing.T) {
+	_, st, p := newPoller(t)
+	p.PollSchedule(context.Background())
+	for slug, want := range map[string]int{"office": 4, "house": 3} {
+		sn, _ := st.Get(slug)
+		if e := sn.Errors[store.EndpointSchedule]; e != "" {
+			t.Fatalf("%s: %s", slug, e)
+		}
+		s, err := kumo.ParseSchedule(sn.Raw[store.EndpointSchedule])
+		if err != nil || s.Season != "Winter" || len(s.Events) != want {
+			t.Fatalf("%s: %+v %v", slug, s, err)
+		}
+	}
+}

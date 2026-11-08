@@ -6,7 +6,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
+	"slices"
 	"sync"
 	"time"
 
@@ -125,6 +127,69 @@ func (p *Poller) PollSensor(ctx context.Context) {
 	}
 }
 
+type scheduleSeason struct {
+	ID        string `json:"id"`
+	Name      string `json:"name"`
+	IsRunning bool   `json:"isRunning"`
+}
+
+type zoneSchedule struct {
+	Zone   struct{ ID string } `json:"zone"`
+	Events json.RawMessage     `json:"events"`
+}
+
+// PollSchedule fetches each site's running schedule season (v4 API) and
+// stores every unit's events under the schedule endpoint as
+// {"season": name, "events": [...]}.
+func (p *Poller) PollSchedule(ctx context.Context) {
+	sites := map[string][]store.Unit{}
+	for _, u := range p.st.Units() {
+		sites[u.SiteID] = append(sites[u.SiteID], u)
+	}
+	for site, us := range sites {
+		fail := func(err error) {
+			for _, u := range us {
+				p.record(u.Slug, store.EndpointSchedule, nil, err)
+			}
+		}
+		raw, err := p.api.Get(ctx, "/v4/sites/"+site+"/schedule-seasons")
+		if err != nil {
+			fail(err)
+			continue
+		}
+		var seasons []scheduleSeason
+		if err := json.Unmarshal(raw, &seasons); err != nil {
+			fail(fmt.Errorf("schedule seasons: %w", err))
+			continue
+		}
+		i := slices.IndexFunc(seasons, func(s scheduleSeason) bool { return s.IsRunning })
+		if i < 0 {
+			fail(errors.New("no schedule season is running"))
+			continue
+		}
+		season := seasons[i]
+		raw, err = p.api.Get(ctx, "/v4/schedule-seasons/"+season.ID+"/schedules")
+		if err != nil {
+			fail(err)
+			continue
+		}
+		var scheds []zoneSchedule
+		if err := json.Unmarshal(raw, &scheds); err != nil {
+			fail(fmt.Errorf("schedules: %w", err))
+			continue
+		}
+		for _, u := range us {
+			j := slices.IndexFunc(scheds, func(s zoneSchedule) bool { return s.Zone.ID == u.ZoneID })
+			if j < 0 {
+				p.record(u.Slug, store.EndpointSchedule, nil, errors.New("no schedule for this zone in the running season"))
+				continue
+			}
+			out, _ := json.Marshal(map[string]any{"season": season.Name, "events": scheds[j].Events})
+			p.record(u.Slug, store.EndpointSchedule, out, nil)
+		}
+	}
+}
+
 // Run polls until ctx is done.
 func (p *Poller) Run(ctx context.Context) error {
 	p.mu.Lock()
@@ -133,6 +198,7 @@ func (p *Poller) Run(ctx context.Context) error {
 
 	p.PollSensor(ctx)
 	p.PollSlow(ctx)
+	p.PollSchedule(ctx)
 	p.PollOnce(ctx)
 	fast := time.NewTicker(p.interval)
 	slow := time.NewTicker(p.slowEvery)
@@ -146,6 +212,7 @@ func (p *Poller) Run(ctx context.Context) error {
 			p.PollOnce(ctx)
 		case <-slow.C:
 			p.PollSlow(ctx)
+			p.PollSchedule(ctx)
 		}
 	}
 }

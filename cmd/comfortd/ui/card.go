@@ -37,6 +37,7 @@ type CardView struct {
 	// Selectable values, offered only when the unit is writable and supports
 	// them; Pressed marks the current one.
 	Modes, Fans, Vanes []Choice
+	Schedule           ScheduleView
 }
 
 type Choice struct {
@@ -128,6 +129,7 @@ func BuildCard(s store.Snapshot, ann *annotate.Set, ctl CardControl, now time.Ti
 			c.Vanes = choices(control.VaneChoices(*p), d.AirDirection)
 		}
 	}
+	c.Schedule = BuildSchedule(s, now)
 	if z := s.Zone; z != nil {
 		c.ScheduleActive, c.HoldEnabled = z.HasActiveSchedule, z.HoldEnabled
 	}

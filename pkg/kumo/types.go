@@ -21,6 +21,7 @@ type Device struct {
 	SpHeat, SpCool, RoomTemp, Humidity                                    *float64
 	Connected                                                             bool
 	ImageURL                                                              string
+	TimeZone                                                              string // IANA name, e.g. America/Los_Angeles; schedule times are in it
 	Display                                                               DisplayConfig
 	RealValues                                                            map[string]any
 }
@@ -97,6 +98,7 @@ func ParseDevice(raw json.RawMessage) (Device, error) {
 		RoomTemp      *float64       `json:"roomTemp"`
 		Humidity      *float64       `json:"humidity"`
 		Connected     bool           `json:"connected"`
+		TimeZone      string         `json:"timeZone"`
 		RealValues    map[string]any `json:"realValues"`
 		DisplayConfig DisplayConfig  `json:"displayConfig"`
 		Model         struct {
@@ -112,7 +114,7 @@ func ParseDevice(raw json.RawMessage) (Device, error) {
 		Serial: in.DeviceSerial, ModelNumber: in.ModelNumber, OperationMode: in.OperationMode,
 		FanSpeed: in.FanSpeed, AirDirection: in.AirDirection, UpdatedAt: in.UpdatedAt,
 		Power: int(in.Power), SpHeat: in.SpHeat, SpCool: in.SpCool, RoomTemp: in.RoomTemp,
-		Humidity: in.Humidity, Connected: in.Connected, RealValues: in.RealValues,
+		Humidity: in.Humidity, Connected: in.Connected, TimeZone: in.TimeZone, RealValues: in.RealValues,
 		ImageURL: in.Model.Gallery.ImageURL, Display: in.DisplayConfig,
 	}, nil
 }
