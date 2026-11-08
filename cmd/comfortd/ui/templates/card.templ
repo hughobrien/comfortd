@@ -166,7 +166,7 @@ templ roomTemp(c ui.CardView) {
 templ scheduleSection(c ui.CardView) {
 	{{ sc := c.Schedule }}
 	if sc.Present {
-		<details class="kv schedule" data-preserve-attr="open">
+		<details class="kv schedule" data-preserve-attr="open" open>
 			<summary>
 				Schedule
 				if !sc.Active {

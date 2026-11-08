@@ -980,7 +980,7 @@ func scheduleSection(c ui.CardView) templ.Component {
 		ctx = templ.ClearChildren(ctx)
 		sc := c.Schedule
 		if sc.Present {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 78, "<details class=\"kv schedule\" data-preserve-attr=\"open\"><summary>Schedule ")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 78, "<details class=\"kv schedule\" data-preserve-attr=\"open\" open><summary>Schedule ")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
