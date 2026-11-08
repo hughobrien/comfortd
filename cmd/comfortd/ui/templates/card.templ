@@ -95,6 +95,7 @@ templ seg(c ui.CardView, opts []ui.Choice, path, param, field string) {
 			<button
 				type="button"
 				aria-pressed={ boolStr(o.Pressed) }
+				data-value={ o.Value }
 				class={ templ.KV("pending", o.Pressed && c.Control.Pending[field] != "") }
 				data-on:click={ "@post('/ui/units/" + c.Slug + "/" + path + "?" + param + "=" + o.Value + "')" }
 			>{ o.Label }</button>
