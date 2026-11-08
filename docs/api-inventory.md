@@ -43,7 +43,7 @@ Base `https://app-prod.kumocloud.com/v3`, header `x-app-version: 3.2.4`, bearer 
 | `ledDisabled` | `false` | [untested] | possibly writable (adapter LED) |
 | `scheduleOwner` | `adapter` | [untested] | who runs the schedule |
 | `scheduleHoldEndTime` | `0` | [untested] | |
-| `displayConfig` | `{defrost,filter,hotAdjust,standby}` | read-only? | `filter: true` here means filter indicator is shown/supported; confirm |
+| `displayConfig` | `{defrost,filter,hotAdjust,standby}` | read-only | **`filter: true` = unit wants its filter cleaned** (Hugh, 2026-11-07, app agrees). The others are assumed to be true while defrosting / standby / hot-start adjusting; not yet observed. The UI shows a yellow flag for each true one |
 | `statusDisplay`, `twoFiguresCode`, `unusualFigures`, `runTest`, `tempSource`, `activeThermistor`, `collectMethod` | various | [untested] | diagnostic; meaning unknown |
 | `updatedAt` | ISO time | read-only | used by comfort_HA to reconcile commands |
 | `model.*` | family MSZ, 12 kBTU | read-only | static model data |

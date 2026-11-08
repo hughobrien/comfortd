@@ -111,3 +111,18 @@ func TestUndecodedValue(t *testing.T) {
 		t.Fatalf("%+v", r)
 	}
 }
+
+func TestCardAlertsImageAndRange(t *testing.T) {
+	status := json.RawMessage(`{"minSetPoint":16,"maxSetPoint":31}`)
+	sn := fixtureSnap(t, "office", "device_office.json", map[string]json.RawMessage{"status": status})
+	c := BuildCard(sn, mustAnn(t), CardControl{Writable: true}, time.Now(), time.Minute)
+	if len(c.Alerts) != 1 || c.Alerts[0] != "check filter" { // fixture has filter:true only
+		t.Fatalf("alerts %v", c.Alerts)
+	}
+	if c.Image == "" {
+		t.Fatal("no image")
+	}
+	if c.SpMin != "16" || c.SpMax != "31" {
+		t.Fatalf("range %q–%q (want the status endpoint's, not the profile's 10–31)", c.SpMin, c.SpMax)
+	}
+}

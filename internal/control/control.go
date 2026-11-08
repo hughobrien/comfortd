@@ -195,12 +195,8 @@ func (c *Controller) Apply(slug string, in Intent, source string) error {
 	}
 	if in.SpHeat != nil {
 		snap, ok := c.o.Store.Get(slug)
-		if !ok || snap.Profile == nil {
-			return fmt.Errorf("%w: setpoint range unknown", ErrInvalid)
-		}
-		lo, hasLo := snap.Profile.Min["heat"]
-		hi, hasHi := snap.Profile.Max["heat"]
-		if !hasLo || !hasHi {
+		lo, hi, hasRange := snap.SetpointRange()
+		if !ok || !hasRange {
 			return fmt.Errorf("%w: setpoint range unknown", ErrInvalid)
 		}
 		v := math.Round(*in.SpHeat*2) / 2

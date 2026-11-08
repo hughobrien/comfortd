@@ -48,6 +48,7 @@ details.unknown { margin-bottom:.5rem; }
 .slider-row { display:flex; gap:.5rem; align-items:center; }
 .slider-row input[type=range] { flex:1; accent-color:var(--on); }
 .slider-row .val { display:flex; align-items:baseline; gap:.2rem; }
+.lim { color:var(--weak); font-size:.75rem; font-variant-numeric:tabular-nums; }
 .val-input { width:4.2rem; font:inherit; font-weight:600; text-align:right; padding:.15rem .25rem; border:1px solid var(--border); border-radius:4px; background:transparent; color:var(--fg); }
 .val-suffix { color:var(--weak); }
 .val-suffix.pending { text-decoration:underline dashed; }
@@ -57,3 +58,5 @@ details.unknown { margin-bottom:.5rem; }
 .kv .row { display:flex; justify-content:space-between; padding:.1rem 0; }
 .kv .row > span:first-child { color:var(--weak); }
 .ctl-error { color:#c0392b; margin:.4rem 0 0; }
+.alert-flag { font-size:.75rem; font-weight:600; padding:.05rem .5rem; margin-left:.5rem; border-radius:3px; background:#f5d90a; color:#111; }
+.card .head img.model { height:3.2rem; width:auto; max-width:40%; object-fit:contain; margin:0 auto; }

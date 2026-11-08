@@ -20,8 +20,15 @@ type Device struct {
 	Power                                                                 int
 	SpHeat, SpCool, RoomTemp, Humidity                                    *float64
 	Connected                                                             bool
+	ImageURL                                                              string
+	Display                                                               DisplayConfig
 	RealValues                                                            map[string]any
 }
+
+// DisplayConfig holds the adapter's indicator flags. filter true = the unit
+// wants its filter cleaned (observed). The others are expected to be true
+// while defrosting, in standby, or hot-start adjusting (not yet observed).
+type DisplayConfig struct{ Defrost, Filter, HotAdjust, Standby bool }
 
 type Profile struct {
 	Min, Max          map[string]float64
@@ -91,6 +98,12 @@ func ParseDevice(raw json.RawMessage) (Device, error) {
 		Humidity      *float64       `json:"humidity"`
 		Connected     bool           `json:"connected"`
 		RealValues    map[string]any `json:"realValues"`
+		DisplayConfig DisplayConfig  `json:"displayConfig"`
+		Model         struct {
+			Gallery struct {
+				ImageURL string `json:"imageUrl"`
+			} `json:"gallery"`
+		} `json:"model"`
 	}
 	if err := json.Unmarshal(raw, &in); err != nil {
 		return Device{}, fmt.Errorf("kumo: parse device: %w", err)
@@ -100,6 +113,7 @@ func ParseDevice(raw json.RawMessage) (Device, error) {
 		FanSpeed: in.FanSpeed, AirDirection: in.AirDirection, UpdatedAt: in.UpdatedAt,
 		Power: int(in.Power), SpHeat: in.SpHeat, SpCool: in.SpCool, RoomTemp: in.RoomTemp,
 		Humidity: in.Humidity, Connected: in.Connected, RealValues: in.RealValues,
+		ImageURL: in.Model.Gallery.ImageURL, Display: in.DisplayConfig,
 	}, nil
 }
 

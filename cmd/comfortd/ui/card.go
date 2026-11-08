@@ -4,6 +4,7 @@ package ui
 
 import (
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/hughobrien/comfortd/internal/annotate"
@@ -26,7 +27,9 @@ type CardView struct {
 	LastOK                                          string // "15:04:05", or "never"
 	Fan, Vane                                       string
 	On                                              bool
-	SpMin, SpMax                                    string // heat setpoint range from the profile
+	Image                                           string   // model picture URL, https only
+	Alerts                                          []string // active displayConfig flags, for the banner
+	SpMin, SpMax                                    string   // heat setpoint range from the profile
 	// Selectable values, offered only when the unit is writable and supports
 	// them; Pressed marks the current one.
 	Modes, Fans, Vanes []Choice
@@ -71,6 +74,21 @@ func BuildCard(s store.Snapshot, ann *annotate.Set, ctl CardControl, now time.Ti
 				}
 			}
 		}
+		if strings.HasPrefix(d.ImageURL, "https://") {
+			c.Image = d.ImageURL
+		}
+		if d.Display.Filter {
+			c.Alerts = append(c.Alerts, "check filter")
+		}
+		if d.Display.Defrost {
+			c.Alerts = append(c.Alerts, "defrosting")
+		}
+		if d.Display.Standby {
+			c.Alerts = append(c.Alerts, "standby")
+		}
+		if d.Display.HotAdjust {
+			c.Alerts = append(c.Alerts, "hot adjust")
+		}
 		if d.FanSpeed != "" {
 			c.Fan = d.FanSpeed
 		}
@@ -87,13 +105,11 @@ func BuildCard(s store.Snapshot, ann *annotate.Set, ctl CardControl, now time.Ti
 		d := s.Device
 		c.On = d.Power == 1
 		c.Modes = choices(control.ModeChoices(), d.OperationMode)
+		if lo, hi, ok := s.SetpointRange(); ok {
+			c.SpMin = strconv.FormatFloat(lo, 'f', -1, 64)
+			c.SpMax = strconv.FormatFloat(hi, 'f', -1, 64)
+		}
 		if p := s.Profile; p != nil {
-			if lo, ok := p.Min["heat"]; ok {
-				c.SpMin = strconv.FormatFloat(lo, 'f', -1, 64)
-			}
-			if hi, ok := p.Max["heat"]; ok {
-				c.SpMax = strconv.FormatFloat(hi, 'f', -1, 64)
-			}
 			c.Fans = choices(control.FanChoices(p.NumberOfFanSpeeds), d.FanSpeed)
 			c.Vanes = choices(control.VaneChoices(*p), d.AirDirection)
 		}

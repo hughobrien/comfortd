@@ -239,13 +239,8 @@ func (b *Bridge) Sync(slug string) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	lo, hi := defaultHeatMin, defaultHeatMax
-	if snap.Profile != nil {
-		if v, ok := snap.Profile.Min["heat"]; ok {
-			lo = v
-		}
-		if v, ok := snap.Profile.Max["heat"]; ok {
-			hi = v
-		}
+	if l, h, ok := snap.SetpointRange(); ok {
+		lo, hi = l, h
 	}
 	st := FromDevice(*snap.Device, allowedTargets)
 	if st.HeatThresh != nil {

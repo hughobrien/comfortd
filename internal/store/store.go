@@ -64,6 +64,25 @@ type Snapshot struct {
 	LastDeviceOK time.Time
 }
 
+// SetpointRange is the heat setpoint range the unit allows: the adapter's
+// minSetPoint/maxSetPoint from the status endpoint, else the capability
+// profile's heat limits.
+func (s Snapshot) SetpointRange() (lo, hi float64, ok bool) {
+	var st struct {
+		Min *float64 `json:"minSetPoint"`
+		Max *float64 `json:"maxSetPoint"`
+	}
+	if json.Unmarshal(s.Raw[EndpointStatus], &st) == nil && st.Min != nil && st.Max != nil && *st.Min < *st.Max {
+		return *st.Min, *st.Max, true
+	}
+	if s.Profile != nil {
+		lo, hasLo := s.Profile.Min["heat"]
+		hi, hasHi := s.Profile.Max["heat"]
+		return lo, hi, hasLo && hasHi
+	}
+	return 0, 0, false
+}
+
 // Stale reports whether the device data is too old or the unit is offline.
 func (s Snapshot) Stale(now time.Time, interval time.Duration) bool {
 	if s.Device != nil && !s.Device.Connected {

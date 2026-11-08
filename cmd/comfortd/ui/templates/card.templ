@@ -13,6 +13,9 @@ templ Card(c ui.CardView) {
 			<div class="big">
 				{ c.RoomTemp } °C
 			</div>
+			if c.Image != "" {
+				<img class="model" src={ c.Image } alt="" loading="lazy"/>
+			}
 			if len(c.Modes) > 0 {
 				<button
 					type="button"
@@ -35,6 +38,7 @@ templ Card(c ui.CardView) {
 				<span class="ctrl-label">HEAT TO</span>
 				if c.SpMin != "" && c.SpMax != "" {
 					<div class="slider-row">
+						<span class="lim">{ c.SpMin }</span>
 						<input
 							type="range"
 							min={ c.SpMin }
@@ -44,6 +48,7 @@ templ Card(c ui.CardView) {
 							data-on:input="el.closest('.slider-row').querySelector('.val-input').value = evt.target.value"
 							data-on:change={ setpointPost(c) }
 						/>
+						<span class="lim">{ c.SpMax }</span>
 						<span class="val">
 							<input
 								type="number"
