@@ -192,3 +192,16 @@ func TestPollScheduleStoresEachUnitsEvents(t *testing.T) {
 		}
 	}
 }
+
+func TestMhk2PolledOnlyWhenZoneSaysSo(t *testing.T) {
+	srv, st, p := newPoller(t)
+	p.PollOnce(context.Background()) // stores the zones
+	p.PollMhk2(context.Background()) // fixtures: House hasMhk2, Office not
+	if n := srv.Requests("/devices/" + kumotest.OfficeSerial + "/mhk2"); n != 0 {
+		t.Fatalf("office polled %d times", n)
+	}
+	h, _ := st.Get("house")
+	if len(h.Raw[store.EndpointMhk2]) == 0 {
+		t.Fatalf("no mhk2 stored: %v", h.Errors)
+	}
+}

@@ -22,13 +22,14 @@ const (
 	EndpointProfile  = "profile"
 	EndpointStatus   = "status"
 	EndpointSensor   = "sensor"
+	EndpointMhk2     = "mhk2"     // the wall thermostat, for zones with adapter.hasMhk2
 	EndpointSchedule = "schedule" // this unit's events in the running season (built by the poller from the v4 API)
 )
 
 // ValidEndpoint reports whether e is a known endpoint name.
 func ValidEndpoint(e string) bool {
 	switch e {
-	case EndpointZone, EndpointDevice, EndpointProfile, EndpointStatus, EndpointSensor, EndpointSchedule:
+	case EndpointZone, EndpointDevice, EndpointProfile, EndpointStatus, EndpointSensor, EndpointMhk2, EndpointSchedule:
 		return true
 	}
 	return false

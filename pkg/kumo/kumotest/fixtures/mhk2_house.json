@@ -1,0 +1,14 @@
+{
+  "model": "MHK2",
+  "thermostat": true,
+  "thermostatBattery": "good",
+  "humidity": 52,
+  "scheduleOwner": "adapter",
+  "scheduleEnabled": true,
+  "holdAdapterEndTime": 0,
+  "holdAdapterCancelMhk2": false,
+  "holdMhk2CancelAdapter": false,
+  "holdMhk2EndTime": 0,
+  "autoOwner": "adapter",
+  "autoStatus": "idle"
+}

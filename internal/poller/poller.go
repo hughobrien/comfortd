@@ -105,19 +105,36 @@ func (p *Poller) PollSlow(ctx context.Context) {
 	}
 }
 
-// hasSensor reports whether the unit's zone says it has a wireless sensor
-// (adapter.hasSensor). It needs the zone to have been polled.
-func (p *Poller) hasSensor(slug string) bool {
+// zoneFlag reports whether the unit's zone has adapter.<flag> true. It needs
+// the zone to have been polled.
+func (p *Poller) zoneFlag(slug, flag string) bool {
 	sn, ok := p.st.Get(slug)
 	if !ok {
 		return false
 	}
 	var z struct {
-		Adapter struct {
-			HasSensor bool `json:"hasSensor"`
-		} `json:"adapter"`
+		Adapter map[string]any `json:"adapter"`
 	}
-	return json.Unmarshal(sn.Raw[store.EndpointZone], &z) == nil && z.Adapter.HasSensor
+	if json.Unmarshal(sn.Raw[store.EndpointZone], &z) != nil {
+		return false
+	}
+	v, _ := z.Adapter[flag].(bool)
+	return v
+}
+
+// hasSensor reports whether the zone says there is a wireless sensor.
+func (p *Poller) hasSensor(slug string) bool { return p.zoneFlag(slug, "hasSensor") }
+
+// PollMhk2 fetches the wall thermostat's endpoint for zones that report one
+// (adapter.hasMhk2); the others would answer 404.
+func (p *Poller) PollMhk2(ctx context.Context) {
+	for _, u := range p.st.Units() {
+		if !p.zoneFlag(u.Slug, "hasMhk2") {
+			continue
+		}
+		raw, err := p.api.Get(ctx, "/devices/"+u.Serial+"/mhk2")
+		p.record(u.Slug, store.EndpointMhk2, raw, err)
+	}
 }
 
 // PollSensor fetches the sensor endpoint for units whose zone reports a
@@ -202,10 +219,12 @@ func (p *Poller) Run(ctx context.Context) error {
 	p.ctx = ctx
 	p.mu.Unlock()
 
+	p.PollOnce(ctx) // first, for the zones: they say which units have a sensor or a thermostat
 	p.PollSlow(ctx)
-	p.PollSensor(ctx) // after the zones: they say which units have a sensor
+	p.PollSensor(ctx)
+	p.PollMhk2(ctx)
 	p.PollSchedule(ctx)
-	p.PollOnce(ctx)
+	p.PollOnce(ctx) // again, so the first view has the profile
 	fast := time.NewTicker(p.interval)
 	slow := time.NewTicker(p.slowEvery)
 	defer fast.Stop()
@@ -218,6 +237,8 @@ func (p *Poller) Run(ctx context.Context) error {
 			p.PollOnce(ctx)
 		case <-slow.C:
 			p.PollSlow(ctx)
+			p.PollSensor(ctx)
+			p.PollMhk2(ctx)
 			p.PollSchedule(ctx)
 		}
 	}
