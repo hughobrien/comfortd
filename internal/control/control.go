@@ -322,7 +322,7 @@ func (c *Controller) noteSpecified(slug string, mode *string, sp, spc *float64) 
 		if sp != nil {
 			have.Heat = sp
 		}
-	case "cool":
+	case "cool", "dry":
 		if spc != nil {
 			have.Cool = spc
 		}
@@ -373,7 +373,7 @@ func (c *Controller) recall(slug, mode string, sp, spc **float64) {
 	switch fam {
 	case "heat":
 		*sp = inRange(mem.Heat)
-	case "cool":
+	case "cool", "dry":
 		*spc = inRange(mem.Cool)
 	case "auto":
 		h, cl := inRange(mem.Heat), inRange(mem.Cool)
@@ -572,7 +572,7 @@ func (c *Controller) rememberSetpoints(slug string, d kumo.Device) bool {
 	switch fam {
 	case "heat":
 		want.Heat = d.SpHeat
-	case "cool":
+	case "cool", "dry": // dry uses the cool setpoint (the app shows spCool in dry)
 		want.Cool = d.SpCool
 	case "auto":
 		if d.SpHeat == nil || d.SpCool == nil {
