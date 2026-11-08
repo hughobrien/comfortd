@@ -484,3 +484,16 @@ func TestApplyRejectsModeTheProfileLacks(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+// A unit whose status has been read but whose profile has not must refuse a
+// cool setpoint, not panic.
+func TestSpCoolWithoutProfile(t *testing.T) {
+	st := store.New([]store.Unit{{Slug: "office", Serial: "x"}})
+	if err := st.Put("office", store.EndpointStatus, []byte(`{"minSetPoint":16,"maxSetPoint":31}`), time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	c := New(Options{Store: st, Writable: []string{"office"}})
+	if err := c.Apply("office", Intent{SpCool: f(24)}, "ui"); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("got %v, want ErrInvalid", err)
+	}
+}

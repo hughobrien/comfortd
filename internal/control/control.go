@@ -265,7 +265,7 @@ func (c *Controller) Apply(slug string, in Intent, source string) error {
 	if in.SpCool != nil {
 		snap, ok := c.o.Store.Get(slug)
 		lo, hi, hasRange := snap.SetpointRange()
-		if !ok || !hasRange || !snap.Profile.SupportsCool() {
+		if !ok || !hasRange || snap.Profile == nil || !snap.Profile.SupportsCool() {
 			return fmt.Errorf("%w: unit has no cool setpoint range", ErrInvalid)
 		}
 		v := math.Round(*in.SpCool*2) / 2
