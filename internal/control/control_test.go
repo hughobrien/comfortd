@@ -69,9 +69,9 @@ func (r *rig) newController(s Sender) *Controller {
 	return New(Options{
 		Sender: s, Store: r.st, History: r.hist, Writable: []string{"office"},
 		Window: 50 * time.Millisecond, HoldTimeout: 300 * time.Millisecond,
-		LastModePath: filepath.Join(r.dir, "lastmode.json"),
-		Kick:         func(slug string) { r.mu.Lock(); r.kicks = append(r.kicks, slug); r.mu.Unlock() },
-		OnChange:     func(slug string) { r.mu.Lock(); r.chg = append(r.chg, slug); r.mu.Unlock() },
+		LastModePath: filepath.Join(r.dir, "lastmode.json"), SetpointsPath: filepath.Join(r.dir, "setpoints.json"),
+		Kick:     func(slug string) { r.mu.Lock(); r.kicks = append(r.kicks, slug); r.mu.Unlock() },
+		OnChange: func(slug string) { r.mu.Lock(); r.chg = append(r.chg, slug); r.mu.Unlock() },
 	})
 }
 
@@ -390,5 +390,49 @@ func TestAutoModeConfirmsAsAutoCool(t *testing.T) {
 	}
 	if r.c.LastMode("office") != "auto" {
 		t.Fatal(r.c.LastMode("office"))
+	}
+}
+
+func TestModeSwitchRestoresLastSetpoints(t *testing.T) {
+	r := newRig(t) // office in heat
+	// Seen in heat: spHeat 20 is remembered.
+	r.c.Observe(store.Update{Slug: "office", Endpoint: store.EndpointDevice, New: []byte(`{"operationMode":"heat","power":1,"spHeat":20,"spCool":26}`)})
+	if got := r.c.Remembered("office", "heat"); got.Heat == nil || *got.Heat != 20 {
+		t.Fatalf("heat memory %+v", got)
+	}
+	// We specify an auto band in the UI: remembered for auto.
+	if err := r.c.Apply("office", Intent{Mode: s("auto"), SpHeat: f(19), SpCool: f(24)}, "ui"); err != nil {
+		t.Fatal(err)
+	}
+	eventually(t, time.Second, func() bool { return len(r.srv.Commands()) == 1 }, "auto sent")
+	// The unit rewrites heat on entering auto (the poll that changes family is not recorded).
+	r.c.Observe(store.Update{Slug: "office", Endpoint: store.EndpointDevice, New: []byte(`{"operationMode":"autoCool","power":1,"spHeat":17,"spCool":24}`)})
+	if got := r.c.Remembered("office", "heat"); *got.Heat != 20 {
+		t.Fatalf("heat memory clobbered: %+v", got)
+	}
+	if got := r.c.Remembered("office", "auto"); *got.Heat != 19 || *got.Cool != 24 {
+		t.Fatalf("auto memory %+v (what we specified should stick)", got)
+	}
+	// Back to heat from the UI with no setpoint: the remembered 20 goes with the mode.
+	r.srv.SetField(kumotest.OfficeSerial, "operationMode", "autoCool")
+	r.p.PollOnce(context.Background())
+	if err := r.c.Apply("office", Intent{Mode: s("heat")}, "ui"); err != nil {
+		t.Fatal(err)
+	}
+	eventually(t, time.Second, func() bool { return len(r.srv.Commands()) == 2 }, "heat sent")
+	cmds := r.srv.Commands()[1].Commands
+	if cmds["operationMode"] != "heat" || cmds["spHeat"] != 20.0 {
+		t.Fatalf("sent %v", cmds)
+	}
+}
+
+func TestSetpointMemorySurvivesRestart(t *testing.T) {
+	r := newRig(t)
+	if err := r.c.Apply("office", Intent{SpHeat: f(21)}, "ui"); err != nil { // office is in heat
+		t.Fatal(err)
+	}
+	c2 := r.newController(nil)
+	if got := c2.Remembered("office", "heat"); got.Heat == nil || *got.Heat != 21 {
+		t.Fatalf("after restart %+v", got)
 	}
 }

@@ -164,8 +164,9 @@ func runContext(ctx context.Context, args []string, stdout io.Writer, ready func
 	var bridge *homekit.Bridge // set before any goroutine that can call OnChange starts
 	ctl := control.New(control.Options{
 		Sender: client, Store: st, History: hist, Writable: splitList(*writable),
-		LastModePath: filepath.Join(*stateDir, "lastmode.json"),
-		Kick:         func(slug string) { p.Kick(slug) },
+		LastModePath:  filepath.Join(*stateDir, "lastmode.json"),
+		SetpointsPath: filepath.Join(*stateDir, "setpoints.json"),
+		Kick:          func(slug string) { p.Kick(slug) },
 		OnChange: func(slug string) {
 			hub.Publish(pushEvent{Slug: slug})
 			if bridge != nil {

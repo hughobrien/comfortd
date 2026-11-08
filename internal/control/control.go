@@ -123,16 +123,17 @@ type Sender interface {
 }
 
 type Options struct {
-	Sender       Sender
-	Store        *store.Store
-	History      *history.Log
-	Kick         func(slug string)
-	Writable     []string
-	Window       time.Duration // coalescing window, default 1s
-	HoldTimeout  time.Duration // pending hold, default 30s
-	LastModePath string
-	OnChange     func(slug string)
-	Now          func() time.Time
+	Sender        Sender
+	Store         *store.Store
+	History       *history.Log
+	Kick          func(slug string)
+	Writable      []string
+	Window        time.Duration // coalescing window, default 1s
+	HoldTimeout   time.Duration // pending hold, default 30s
+	LastModePath  string
+	SetpointsPath string // remembered setpoints per mode, persisted
+	OnChange      func(slug string)
+	Now           func() time.Time
 }
 
 type field struct {
@@ -155,6 +156,8 @@ type Controller struct {
 	mu       sync.Mutex
 	units    map[string]*unitState
 	lastMode map[string]string
+	lastFam  map[string]string               // mode family seen on the previous poll
+	mem      map[string]map[string]Setpoints // slug -> mode family -> setpoints last seen in it
 }
 
 func New(o Options) *Controller {
@@ -167,13 +170,25 @@ func New(o Options) *Controller {
 	if o.Now == nil {
 		o.Now = time.Now
 	}
-	c := &Controller{o: o, wake: make(chan struct{}, 1), units: map[string]*unitState{}, lastMode: map[string]string{}}
+	c := &Controller{o: o, wake: make(chan struct{}, 1), units: map[string]*unitState{}, lastMode: map[string]string{},
+		lastFam: map[string]string{}, mem: map[string]map[string]Setpoints{}}
 	if o.LastModePath != "" {
 		if b, err := os.ReadFile(o.LastModePath); err == nil {
 			json.Unmarshal(b, &c.lastMode)
 		}
 	}
+	if o.SetpointsPath != "" {
+		if b, err := os.ReadFile(o.SetpointsPath); err == nil {
+			json.Unmarshal(b, &c.mem)
+		}
+	}
 	return c
+}
+
+// Setpoints are the setpoints a mode last had; nil = not known.
+type Setpoints struct {
+	Heat *float64 `json:"heat,omitempty"`
+	Cool *float64 `json:"cool,omitempty"`
 }
 
 func (c *Controller) Writable(slug string) bool { return slices.Contains(c.o.Writable, slug) }
@@ -250,9 +265,13 @@ func (c *Controller) Apply(slug string, in Intent, source string) error {
 		}
 		spc = &v
 	}
+	if mode != nil && in.SpHeat == nil && in.SpCool == nil {
+		c.recall(slug, *mode, &sp, &spc)
+	}
 	if err := c.holdAutoGap(slug, mode, &sp, &spc); err != nil {
 		return err
 	}
+	c.noteSpecified(slug, mode, sp, spc)
 	c.mu.Lock()
 	st := c.state(slug)
 	if sp != nil {
@@ -279,6 +298,89 @@ func (c *Controller) Apply(slug string, in Intent, source string) error {
 	}
 	c.changed(slug)
 	return nil
+}
+
+// noteSpecified remembers setpoints we are about to send under the mode they
+// are for (the mode in the intent, else the unit's current one): what the user
+// last asked for is what that mode should come back with.
+func (c *Controller) noteSpecified(slug string, mode *string, sp, spc *float64) {
+	if sp == nil && spc == nil {
+		return
+	}
+	snap, ok := c.o.Store.Get(slug)
+	if !ok || snap.Device == nil {
+		return
+	}
+	fam := ModeFamily(c.Overlay(snap).Device.OperationMode)
+	if mode != nil {
+		fam = ModeFamily(*mode)
+	}
+	c.mu.Lock()
+	have := c.mem[slug][fam]
+	switch fam {
+	case "heat":
+		if sp != nil {
+			have.Heat = sp
+		}
+	case "cool":
+		if spc != nil {
+			have.Cool = spc
+		}
+	case "auto":
+		if sp != nil {
+			have.Heat = sp
+		}
+		if spc != nil {
+			have.Cool = spc
+		}
+	default:
+		c.mu.Unlock()
+		return
+	}
+	if c.mem[slug] == nil {
+		c.mem[slug] = map[string]Setpoints{}
+	}
+	c.mem[slug][fam] = have
+	var b []byte
+	if c.o.SetpointsPath != "" {
+		b, _ = json.Marshal(c.mem)
+	}
+	c.mu.Unlock()
+	if b != nil {
+		if err := fsutil.WriteFileAtomic(c.o.SetpointsPath, b); err != nil {
+			slog.Warn("control: save setpoints", "err", err)
+		}
+	}
+}
+
+// recall fills in the setpoints the mode last had, so switching mode does not
+// leave the unit's own choice (it rewrites setpoints on a mode change). Values
+// outside the unit's current range are ignored.
+func (c *Controller) recall(slug, mode string, sp, spc **float64) {
+	fam := ModeFamily(mode)
+	mem := c.Remembered(slug, fam)
+	snap, ok := c.o.Store.Get(slug)
+	if !ok {
+		return
+	}
+	lo, hi, hasRange := snap.SetpointRange()
+	inRange := func(v *float64) *float64 {
+		if v == nil || !hasRange || *v < lo || *v > hi {
+			return nil
+		}
+		return v
+	}
+	switch fam {
+	case "heat":
+		*sp = inRange(mem.Heat)
+	case "cool":
+		*spc = inRange(mem.Cool)
+	case "auto":
+		h, cl := inRange(mem.Heat), inRange(mem.Cool)
+		if h != nil && cl != nil && *cl-*h >= MinAutoGap {
+			*sp, *spc = h, cl
+		}
+	}
 }
 
 // holdAutoGap keeps spCool-spHeat >= MinAutoGap when the unit is (or is going
@@ -430,6 +532,10 @@ func (c *Controller) Observe(u store.Update) {
 		c.lastMode[u.Slug] = fam
 		saveMode = true
 	}
+	var sps []byte
+	if c.rememberSetpoints(u.Slug, d) && c.o.SetpointsPath != "" {
+		sps, _ = json.Marshal(c.mem)
+	}
 	var modes []byte
 	if saveMode && c.o.LastModePath != "" {
 		modes, _ = json.Marshal(c.lastMode)
@@ -440,9 +546,60 @@ func (c *Controller) Observe(u store.Update) {
 			slog.Warn("control: save last mode", "err", err)
 		}
 	}
+	if sps != nil {
+		if err := fsutil.WriteFileAtomic(c.o.SetpointsPath, sps); err != nil {
+			slog.Warn("control: save setpoints", "err", err)
+		}
+	}
 	if confirmed {
 		c.changed(u.Slug)
 	}
+}
+
+// rememberSetpoints (c.mu held) files the device's setpoints under its mode
+// family: heat keeps spHeat, cool keeps spCool, auto keeps both. The poll on
+// which the family changes is skipped, because the unit rewrites setpoints on
+// a mode change (entering auto overwrote spHeat) and that is not the mode's
+// own value. It reports whether anything changed.
+func (c *Controller) rememberSetpoints(slug string, d kumo.Device) bool {
+	fam := ModeFamily(d.OperationMode)
+	prev, seen := c.lastFam[slug]
+	c.lastFam[slug] = fam
+	if seen && prev != fam {
+		return false
+	}
+	var want Setpoints
+	switch fam {
+	case "heat":
+		want.Heat = d.SpHeat
+	case "cool":
+		want.Cool = d.SpCool
+	case "auto":
+		if d.SpHeat == nil || d.SpCool == nil {
+			return false
+		}
+		want.Heat, want.Cool = d.SpHeat, d.SpCool
+	default:
+		return false
+	}
+	have := c.mem[slug][fam]
+	if equalPtr(have.Heat, want.Heat) && equalPtr(have.Cool, want.Cool) {
+		return false
+	}
+	if c.mem[slug] == nil {
+		c.mem[slug] = map[string]Setpoints{}
+	}
+	c.mem[slug][fam] = want
+	return true
+}
+
+func equalPtr(a, b *float64) bool { return a == nil && b == nil || a != nil && b != nil && *a == *b }
+
+// Remembered returns the setpoints last seen in a mode family.
+func (c *Controller) Remembered(slug, family string) Setpoints {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.mem[slug][family]
 }
 
 func matches(name string, val any, d kumo.Device) bool {
