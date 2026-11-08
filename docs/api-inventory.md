@@ -107,3 +107,12 @@ All times 2026-11-07. Raw copies in the gitignored `spike/out/probe_log.jsonl` (
 | `airDirection` swing | Swing Mode | later |
 | dry / fan-only modes | not in HeaterCooler; maybe separate switches | later / maybe never |
 | `connected` | accessory "No Response" | MVP |
+
+## Probe log: dry and cool (Office, 2026-11-07, Hugh asked for both)
+
+| Sent (through comfortd's command endpoint) | Result | Time |
+|---|---|---|
+| `{"operationMode":"dry"}` from heat | accepted; `operationMode` dry, `power` stays 1, `previousOperationMode` dry; `spHeat` 20, `spCool` 26, fan and vane untouched | confirmed in ~6 s |
+| `{"operationMode":"cool","spCool":21}` from dry | accepted as one command; `operationMode` cool, `spCool` 26 -> 21; `spHeat` untouched; `realValues.spCool` showed the old 26 for one poll, then cleared (same pattern as `spHeat`) | confirmed in ~6 s |
+
+So `dry` and `cool` are plain mode values, and `spCool` is written like `spHeat` (0.5 steps, profile range 16-31). Still untested: `auto` (dual setpoints), `spCool` in other modes, and what the unit does at a setpoint near the room temperature.
