@@ -144,11 +144,15 @@ templ tempDial(c ui.CardView, w *TempWheel) {
 					data-on:tempcommit={ "@post('/ui/units/" + c.Slug + "/' + evt.detail.path + '?v=' + evt.detail.v)" }
 				>
 					<path class="track" d={ w.Track }></path>
-					<path class={ "fill", w.Kind } d={ w.Fill }></path>
-					<text class="wl" x={ fmt.Sprintf("%.1f", w.MinX) } y={ fmt.Sprintf("%.1f", w.MinY) } text-anchor="middle" dominant-baseline="middle">{ w.MinLabel }</text>
-					<text class="wl" x={ fmt.Sprintf("%.1f", w.MaxX) } y={ fmt.Sprintf("%.1f", w.MaxY) } text-anchor="middle" dominant-baseline="middle">{ w.MaxLabel }</text>
-					<text class="tval" x="90" y="66" text-anchor="middle" dominant-baseline="central">{ w.Centre }</text>
-					<text class="wl" x="90" y="84" text-anchor="middle" dominant-baseline="middle">°C</text>
+					if !w.NA {
+						<path class={ "fill", w.Kind } d={ w.Fill }></path>
+						<text class="wl" x={ fmt.Sprintf("%.1f", w.MinX) } y={ fmt.Sprintf("%.1f", w.MinY) } text-anchor="middle" dominant-baseline="middle">{ w.MinLabel }</text>
+						<text class="wl" x={ fmt.Sprintf("%.1f", w.MaxX) } y={ fmt.Sprintf("%.1f", w.MaxY) } text-anchor="middle" dominant-baseline="middle">{ w.MaxLabel }</text>
+					}
+					<text class={ "tval", templ.KV("na", w.NA) } x="90" y={ tvalY(w) } text-anchor="middle" dominant-baseline="central">{ w.Centre }</text>
+					if !w.NA {
+						<text class="wl" x="90" y="84" text-anchor="middle" dominant-baseline="middle">°C</text>
+					}
 					for _, h := range w.Handles {
 						<circle
 							class={ "handle", templ.KV("pending", h.Pending) }

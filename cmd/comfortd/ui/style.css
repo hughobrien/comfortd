@@ -116,3 +116,4 @@ details.unknown { margin-bottom:.5rem; }
 .ctrl.target .room { position:absolute; left:0; top:.1rem; text-align:center; margin:0; }
 /* two columns: centre it in the gutter between the mode and target wheels */
 @container (min-width: 35.5rem) { .ctrl.target .room { left:50%; top:10.3rem; transform:translate(-50%, -50%); } }
+.tdial text.tval.na { fill:var(--weak); font-size:13px; font-weight:500; }

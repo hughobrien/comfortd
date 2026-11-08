@@ -60,3 +60,20 @@ func TestCardPendingMarked(t *testing.T) {
 		t.Fatalf("temperature wheel missing: %s", out)
 	}
 }
+
+func TestCardFanOnlyShowsNA(t *testing.T) {
+	var sb strings.Builder
+	c := ui.CardView{Slug: "office", Mode: "Fan", SpHeat: "19", SpCool: "22", SpMin: "10", SpMax: "31", On: true,
+		Modes:   []ui.Choice{{Value: "heat", Label: "Heat"}, {Value: "vent", Label: "Fan", Pressed: true}},
+		Control: ui.CardControl{Writable: true}}
+	if err := Card(c).Render(context.Background(), &sb); err != nil {
+		t.Fatal(err)
+	}
+	out := sb.String()
+	if !strings.Contains(out, "N/A") || !strings.Contains(out, "TARGET") {
+		t.Fatalf("want an N/A target ring: %s", out)
+	}
+	if strings.Contains(out, "data-handle") || strings.Contains(out, `class="fill`) || strings.Contains(out, "°C</text>") {
+		t.Fatalf("N/A ring must have no handles, fill or unit: %s", out)
+	}
+}

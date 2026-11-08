@@ -140,6 +140,7 @@ type TempWheel struct {
 	MinX, MinY, MaxX, MaxY float64
 	Kind                   string // heat, cool or band, for the fill colour
 	Title                  string
+	NA                     bool // the mode has no target: an inert ring reading N/A
 }
 
 const (
@@ -170,15 +171,21 @@ func tArc(w *TempWheel, v0, v1 float64) string {
 	return fmt.Sprintf("M%.2f %.2fA%.0f %.0f 0 %d 1 %.2f %.2f", x0, y0, tR, tR, large, x1, y1)
 }
 
-// tempWheel builds the wheel for a card, or nil when the mode has no setpoint
-// or the limits are unknown.
+// tempWheel builds the wheel for a card, or nil when the limits are unknown.
+// A mode without a setpoint (fan only, off) gets an inert N/A ring so the
+// layout does not jump.
 func tempWheel(c ui.CardView) *TempWheel {
 	lo, e1 := strconv.ParseFloat(c.SpMin, 64)
 	hi, e2 := strconv.ParseFloat(c.SpMax, 64)
-	if e1 != nil || e2 != nil || hi <= lo || (!c.ShowHeat && !c.ShowCool) {
+	if e1 != nil || e2 != nil || hi <= lo {
 		return nil
 	}
 	w := &TempWheel{Min: lo, Max: hi}
+	if !c.ShowHeat && !c.ShowCool {
+		w.NA, w.Kind, w.Title, w.Centre = true, "na", "TARGET", "N/A"
+		w.Track = tArc(w, lo, hi)
+		return w
+	}
 	add := func(field, path, label, val string) {
 		v, err := strconv.ParseFloat(val, 64)
 		if err != nil {
@@ -226,4 +233,12 @@ func tempWheel(c ui.CardView) *TempWheel {
 // modeOpts is the mode choices plus the Off hub.
 func modeOpts(c ui.CardView) []ui.Choice {
 	return append(append([]ui.Choice{}, c.Modes...), ui.Choice{Value: "off", Label: "Off", Pressed: !c.On})
+}
+
+// tvalY is the baseline of the centre text: higher when a "°C" sits under it.
+func tvalY(w *TempWheel) string {
+	if w.NA {
+		return "70"
+	}
+	return "66"
 }

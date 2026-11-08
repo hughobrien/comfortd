@@ -20,7 +20,7 @@ type Poller struct {
 	interval   time.Duration
 	slowEvery  time.Duration
 	kickDelays []time.Duration
-	noSensor   map[string]bool // slugs whose sensor endpoint is not polled
+	sensors    map[string]bool // slugs whose sensor endpoint is polled
 
 	mu  sync.Mutex
 	ctx context.Context
@@ -104,20 +104,20 @@ func (p *Poller) PollSlow(ctx context.Context) {
 	}
 }
 
-// SkipSensor stops PollSensor asking about the given unit slugs. Call it
-// before Run.
-func (p *Poller) SkipSensor(slugs ...string) {
-	p.noSensor = map[string]bool{}
+// SensorUnits sets which unit slugs have the sensor endpoint polled; the
+// default is none, since most units have no wireless sensor and would 404.
+// Call it before Run.
+func (p *Poller) SensorUnits(slugs ...string) {
+	p.sensors = map[string]bool{}
 	for _, s := range slugs {
-		p.noSensor[s] = true
+		p.sensors[s] = true
 	}
 }
 
-// PollSensor fetches the sensor endpoint per unit (404 expected without a
-// sensor), except for units passed to SkipSensor.
+// PollSensor fetches the sensor endpoint for the units named in SensorUnits.
 func (p *Poller) PollSensor(ctx context.Context) {
 	for _, u := range p.st.Units() {
-		if p.noSensor[u.Slug] {
+		if !p.sensors[u.Slug] {
 			continue
 		}
 		raw, err := p.api.Get(ctx, "/devices/"+u.Serial+"/sensor")

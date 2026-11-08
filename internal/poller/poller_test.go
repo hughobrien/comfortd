@@ -126,6 +126,7 @@ func TestPollErrorRecorded(t *testing.T) {
 
 func TestSensorNotFound(t *testing.T) {
 	_, st, p := newPoller(t)
+	p.SensorUnits("office")
 	p.PollSensor(context.Background())
 	o, _ := st.Get("office")
 	if o.Errors[store.EndpointSensor] != "not found" {
@@ -133,18 +134,22 @@ func TestSensorNotFound(t *testing.T) {
 	}
 }
 
-func TestSkipSensor(t *testing.T) {
+func TestSensorPolledOnlyWhenListed(t *testing.T) {
 	srv, st, p := newPoller(t)
-	p.SkipSensor("office")
-	p.PollSensor(context.Background())
-	if n := srv.Requests("/devices/" + kumotest.OfficeSerial + "/sensor"); n != 0 {
-		t.Fatalf("skipped unit polled %d times", n)
+	p.PollSensor(context.Background()) // default: none
+	if n := srv.Requests("/devices/"+kumotest.OfficeSerial+"/sensor") + srv.Requests("/devices/"+kumotest.HouseSerial+"/sensor"); n != 0 {
+		t.Fatalf("polled %d times by default", n)
 	}
 	if o, _ := st.Get("office"); o.Errors[store.EndpointSensor] != "" {
 		t.Fatalf("errors = %v", o.Errors)
 	}
+	p.SensorUnits("house")
+	p.PollSensor(context.Background())
 	if n := srv.Requests("/devices/" + kumotest.HouseSerial + "/sensor"); n != 1 {
 		t.Fatalf("house polled %d times, want 1", n)
+	}
+	if n := srv.Requests("/devices/" + kumotest.OfficeSerial + "/sensor"); n != 0 {
+		t.Fatalf("office polled %d times, want 0", n)
 	}
 }
 
