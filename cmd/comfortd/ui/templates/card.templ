@@ -25,6 +25,9 @@ templ Card(c ui.CardView) {
 					<span class="ctrl-label">MODE</span>
 					@dial(c, modeOpts(c), "mode", "m", "operationMode", "auto", false, "auto", "off")
 				</div>
+				<div class="room-slot">
+					@roomTemp(c)
+				</div>
 				@tempDial(c, tempWheel(c))
 			}
 			if c.Image != "" {
@@ -127,7 +130,6 @@ templ tempDial(c ui.CardView, w *TempWheel) {
 	if w != nil {
 		<div class="ctrl">
 			<span class="ctrl-label">{ w.Title }</span>
-			@roomTemp(c)
 			<div class="dial">
 				<svg
 					class="tdial"
@@ -169,8 +171,6 @@ templ tempDial(c ui.CardView, w *TempWheel) {
 				</svg>
 			</div>
 		</div>
-	} else {
-		@roomTemp(c)
 	}
 }
 
