@@ -15,7 +15,7 @@ import (
 
 type Row struct {
 	Path, Value                      string
-	Changed, Noisy                   bool
+	Changed, Noisy, Unknown          bool
 	Label, Decoded, Confidence, Note string
 }
 
@@ -135,6 +135,7 @@ func BuildUnitView(s store.Snapshot, changed func(endpoint string) map[string]bo
 						}
 					}
 				} else if !r.Noisy && (name == store.EndpointDevice || name == store.EndpointZone) {
+					r.Unknown = true
 					v.Unknown = append(v.Unknown, r)
 				}
 				ev.Rows = append(ev.Rows, r)

@@ -32,7 +32,6 @@ li .path { color:var(--weak); }
 .stale-banner { background:var(--err); color:#fff; margin:0 0 .5rem; padding:.25rem .5rem; border-radius:4px; font-weight:600; }
 .conf-app-confirmed { color:#2a7; } .conf-api-only { color:#27a; } .conf-assumed { color:#a70; } .conf-hypothesis { color:var(--err); }
 em { color:var(--weak); }
-details.unknown { margin-bottom:.5rem; }
 .card .head { display:flex; flex-wrap:wrap; gap:.25rem; justify-content:space-between; align-items:center; }
 .card .sub { color:var(--weak); margin-bottom:.4rem; }
 .ctrl { margin:.5rem 0; }
@@ -144,3 +143,15 @@ details.unknown { margin-bottom:.5rem; }
 .sched-edit .del { font:inherit; border:0; background:transparent; color:var(--weak); cursor:pointer; font-size:1rem; }
 .sched-edit tr[data-mode=heat] .sp-cool, .sched-edit tr[data-mode=cool] .sp-heat, .sched-edit tr[data-mode=dry] .sp-heat,
 .sched-edit tr[data-mode=vent] .sp input, .sched-edit tr[data-mode=off] .sp input { display:none; }
+
+/* raw data */
+.raw table { table-layout:fixed; margin:.2rem 0 .4rem; }
+.raw td { overflow-wrap:anywhere; word-break:normal; }
+.raw td.path { width:44%; }
+.raw td.val.nul { color:var(--weak); }
+.raw tr.unk td.path { box-shadow:inset 3px 0 var(--weak); }
+.raw .next-event { margin-left:.6rem; text-transform:none; letter-spacing:0; font-weight:400; }
+.raw details.endpoint { margin:.5rem 0 0; }
+.raw details.endpoint > summary { font-size:.85rem; font-weight:600; border-bottom:1px solid var(--border); padding-bottom:.15rem; }
+.raw details.group { margin:.3rem 0 .3rem .4rem; padding-left:.5rem; border-left:2px solid var(--border); }
+.raw details.group > summary { font-size:.8rem; font-weight:500; }

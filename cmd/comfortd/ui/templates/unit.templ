@@ -29,7 +29,6 @@ templ activeUnit(v ui.UnitView) {
 			if v.Card.HoldUntil != "" {
 				<span class="hold-flag">{ v.Card.HoldUntil }</span>
 			}
-			<small>{ v.Serial }</small>
 			if v.Stale {
 				<span class="badge stale">stale</span>
 			}
@@ -38,52 +37,49 @@ templ activeUnit(v ui.UnitView) {
 			}
 		</h2>
 		@Card(v.Card)
-		if len(v.Unknown) > 0 {
-			<details class="unknown" data-preserve-attr="open">
-				<summary>Unknown fields <small>{ strconv.Itoa(len(v.Unknown)) }</small></summary>
-				<table>
-					for _, r := range v.Unknown {
-						<tr class={ rowClass(r) }>
-							<td class="path">{ r.Path }</td>
-							<td class="val">{ r.Value }</td>
-						</tr>
-					}
-				</table>
-			</details>
-		}
-		for _, e := range v.Endpoints {
-			<details open?={ e.Name == "device" } data-preserve-attr="open">
+		if len(v.Endpoints) > 0 {
+			<details class="kv raw" data-preserve-attr="open">
 				<summary>
-					{ e.Name }
-					if e.At != "" {
-						<small>{ e.At }</small>
-					}
-					if e.Error != "" {
-						<span class="badge err">{ e.Error }</span>
+					Raw data
+					if len(v.Unknown) > 0 {
+						<span class="next-event">{ strconv.Itoa(len(v.Unknown)) } not yet understood (grey edge)</span>
 					}
 				</summary>
-				{{ top, groups := e.Split() }}
-				<table>
-					for _, r := range top {
-						@fieldRow(r, r.Path)
+			for _, e := range v.Endpoints {
+				<details class="endpoint" data-preserve-attr="open">
+					<summary>
+						{ e.Name }
+						if e.At != "" {
+							<small>{ e.At }</small>
+						}
+						if e.Error != "" {
+							<span class="badge err">{ e.Error }</span>
+						}
+					</summary>
+					{{ top, groups := e.Split() }}
+					<table>
+						for _, r := range top {
+							@fieldRow(r, r.Path)
+						}
+					</table>
+					for _, g := range groups {
+						<details class="group" data-preserve-attr="open">
+							<summary>
+								{ g.Name }
+								<small>{ strconv.Itoa(len(g.Rows)) }</small>
+								if g.Changed {
+									<span class="badge">changed</span>
+								}
+							</summary>
+							<table>
+								for _, r := range g.Rows {
+									@fieldRow(r, strings.TrimPrefix(strings.TrimPrefix(strings.TrimPrefix(r.Path, "[0]."), g.Name), "."))
+								}
+							</table>
+						</details>
 					}
-				</table>
-				for _, g := range groups {
-					<details class="group" data-preserve-attr="open">
-						<summary>
-							{ g.Name }
-							<small>{ strconv.Itoa(len(g.Rows)) }</small>
-							if g.Changed {
-								<span class="badge">changed</span>
-							}
-						</summary>
-						<table>
-							for _, r := range g.Rows {
-								@fieldRow(r, strings.TrimPrefix(strings.TrimPrefix(r.Path, "[0]."), g.Name))
-							}
-						</table>
-					</details>
-				}
+				</details>
+			}
 			</details>
 		}
 	</section>
@@ -100,14 +96,14 @@ func rowClass(r ui.Row) string {
 }
 
 templ fieldRow(r ui.Row, name string) {
-	<tr class={ rowClass(r) }>
+	<tr class={ rowClass(r), templ.KV("unk", r.Unknown) }>
 		<td class="path">
 			{ name }
 			if r.Label != "" {
 				<br/><span class={ "conf-" + r.Confidence } title={ r.Note }>{ r.Label } · { r.Confidence }</span>
 			}
 		</td>
-		<td class="val">
+		<td class={ "val", templ.KV("nul", r.Value == "null" || r.Value == "" || r.Value == "{}" || r.Value == "[]") }>
 			{ r.Value }
 			if r.Decoded != "" {
 				<br/><em>{ r.Decoded }</em>
