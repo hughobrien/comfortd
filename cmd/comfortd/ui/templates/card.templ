@@ -44,13 +44,13 @@ templ Card(c ui.CardView) {
 		if len(c.Fans) > 0 {
 			<div class="ctrl">
 				<span class="ctrl-label">FAN</span>
-				@seg(c, c.Fans, "fan", "v", "fanSpeed")
+				@dial(c, c.Fans, "fan", "fanSpeed", true, "auto")
 			</div>
 		}
 		if len(c.Vanes) > 0 {
 			<div class="ctrl">
 				<span class="ctrl-label">VANE</span>
-				@seg(c, c.Vanes, "vane", "v", "airDirection")
+				@dial(c, c.Vanes, "vane", "airDirection", false, "auto", "swing")
 			</div>
 		}
 		<details class="kv" data-preserve-attr="open">
@@ -110,6 +110,42 @@ templ seg(c ui.CardView, opts []ui.Choice, path, param, field string) {
 				class={ templ.KV("pending", o.Pressed && c.Control.Pending[field] != "") }
 				data-on:click={ "@post('/ui/units/" + c.Slug + "/" + path + "?" + param + "=" + o.Value + "')" }
 			>{ o.Label }</button>
+		}
+	</div>
+}
+
+// dial renders a ring of wedges with the current value in the middle and the
+// extra choices (auto, swing) as buttons beneath it.
+templ dial(c ui.CardView, opts []ui.Choice, path, field string, level bool, extra ...string) {
+	{{ wedges, buttons := dialSplit(opts, extra...) }}
+	<div class="dial">
+		<svg viewBox="0 0 120 120" role="group">
+			for _, a := range dialArcs(wedges, level) {
+				<path
+					d={ a.Path }
+					role="button"
+					tabindex="0"
+					aria-label={ a.Label }
+					aria-pressed={ boolStr(a.Pressed) }
+					data-value={ a.Value }
+					class={ templ.KV("lit", a.Lit), templ.KV("pending", a.Pressed && c.Control.Pending[field] != "") }
+					data-on:click={ "@post('/ui/units/" + c.Slug + "/" + path + "?v=" + a.Value + "')" }
+				><title>{ a.Label }</title></path>
+			}
+			<text x="60" y="60" text-anchor="middle" dominant-baseline="central">{ dialCenter(opts) }</text>
+		</svg>
+		if len(buttons) > 0 {
+			<div class="seg dial-btns">
+				for _, o := range buttons {
+					<button
+						type="button"
+						aria-pressed={ boolStr(o.Pressed) }
+						data-value={ o.Value }
+						class={ templ.KV("pending", o.Pressed && c.Control.Pending[field] != "") }
+						data-on:click={ "@post('/ui/units/" + c.Slug + "/" + path + "?v=" + o.Value + "')" }
+					>{ o.Label }</button>
+				}
+			</div>
 		}
 	</div>
 }

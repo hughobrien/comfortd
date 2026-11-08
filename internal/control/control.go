@@ -70,6 +70,9 @@ type Choice struct{ Value, Label string }
 // profile's setpoint limits; the profile has no flags for them.
 func ModeChoices(p kumo.Profile) []Choice {
 	var out []Choice
+	if p.HasModeVent {
+		out = append(out, Choice{"vent", "Fan only"})
+	}
 	if p.HasModeHeat {
 		out = append(out, Choice{"heat", "Heat"})
 	}
@@ -81,9 +84,6 @@ func ModeChoices(p kumo.Profile) []Choice {
 	}
 	if p.SupportsAuto() {
 		out = append(out, Choice{"auto", "Auto"})
-	}
-	if p.HasModeVent {
-		out = append(out, Choice{"vent", "Fan only"})
 	}
 	return out
 }

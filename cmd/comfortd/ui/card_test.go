@@ -140,7 +140,7 @@ func TestCardModesAndSetpointsFollowMode(t *testing.T) {
 	for _, m := range BuildCard(sn, mustAnn(t), CardControl{Writable: true}, time.Now(), time.Minute).Modes {
 		vals = append(vals, m.Value)
 	}
-	if got := strings.Join(vals, ","); got != "heat,cool,dry,auto,vent" {
+	if got := strings.Join(vals, ","); got != "vent,heat,cool,dry,auto" {
 		t.Fatalf("modes %s", got)
 	}
 	cases := map[string][2]bool{"heat": {true, false}, "cool": {false, true}, "autoCool": {true, true}, "autoHeat": {true, true}, "dry": {false, true}, "vent": {false, false}}
