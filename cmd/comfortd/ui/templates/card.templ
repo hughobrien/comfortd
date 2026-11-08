@@ -127,10 +127,11 @@ templ tempDial(c ui.CardView, w *TempWheel) {
 	if w != nil {
 		<div class="ctrl">
 			<span class="ctrl-label">{ w.Title }</span>
+			@roomTemp(c)
 			<div class="dial">
 				<svg
 					class="tdial"
-					viewBox="0 0 180 134"
+					viewBox="0 20 180 114"
 					role="group"
 					data-min={ fnum(w.Min) }
 					data-max={ fnum(w.Max) }
@@ -167,7 +168,6 @@ templ tempDial(c ui.CardView, w *TempWheel) {
 					}
 				</svg>
 			</div>
-			@roomTemp(c)
 		</div>
 	} else {
 		@roomTemp(c)

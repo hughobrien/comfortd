@@ -33,8 +33,8 @@
 
   function fromPointer(svg, e) {
     const r = svg.getBoundingClientRect(), vb = svg.viewBox.baseVal;
-    const dx = (e.clientX - r.left) * vb.width / r.width - num(svg, 'cx');
-    const dy = (e.clientY - r.top) * vb.height / r.height - num(svg, 'cy');
+    const dx = vb.x + (e.clientX - r.left) * vb.width / r.width - num(svg, 'cx');
+    const dy = vb.y + (e.clientY - r.top) * vb.height / r.height - num(svg, 'cy');
     let rel = ((Math.atan2(dx, -dy) / RAD) - START + 720) % 360;
     if (rel > SWEEP) rel = rel > SWEEP + (360 - SWEEP) / 2 ? 0 : SWEEP; // bottom gap: snap to the nearer end
     const min = num(svg, 'min'), max = num(svg, 'max'), step = num(svg, 'step');

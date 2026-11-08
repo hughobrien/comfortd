@@ -99,6 +99,7 @@ details.unknown { margin-bottom:.5rem; }
 .tdial text.tval { fill:var(--fg); font-size:17px; font-weight:600; pointer-events:none; }
 .tdial[data-band] text.tval { font-size:11px; }
 .tdial text { pointer-events:none; }
-.room { text-align:center; color:var(--weak); font-size:.9rem; margin:-.2rem 0 .3rem; }
+.room { text-align:center; color:var(--weak); font-size:.9rem; margin:0 0 .1rem; }
 .room b { color:var(--fg); font-size:1.3rem; }
 .dials > .room { flex:0 0 100%; }
+.dial svg.tdial { aspect-ratio:180/114; }
