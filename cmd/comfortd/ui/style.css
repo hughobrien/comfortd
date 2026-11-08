@@ -64,7 +64,7 @@ details.unknown { margin-bottom:.5rem; }
 .dial { display:flex; flex-direction:column; align-items:center; }
 .dials { display:flex; gap:.5rem; justify-content:space-around; flex-wrap:wrap; }
 .dials .ctrl { margin:.4rem 0; }
-.dial svg { width:22rem; max-width:100%; height:auto; aspect-ratio:180/106; }
+.dial svg { width:22rem; max-width:100%; height:auto; aspect-ratio:180/122; }
 .dial path { fill:var(--border); cursor:pointer; outline:none; }
 .dial path:hover { fill:var(--hl); }
 .dial path.lit { fill:var(--on); opacity:.55; }

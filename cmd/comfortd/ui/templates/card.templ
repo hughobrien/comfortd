@@ -123,13 +123,13 @@ templ seg(c ui.CardView, opts []ui.Choice, path, param, field string) {
 }
 
 // dial renders a ring of wedges with the current value in the middle and the
-// extra choices (auto, swing) as buttons beneath it.
+// hub (auto) as a button; other extras (swing) fill the gap at the bottom.
 templ dial(c ui.CardView, opts []ui.Choice, path, field string, level bool, extra ...string) {
 	{{ wedges, buttons := dialSplit(opts, extra...) }}
 	{{ hub, hasHub, rest := dialHub(buttons) }}
 	<div class="dial">
-		<svg viewBox="0 0 180 106" role="group">
-			for _, a := range dialArcs(wedges, level) {
+		<svg viewBox="0 0 180 122" role="group">
+			for _, a := range dialArcs(wedges, level, rest) {
 				<path
 					d={ a.Path }
 					role="button"
@@ -146,7 +146,7 @@ templ dial(c ui.CardView, opts []ui.Choice, path, field string, level bool, extr
 				<circle
 					class={ "hub", templ.KV("pending", hub.Pressed && c.Control.Pending[field] != "") }
 					cx="90"
-					cy="60"
+					cy="64"
 					r="24"
 					role="button"
 					tabindex="0"
@@ -155,21 +155,8 @@ templ dial(c ui.CardView, opts []ui.Choice, path, field string, level bool, extr
 					data-on:click={ "@post('/ui/units/" + c.Slug + "/" + path + "?v=" + hub.Value + "')" }
 				><title>{ hub.Label }</title></circle>
 			}
-			<text class="center" x="90" y="60" text-anchor="middle" dominant-baseline="central">{ dialCenter(opts) }</text>
+			<text class="center" x="90" y="64" text-anchor="middle" dominant-baseline="central">{ dialCenter(opts) }</text>
 		</svg>
-		if len(rest) > 0 {
-			<div class="seg dial-btns">
-				for _, o := range rest {
-					<button
-						type="button"
-						aria-pressed={ boolStr(o.Pressed) }
-						data-value={ o.Value }
-						class={ templ.KV("pending", o.Pressed && c.Control.Pending[field] != "") }
-						data-on:click={ "@post('/ui/units/" + c.Slug + "/" + path + "?v=" + o.Value + "')" }
-					>{ o.Label }</button>
-				}
-			</div>
-		}
 	</div>
 }
 

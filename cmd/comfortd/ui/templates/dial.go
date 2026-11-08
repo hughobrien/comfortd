@@ -40,10 +40,11 @@ func dialSplit(opts []ui.Choice, extra ...string) (wedges, buttons []ui.Choice) 
 
 // dialArcs lays the wedges on a 300° ring with the gap at the bottom, first
 // at bottom-left running clockwise. With cumulative set, every wedge up to
-// the pressed one is lit (a level); otherwise only the pressed one.
-func dialArcs(wedges []ui.Choice, cumulative bool) []Arc {
+// the pressed one is lit (a level); otherwise only the pressed one. The
+// bottom choices (e.g. swing) share the gap at the bottom.
+func dialArcs(wedges []ui.Choice, cumulative bool, bottom []ui.Choice) []Arc {
 	const (
-		cx, cy       = 90.0, 60.0
+		cx, cy       = 90.0, 64.0
 		outer, inner = 46.0, 28.0
 		start, sweep = 210.0, 300.0
 		gap          = 3.0
@@ -52,17 +53,8 @@ func dialArcs(wedges []ui.Choice, cumulative bool) []Arc {
 		a := deg * math.Pi / 180
 		return cx + r*math.Sin(a), cy - r*math.Cos(a)
 	}
-	cur := -1
-	for i, w := range wedges {
-		if w.Pressed {
-			cur = i
-		}
-	}
-	n := float64(len(wedges))
-	out := make([]Arc, len(wedges))
-	for i, w := range wedges {
-		a0 := start + sweep*float64(i)/n + gap/2
-		a1 := start + sweep*float64(i+1)/n - gap/2
+	arc := func(w ui.Choice, a0, a1 float64, lit bool) Arc {
+		a0, a1 = a0+gap/2, a1-gap/2
 		ox0, oy0 := pt(outer, a0)
 		ox1, oy1 := pt(outer, a1)
 		ix1, iy1 := pt(inner, a1)
@@ -77,7 +69,23 @@ func dialArcs(wedges []ui.Choice, cumulative bool) []Arc {
 		} else if sn < -0.3 {
 			anchor = "end"
 		}
-		out[i] = Arc{Choice: w, Path: d, Lit: cumulative && i <= cur, LX: lx, LY: ly, Anchor: anchor}
+		return Arc{Choice: w, Path: d, Lit: lit, LX: lx, LY: ly, Anchor: anchor}
+	}
+	cur := -1
+	for i, w := range wedges {
+		if w.Pressed {
+			cur = i
+		}
+	}
+	n := float64(len(wedges))
+	var out []Arc
+	for i, w := range wedges {
+		out = append(out, arc(w, start+sweep*float64(i)/n, start+sweep*float64(i+1)/n, cumulative && i <= cur))
+	}
+	m := float64(len(bottom))
+	for i, w := range bottom {
+		g0 := start + sweep // 150°, where the ring ends
+		out = append(out, arc(w, g0+(360-sweep)*float64(i)/m, g0+(360-sweep)*float64(i+1)/m, false))
 	}
 	return out
 }
