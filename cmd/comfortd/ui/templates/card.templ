@@ -17,9 +17,6 @@ templ Card(c ui.CardView) {
 			<div class="big">
 				{ c.RoomTemp } °C
 			</div>
-			if c.Image != "" {
-				<img class="model" src={ c.Image } alt="" loading="lazy"/>
-			}
 		</div>
 		<div class="sub">room · { c.Mode }</div>
 		if c.Control.LastError != "" {
@@ -32,6 +29,9 @@ templ Card(c ui.CardView) {
 					@dial(c, modeOpts(c), "mode", "m", "operationMode", "off", false, "off")
 				</div>
 				@tempDial(c, tempWheel(c))
+			}
+			if c.Image != "" {
+				<img class="model" src={ c.Image } alt="" loading="lazy"/>
 			}
 			if len(c.Fans) > 0 {
 				<div class="ctrl">
