@@ -221,7 +221,7 @@ func runContext(ctx context.Context, args []string, stdout io.Writer, ready func
 		return 1
 	}
 	httpSrv := &http.Server{
-		Handler:           newMux(deps{Store: st, History: hist, Ann: ann, Homekit: bridge, Ctl: ctl, Hub: hub, Images: newImageCache(filepath.Join(*stateDir, "images"), nil), Inactive: splitList(*inactive), Interval: *interval, Now: time.Now}),
+		Handler:           newMux(deps{Store: st, History: hist, Ann: ann, Homekit: bridge, Ctl: ctl, Hub: hub, Images: newImageCache(filepath.Join(*stateDir, "images"), nil), Order: loadOrder(filepath.Join(*stateDir, "order.json")), Inactive: splitList(*inactive), Interval: *interval, Now: time.Now}),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 	slog.Info("listening", "addr", ln.Addr().String())

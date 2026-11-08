@@ -23,7 +23,7 @@ import (
 // datastarFile is the vendored datastar bundle; see ui/vendor/README.md.
 const datastarFile = "ui/vendor/datastar-1.0.1.min.js"
 
-//go:embed ui/style.css ui/dial.js ui/vendor
+//go:embed ui/style.css ui/dial.js ui/reorder.js ui/vendor
 var assetFS embed.FS
 
 // computeBuildID hashes the running binary, which changes on every deploy.
@@ -64,15 +64,16 @@ func (d deps) unitViews() []ui.UnitView {
 		}
 		out = append(out, d.viewFor(sn, now))
 	}
-	// Inactive placeholders go last (the right-hand column).
+	// Inactive placeholders go last (the right-hand column); the rest follow
+	// the order the user dragged them into.
 	slices.SortStableFunc(out, func(a, b ui.UnitView) int {
-		if a.Inactive == b.Inactive {
-			return 0
+		if a.Inactive != b.Inactive {
+			if a.Inactive {
+				return 1
+			}
+			return -1
 		}
-		if a.Inactive {
-			return 1
-		}
-		return -1
+		return d.Order.rank(a.Slug) - d.Order.rank(b.Slug)
 	})
 	return out
 }

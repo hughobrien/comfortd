@@ -56,7 +56,7 @@ func Page(units []ui.UnitView, feed []history.Record) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "\"><link rel=\"stylesheet\" href=\"/ui/static/style.css\"><script type=\"module\" src=\"/ui/static/datastar.js\"></script><script defer src=\"/ui/static/dial.js\"></script></head><body data-init=\"@get('/ui/sse', {retry: 'always', retryMaxCount: 100000, retryMaxWait: 5000})\"><header><h1>comfortd</h1></header><div class=\"layout\"><main id=\"units\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "\"><link rel=\"stylesheet\" href=\"/ui/static/style.css\"><script type=\"module\" src=\"/ui/static/datastar.js\"></script><script defer src=\"/ui/static/dial.js\"></script><script defer src=\"/ui/static/reorder.js\"></script></head><body data-init=\"@get('/ui/sse', {retry: 'always', retryMaxCount: 100000, retryMaxWait: 5000})\"><header><h1>comfortd</h1></header><div class=\"layout\"><main id=\"units\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

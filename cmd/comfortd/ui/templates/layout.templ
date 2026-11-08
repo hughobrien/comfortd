@@ -25,6 +25,7 @@ templ Page(units []ui.UnitView, feed []history.Record) {
 			<link rel="stylesheet" href="/ui/static/style.css"/>
 			<script type="module" src="/ui/static/datastar.js"></script>
 			<script defer src="/ui/static/dial.js"></script>
+			<script defer src="/ui/static/reorder.js"></script>
 		</head>
 		<body data-init="@get('/ui/sse', {retry: 'always', retryMaxCount: 100000, retryMaxWait: 5000})">
 			<header><h1>comfortd</h1></header>

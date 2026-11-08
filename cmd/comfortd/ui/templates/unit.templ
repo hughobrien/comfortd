@@ -21,7 +21,7 @@ templ UnitSection(v ui.UnitView) {
 
 templ activeUnit(v ui.UnitView) {
 	<section id={ "unit-" + v.Slug } class="unit">
-		<h2>
+		<h2 draggable="true" title="Drag to reorder">
 			{ v.Name }
 			for _, a := range v.Card.Alerts {
 				<span class="alert-flag">{ a }</span>

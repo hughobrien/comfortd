@@ -158,3 +158,5 @@ details.events > summary { font-size:1rem; margin:.2rem 0 .5rem; }
 .dial.na circle.hub { cursor:default; }
 .dial.na circle.hub:hover { fill:var(--card); }
 .dial.na text.center { fill:var(--weak); }
+section.unit > h2[draggable] { cursor:grab; }
+section.unit.dragging { opacity:.5; }
