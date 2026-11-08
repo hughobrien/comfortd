@@ -197,13 +197,13 @@ func tempWheel(c ui.CardView) *TempWheel {
 	w.Band = len(w.Handles) == 2
 	switch {
 	case w.Band:
-		w.Kind, w.Title = "band", "HEAT / COOL"
+		w.Kind, w.Title = "band", "TARGET"
 		w.Fill = tArc(w, w.Handles[0].V, w.Handles[1].V)
 	case c.ShowHeat:
-		w.Kind, w.Title = "heat", "HEAT TO"
+		w.Kind, w.Title = "heat", "TARGET"
 		w.Fill = tArc(w, lo, w.Handles[0].V)
 	default:
-		w.Kind, w.Title = "cool", "COOL TO"
+		w.Kind, w.Title = "cool", "TARGET"
 		w.Fill = tArc(w, lo, w.Handles[0].V)
 	}
 	parts := make([]string, len(w.Handles))
