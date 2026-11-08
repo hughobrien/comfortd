@@ -13,16 +13,13 @@ templ Card(c ui.CardView) {
 		if c.Stale {
 			<p class="stale-banner">stale: no fresh data since { c.LastOK }</p>
 		}
-		<div class="head">
-			<div class="big">
-				{ c.RoomTemp } °C
-			</div>
-		</div>
-		<div class="sub">room · { c.Mode }</div>
 		if c.Control.LastError != "" {
 			<p class="ctl-error">last command failed: { c.Control.LastError }</p>
 		}
 		<div class="dials">
+			if len(c.Modes) == 0 {
+				@roomTemp(c)
+			}
 			if len(c.Modes) > 0 {
 				<div class="ctrl">
 					<span class="ctrl-label">MODE</span>
@@ -170,6 +167,14 @@ templ tempDial(c ui.CardView, w *TempWheel) {
 					}
 				</svg>
 			</div>
+			@roomTemp(c)
 		</div>
+	} else {
+		@roomTemp(c)
 	}
+}
+
+// roomTemp is the measured room temperature, shown under the target wheel.
+templ roomTemp(c ui.CardView) {
+	<div class="room">room <b>{ c.RoomTemp } °C</b></div>
 }
