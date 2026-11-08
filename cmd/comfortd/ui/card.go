@@ -5,6 +5,7 @@ package ui
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"strconv"
 	"strings"
 	"time"
@@ -129,6 +130,13 @@ func BuildCard(s store.Snapshot, ann *annotate.Set, ctl CardControl, now time.Ti
 			c.Fans = choices(control.FanChoices(p.NumberOfFanSpeeds), d.FanSpeed)
 			c.Vanes = choices(control.VaneChoices(*p), d.AirDirection)
 		}
+	}
+	// The wall thermostat (House) speaks up only when its battery is not ok.
+	var th struct {
+		Battery string `json:"thermostatBattery"`
+	}
+	if json.Unmarshal(s.Raw[store.EndpointMhk2], &th) == nil && th.Battery != "" && th.Battery != "ok" {
+		c.Alerts = append(c.Alerts, "thermostat battery "+th.Battery)
 	}
 	c.Schedule = BuildSchedule(s, now)
 	if z := s.Zone; z != nil {

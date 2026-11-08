@@ -205,3 +205,19 @@ func TestEditOptsFollowTheUnit(t *testing.T) {
 		t.Fatalf("modes %+v", o.Modes)
 	}
 }
+
+func TestThermostatBatteryAlertOnlyWhenNotOk(t *testing.T) {
+	for battery, want := range map[string]int{"ok": 0, "low": 1} {
+		m := json.RawMessage(`{"thermostatBattery":"` + battery + `"}`)
+		c := BuildCard(fixtureSnap(t, "house", "device_house.json", map[string]json.RawMessage{"mhk2": m}), mustAnn(t), CardControl{}, time.Now(), time.Minute)
+		n := 0
+		for _, a := range c.Alerts {
+			if strings.HasPrefix(a, "thermostat battery") {
+				n++
+			}
+		}
+		if n != want {
+			t.Errorf("battery %s: %d alerts %v", battery, n, c.Alerts)
+		}
+	}
+}
