@@ -42,15 +42,6 @@ func (d deps) scheduleGuard(w http.ResponseWriter, r *http.Request) (store.Snaps
 	return sn, true
 }
 
-func scheduleSeason(sn store.Snapshot) string {
-	if raw, ok := sn.Raw[store.EndpointSchedule]; ok {
-		if s, err := kumo.ParseSchedule(raw); err == nil {
-			return s.Season
-		}
-	}
-	return ""
-}
-
 func (d deps) patchBody(sse *datastar.ServerSentEventGenerator, sn store.Snapshot) error {
 	v := d.viewFor(sn, d.Now())
 	return sse.PatchElementTempl(templates.ScheduleBody(v.Card),
@@ -58,7 +49,7 @@ func (d deps) patchBody(sse *datastar.ServerSentEventGenerator, sn store.Snapsho
 }
 
 func (d deps) patchEditor(sse *datastar.ServerSentEventGenerator, sn store.Snapshot, msg string) error {
-	return sse.PatchElementTempl(templates.ScheduleEditor(sn.Unit.Slug, scheduleSeason(sn), ui.BuildScheduleEdit(sn), msg),
+	return sse.PatchElementTempl(templates.ScheduleEditor(sn.Unit.Slug, ui.BuildSchedule(sn, d.Now()).Heading, ui.BuildScheduleEdit(sn), msg),
 		datastar.WithSelectorf("#sched-body-%s", sn.Unit.Slug), datastar.WithMode(datastar.ElementPatchModeReplace))
 }
 

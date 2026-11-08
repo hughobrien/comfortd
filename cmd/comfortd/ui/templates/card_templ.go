@@ -1083,15 +1083,15 @@ func ScheduleBody(c ui.CardView) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var63 string
-		templ_7745c5c3_Var63, templ_7745c5c3_Err = templ.JoinStringErrs(c.Schedule.Season)
+		templ_7745c5c3_Var63, templ_7745c5c3_Err = templ.JoinStringErrs(c.Schedule.Heading)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `cmd/comfortd/ui/templates/card.templ`, Line: 191, Col: 39}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `cmd/comfortd/ui/templates/card.templ`, Line: 191, Col: 40}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var63))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 88, " season</p><table class=\"schedule-table\"><thead><tr><th>days</th><th>at</th><th>mode</th><th>target</th><th>fan</th></tr></thead> <tbody>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 88, "</p><table class=\"schedule-table\"><thead><tr><th>days</th><th>at</th><th>mode</th><th>target</th><th>fan</th></tr></thead> <tbody>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -1217,7 +1217,7 @@ func ScheduleBody(c ui.CardView) templ.Component {
 
 // ScheduleEditor is the editable table with Save and Cancel. msg shows above
 // the buttons (an error from a failed save).
-func ScheduleEditor(slug, season string, rows []ui.EditRow, msg string) templ.Component {
+func ScheduleEditor(slug, heading string, rows []ui.EditRow, msg string) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -1256,15 +1256,15 @@ func ScheduleEditor(slug, season string, rows []ui.EditRow, msg string) templ.Co
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var74 string
-		templ_7745c5c3_Var74, templ_7745c5c3_Err = templ.JoinStringErrs(season)
+		templ_7745c5c3_Var74, templ_7745c5c3_Err = templ.JoinStringErrs(heading)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `cmd/comfortd/ui/templates/card.templ`, Line: 218, Col: 28}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `cmd/comfortd/ui/templates/card.templ`, Line: 218, Col: 29}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var74))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 102, " season: editing</p><form><table class=\"schedule-table sched-edit\"><thead><tr><th>days</th><th>at</th><th>mode</th><th>target °C</th><th>fan</th><th></th></tr></thead> <tbody id=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 102, " · editing</p><form><table class=\"schedule-table sched-edit\"><thead><tr><th>days</th><th>at</th><th>mode</th><th>target °C</th><th>fan</th><th></th></tr></thead> <tbody id=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

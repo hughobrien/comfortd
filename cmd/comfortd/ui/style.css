@@ -155,3 +155,5 @@ em { color:var(--weak); }
 .raw details.endpoint > summary { font-size:.85rem; font-weight:600; border-bottom:1px solid var(--border); padding-bottom:.15rem; }
 .raw details.group { margin:.3rem 0 .3rem .4rem; padding-left:.5rem; border-left:2px solid var(--border); }
 .raw details.group > summary { font-size:.8rem; font-weight:500; }
+
+details.events > summary { font-size:1rem; margin:.2rem 0 .5rem; }

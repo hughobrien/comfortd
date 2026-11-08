@@ -188,7 +188,7 @@ templ scheduleSection(c ui.CardView) {
 // ScheduleBody is the read-only table, with an edit button when the unit is writable.
 templ ScheduleBody(c ui.CardView) {
 	<div id={ "sched-body-" + c.Slug } class="sched-body" data-ignore-morph>
-		<p class="season">{ c.Schedule.Season } season</p>
+		<p class="season">{ c.Schedule.Heading }</p>
 		<table class="schedule-table">
 			<thead><tr><th>days</th><th>at</th><th>mode</th><th>target</th><th>fan</th></tr></thead>
 			<tbody>
@@ -213,9 +213,9 @@ templ ScheduleBody(c ui.CardView) {
 
 // ScheduleEditor is the editable table with Save and Cancel. msg shows above
 // the buttons (an error from a failed save).
-templ ScheduleEditor(slug, season string, rows []ui.EditRow, msg string) {
+templ ScheduleEditor(slug, heading string, rows []ui.EditRow, msg string) {
 	<div id={ "sched-body-" + slug } class="sched-body editing" data-ignore-morph>
-		<p class="season">{ season } season: editing</p>
+		<p class="season">{ heading } · editing</p>
 		<form>
 			<table class="schedule-table sched-edit">
 				<thead><tr><th>days</th><th>at</th><th>mode</th><th>target °C</th><th>fan</th><th></th></tr></thead>

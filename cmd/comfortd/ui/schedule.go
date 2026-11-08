@@ -17,6 +17,7 @@ type ScheduleView struct {
 	Present bool
 	Active  bool // the zone's schedule is switched on (hasActiveSchedule)
 	Season  string
+	Heading string // "Winter season · America/Los_Angeles": the season and the unit's own time zone
 	Next    string // "tonight 22:00 → Heat 19 °C", empty when there is no next event
 	Rows    []ScheduleRow
 	Error   string // why there is no schedule, when the fetch failed
@@ -133,8 +134,9 @@ func BuildSchedule(s store.Snapshot, now time.Time) ScheduleView {
 	if err != nil {
 		return ScheduleView{Error: err.Error()}
 	}
-	v := ScheduleView{Present: true, Season: sch.Season}
-	now = now.In(scheduleLoc(s, now))
+	loc := scheduleLoc(s, now)
+	v := ScheduleView{Present: true, Season: sch.Season, Heading: sch.Season + " season · " + loc.String()}
+	now = now.In(loc)
 	next, at, hasNext := sch.Next(now)
 	if hasNext {
 		v.Next = whenWords(now, at) + " → " + modeLabel(next.Mode)

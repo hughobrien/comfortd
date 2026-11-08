@@ -35,12 +35,14 @@ templ Page(units []ui.UnitView, feed []history.Record) {
 					}
 				</main>
 				<aside>
-					<h2>Changes</h2>
-					<ol id="feed">
-						for _, r := range feed {
-							@FeedRow(r)
-						}
-					</ol>
+					<details class="events" data-preserve-attr="open">
+						<summary>Events</summary>
+						<ol id="feed">
+							for _, r := range feed {
+								@FeedRow(r)
+							}
+						</ol>
+					</details>
 				</aside>
 			</div>
 		</body>

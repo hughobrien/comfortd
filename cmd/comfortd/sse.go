@@ -13,6 +13,9 @@ import (
 	"github.com/starfederation/datastar-go/datastar"
 )
 
+// maxFeedRows is how many events an open tab keeps; the page starts with 50.
+const maxFeedRows = 200
+
 const recentWindow = 10 * time.Minute
 
 var keepaliveInterval = 30 * time.Second
@@ -96,8 +99,12 @@ func (d deps) emit(sse *datastar.ServerSentEventGenerator, ev pushEvent, seen ma
 		if d.inactive(ev.Record.Unit) {
 			return nil
 		}
-		return sse.PatchElementTempl(templates.FeedRow(*ev.Record),
-			datastar.WithSelector("#feed"), datastar.WithModePrepend())
+		if err := sse.PatchElementTempl(templates.FeedRow(*ev.Record),
+			datastar.WithSelector("#feed"), datastar.WithModePrepend()); err != nil {
+			return err
+		}
+		// An open tab keeps the newest rows only; the log itself is on disk.
+		return sse.ExecuteScript(fmt.Sprintf("var f=document.getElementById('feed');while(f&&f.children.length>%d)f.lastElementChild.remove()", maxFeedRows))
 	}
 	sn, ok := d.Store.Get(ev.Slug)
 	if !ok || d.inactive(ev.Slug) {
