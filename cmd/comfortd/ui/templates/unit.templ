@@ -99,9 +99,6 @@ templ fieldRow(r ui.Row, name string) {
 	<tr class={ rowClass(r), templ.KV("unk", r.Unknown) }>
 		<td class="path">
 			{ name }
-			if r.Label != "" {
-				<br/><span class={ "conf-" + r.Confidence } title={ r.Note }>{ r.Label } · { r.Confidence }</span>
-			}
 		</td>
 		<td class={ "val", templ.KV("nul", r.Value == "null" || r.Value == "" || r.Value == "{}" || r.Value == "[]") }>
 			{ r.Value }
