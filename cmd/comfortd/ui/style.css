@@ -85,7 +85,8 @@ details.unknown { margin-bottom:.5rem; }
 .dials .ctrl { flex:0 1 22rem; }
 .dial path[data-value="heat"][aria-pressed="true"] { fill:var(--heat); }
 .dial path[data-value="cool"][aria-pressed="true"] { fill:var(--cool); }
-.dial circle.hub[data-value="off"][aria-pressed="true"] { fill:var(--weak); stroke:var(--weak); }
+.dial path[data-value="off"][aria-pressed="true"] { fill:var(--weak); }
+.dial circle.hub[data-value="auto"][aria-pressed="true"] { fill:var(--on); }
 .tdial { touch-action:none; cursor:pointer; }
 .tdial .track { fill:none; stroke:var(--border); stroke-width:14; }
 .tdial .fill { fill:none; stroke-width:14; }

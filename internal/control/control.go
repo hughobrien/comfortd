@@ -71,7 +71,7 @@ type Choice struct{ Value, Label string }
 func ModeChoices(p kumo.Profile) []Choice {
 	var out []Choice
 	if p.HasModeVent {
-		out = append(out, Choice{"vent", "Fan only"})
+		out = append(out, Choice{"vent", "Fan"})
 	}
 	if p.HasModeHeat {
 		out = append(out, Choice{"heat", "Heat"})

@@ -41,7 +41,7 @@ func TestCardStaleRendered(t *testing.T) {
 func TestCardPendingMarked(t *testing.T) {
 	var sb strings.Builder
 	c := ui.CardView{Slug: "office", Mode: "Heat", SpHeat: "19", SpMin: "10", SpMax: "31", On: true, ShowHeat: true,
-		Modes:   []ui.Choice{{Value: "heat", Label: "Heat", Pressed: true}, {Value: "vent", Label: "Fan only"}},
+		Modes:   []ui.Choice{{Value: "heat", Label: "Heat", Pressed: true}, {Value: "vent", Label: "Fan"}},
 		Control: ui.CardControl{Writable: true, Pending: map[string]string{"spHeat": "19.5"}}}
 	if err := Card(c).Render(context.Background(), &sb); err != nil {
 		t.Fatal(err)
