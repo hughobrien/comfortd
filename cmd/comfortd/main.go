@@ -83,7 +83,7 @@ func runContext(ctx context.Context, args []string, stdout io.Writer, ready func
 	fake := fs.Bool("fake", false, "run against an in-process fake Kumo server")
 	hapPort := fs.Int("hap-port", 0, "HomeKit (HAP) TCP port; 0 = ephemeral")
 	hkUnits := fs.String("homekit-units", envOr("homekit-units", ""), "comma-separated unit slugs to expose to HomeKit; empty = HomeKit off")
-	hide := fs.String("hide-units", envOr("hide-units", ""), "comma-separated unit slugs left out of the web UI (the API still lists them)")
+	inactive := fs.String("inactive-units", envOr("inactive-units", ""), "comma-separated unit slugs shown as a blank placeholder in the web UI (the API still lists them)")
 	writable := fs.String("writable-units", envOr("writable-units", ""), "comma-separated unit slugs that may receive commands; empty = read-only")
 	bridgeName := fs.String("bridge-name", "comfortd", "HomeKit bridge name")
 	forceStale := fs.String("force-stale", "", "debug: comma-separated unit slugs HomeKit treats as stale (to check \"No Response\")")
@@ -217,7 +217,7 @@ func runContext(ctx context.Context, args []string, stdout io.Writer, ready func
 		return 1
 	}
 	httpSrv := &http.Server{
-		Handler:           newMux(deps{Store: st, History: hist, Ann: ann, Homekit: bridge, Ctl: ctl, Hub: hub, Hidden: splitList(*hide), Interval: *interval, Now: time.Now}),
+		Handler:           newMux(deps{Store: st, History: hist, Ann: ann, Homekit: bridge, Ctl: ctl, Hub: hub, Inactive: splitList(*inactive), Interval: *interval, Now: time.Now}),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 	slog.Info("listening", "addr", ln.Addr().String())

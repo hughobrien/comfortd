@@ -8,8 +8,11 @@ header { padding:.5rem 1rem; border-bottom:1px solid var(--border); }
 h1 { margin:0; font-size:1.1rem; }
 h2 { font-size:1rem; margin:.2rem 0 .5rem; }
 small { color:var(--weak); font-weight:normal; margin-left:.5rem; }
-.layout { display:grid; grid-template-columns:minmax(0,1fr) 22rem; gap:1rem; padding:1rem; }
-@media (max-width: 800px) { .layout { grid-template-columns:1fr; } }
+.layout { padding:1rem; }
+#units { display:grid; grid-template-columns:repeat(auto-fit, minmax(min(28rem,100%), 1fr)); gap:1rem; align-items:start; }
+.unit.inactive { opacity:.55; }
+details.group { margin:.3rem 0 .3rem .75rem; }
+details.group > summary { font-weight:500; }
 .unit, aside { background:var(--card); border:1px solid var(--border); border-radius:6px; padding:.75rem 1rem; margin-bottom:1rem; }
 summary { cursor:pointer; font-weight:600; padding:.2rem 0; }
 table { border-collapse:collapse; width:100%; font:12px/1.35 ui-monospace, monospace; }

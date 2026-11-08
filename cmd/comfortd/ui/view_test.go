@@ -83,3 +83,14 @@ func TestNoisyArrayPath(t *testing.T) {
 		t.Fatal("noisy matching wrong")
 	}
 }
+
+func TestSplitGroupsSharedPrefixes(t *testing.T) {
+	e := EndpointView{Rows: []Row{{Path: "model.a"}, {Path: "model.b", Changed: true}, {Path: "mode"}, {Path: "solo.x"}, {Path: "[0].cap.a"}, {Path: "[0].cap.b"}}}
+	top, groups := e.Split()
+	if len(top) != 2 || top[0].Path != "mode" || top[1].Path != "solo.x" {
+		t.Fatalf("top %v", top)
+	}
+	if len(groups) != 2 || groups[0].Name != "model" || len(groups[0].Rows) != 2 || !groups[0].Changed || groups[1].Name != "cap" {
+		t.Fatalf("groups %+v", groups)
+	}
+}

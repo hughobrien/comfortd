@@ -4,11 +4,22 @@ package templates
 
 import (
 	"strconv"
+	"strings"
 
 	"github.com/hughobrien/comfortd/cmd/comfortd/ui"
 )
 
 templ UnitSection(v ui.UnitView) {
+	if v.Inactive {
+		<section id={ "unit-" + v.Slug } class="unit inactive">
+			<h2>{ v.Name } <small>not enabled yet</small></h2>
+		</section>
+	} else {
+		@activeUnit(v)
+	}
+}
+
+templ activeUnit(v ui.UnitView) {
 	<section id={ "unit-" + v.Slug } class="unit">
 		<h2>
 			{ v.Name }
@@ -45,24 +56,28 @@ templ UnitSection(v ui.UnitView) {
 						<span class="badge err">{ e.Error }</span>
 					}
 				</summary>
+				{{ top, groups := e.Split() }}
 				<table>
-					for _, r := range e.Rows {
-						<tr class={ rowClass(r) }>
-							<td class="path">
-								{ r.Path }
-								if r.Label != "" {
-									<br/><span class={ "conf-" + r.Confidence } title={ r.Note }>{ r.Label } · { r.Confidence }</span>
-								}
-							</td>
-							<td class="val">
-								{ r.Value }
-								if r.Decoded != "" {
-									<br/><em>{ r.Decoded }</em>
-								}
-							</td>
-						</tr>
+					for _, r := range top {
+						@fieldRow(r, r.Path)
 					}
 				</table>
+				for _, g := range groups {
+					<details class="group" data-preserve-attr="open">
+						<summary>
+							{ g.Name }
+							<small>{ strconv.Itoa(len(g.Rows)) }</small>
+							if g.Changed {
+								<span class="badge">changed</span>
+							}
+						</summary>
+						<table>
+							for _, r := range g.Rows {
+								@fieldRow(r, strings.TrimPrefix(strings.TrimPrefix(r.Path, "[0]."), g.Name))
+							}
+						</table>
+					</details>
+				}
 			</details>
 		}
 	</section>
@@ -76,4 +91,21 @@ func rowClass(r ui.Row) string {
 		return "noisy"
 	}
 	return ""
+}
+
+templ fieldRow(r ui.Row, name string) {
+	<tr class={ rowClass(r) }>
+		<td class="path">
+			{ name }
+			if r.Label != "" {
+				<br/><span class={ "conf-" + r.Confidence } title={ r.Note }>{ r.Label } · { r.Confidence }</span>
+			}
+		</td>
+		<td class="val">
+			{ r.Value }
+			if r.Decoded != "" {
+				<br/><em>{ r.Decoded }</em>
+			}
+		</td>
+	</tr>
 }

@@ -64,8 +64,8 @@ func TestUnknownHomekitUnit(t *testing.T) {
 	}
 }
 
-func TestHiddenUnitLeftOutOfUI(t *testing.T) {
-	base, _ := startDaemon(t, "-hide-units", "house")
+func TestInactiveUnitIsPlaceholder(t *testing.T) {
+	base, _ := startDaemon(t, "-inactive-units", "house")
 	get := func(p string) string {
 		resp, err := http.Get(base + p)
 		if err != nil {
@@ -75,7 +75,7 @@ func TestHiddenUnitLeftOutOfUI(t *testing.T) {
 		b, _ := io.ReadAll(resp.Body)
 		return string(b)
 	}
-	if page := get("/"); strings.Contains(page, "unit-house") || !strings.Contains(page, `data-preserve-attr="open"`) {
+	if page := get("/"); !strings.Contains(page, "not enabled yet") || strings.Contains(page, "TESTSERIAL0002") {
 		t.Fatalf("page: %s", page)
 	}
 	if !strings.Contains(get("/v1/units"), "house") {

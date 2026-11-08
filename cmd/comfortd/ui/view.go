@@ -24,8 +24,56 @@ type EndpointView struct {
 	Rows            []Row
 }
 
+// Group is a set of rows sharing a top-level key (model.*, displayConfig.*).
+type Group struct {
+	Name    string
+	Rows    []Row // Path is the full path; Short is shown inside the group
+	Changed bool
+}
+
+// groupKey is the top-level key of a path, ignoring a leading "[n]." (the
+// profile endpoint is a one-element array); "" when the path is a plain leaf.
+func groupKey(p string) string {
+	if strings.HasPrefix(p, "[") {
+		if i := strings.Index(p, "]."); i >= 0 {
+			p = p[i+2:]
+		}
+	}
+	if i := strings.IndexAny(p, ".["); i > 0 {
+		return p[:i]
+	}
+	return ""
+}
+
+// Split separates the rows into ungrouped leaves and groups of two or more
+// rows under one top-level key, both in path order.
+func (e EndpointView) Split() (top []Row, groups []Group) {
+	count := map[string]int{}
+	for _, r := range e.Rows {
+		count[groupKey(r.Path)]++
+	}
+	idx := map[string]int{}
+	for _, r := range e.Rows {
+		k := groupKey(r.Path)
+		if k == "" || count[k] < 2 {
+			top = append(top, r)
+			continue
+		}
+		i, ok := idx[k]
+		if !ok {
+			i = len(groups)
+			idx[k] = i
+			groups = append(groups, Group{Name: k})
+		}
+		groups[i].Rows = append(groups[i].Rows, r)
+		groups[i].Changed = groups[i].Changed || r.Changed
+	}
+	return top, groups
+}
+
 type UnitView struct {
 	Slug, Name, Serial string
+	Inactive           bool // shown as a collapsed placeholder; no data rendered
 	Stale              bool
 	LastOK             string
 	Endpoints          []EndpointView

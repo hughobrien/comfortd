@@ -79,14 +79,14 @@ func (d deps) handleSSE(w http.ResponseWriter, r *http.Request) {
 
 func (d deps) emit(sse *datastar.ServerSentEventGenerator, ev pushEvent) error {
 	if ev.Record != nil {
-		if d.hidden(ev.Record.Unit) {
+		if d.inactive(ev.Record.Unit) {
 			return nil
 		}
 		return sse.PatchElementTempl(templates.FeedRow(*ev.Record),
 			datastar.WithSelector("#feed"), datastar.WithModePrepend())
 	}
 	sn, ok := d.Store.Get(ev.Slug)
-	if !ok || d.hidden(ev.Slug) {
+	if !ok || d.inactive(ev.Slug) {
 		return nil
 	}
 	now := d.Now()

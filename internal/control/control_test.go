@@ -176,6 +176,16 @@ func TestHoldTimesOut(t *testing.T) {
 	r.srv.SetField(kumotest.OfficeSerial, "spHeat", old)
 	r.p.PollOnce(context.Background())
 	eventually(t, 2*time.Second, func() bool { return len(r.c.Pending("office")) == 0 }, "hold released")
+	// The hold is dropped before the record is appended, so wait for it.
+	hasRecord := func() bool {
+		for _, rec := range r.hist.Recent("office", 100) {
+			if rec.Endpoint == "unconfirmed" {
+				return true
+			}
+		}
+		return false
+	}
+	eventually(t, time.Second, hasRecord, "unconfirmed record")
 	var found bool
 	for _, rec := range r.hist.Recent("office", 100) {
 		if rec.Endpoint == "unconfirmed" && rec.Path == "spHeat" {

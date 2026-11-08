@@ -70,10 +70,10 @@ in {
       description = "Unit slugs allowed to receive commands (web UI and API). Empty = read-only.";
     };
 
-    hideUnits = lib.mkOption {
+    inactiveUnits = lib.mkOption {
       type = lib.types.listOf lib.types.str;
       default = [ ];
-      description = "Unit slugs left out of the web UI (the API still lists them).";
+      description = "Unit slugs shown as a blank placeholder in the web UI (the API still lists them).";
     };
 
     openFirewall = lib.mkOption {
@@ -112,8 +112,8 @@ in {
           "--poll-interval" cfg.pollInterval
         ] ++ lib.optionals (cfg.writableUnits != [ ]) [
           "--writable-units" (lib.escapeShellArg (lib.concatStringsSep "," cfg.writableUnits))
-        ] ++ lib.optionals (cfg.hideUnits != [ ]) [
-          "--hide-units" (lib.escapeShellArg (lib.concatStringsSep "," cfg.hideUnits))
+        ] ++ lib.optionals (cfg.inactiveUnits != [ ]) [
+          "--inactive-units" (lib.escapeShellArg (lib.concatStringsSep "," cfg.inactiveUnits))
         ] ++ lib.optionals cfg.homekit.enable [
           "--hap-port" (toString cfg.homekit.port)
           "--homekit-units" (lib.escapeShellArg (lib.concatStringsSep "," cfg.homekit.units))

@@ -39,7 +39,8 @@ func (d deps) unitViews() []ui.UnitView {
 	now := d.Now()
 	var out []ui.UnitView
 	for _, sn := range d.Store.All() {
-		if d.hidden(sn.Unit.Slug) {
+		if d.inactive(sn.Unit.Slug) {
+			out = append(out, ui.UnitView{Slug: sn.Unit.Slug, Name: sn.Unit.Name, Inactive: true})
 			continue
 		}
 		out = append(out, d.viewFor(sn, now))
@@ -78,7 +79,7 @@ func (d deps) feed() []history.Record {
 	}
 	var out []history.Record
 	for _, r := range d.History.Recent("", 1000) {
-		if !d.hidden(r.Unit) {
+		if !d.inactive(r.Unit) {
 			out = append(out, r)
 			if len(out) == 50 {
 				break
@@ -88,7 +89,7 @@ func (d deps) feed() []history.Record {
 	return out
 }
 
-func (d deps) hidden(slug string) bool { return slices.Contains(d.Hidden, slug) }
+func (d deps) inactive(slug string) bool { return slices.Contains(d.Inactive, slug) }
 
 func (d deps) handleIndex(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path != "/" {
