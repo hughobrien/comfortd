@@ -3,6 +3,8 @@
 package ui
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"strconv"
 	"strings"
 	"time"
@@ -29,7 +31,7 @@ type CardView struct {
 	On                                              bool
 	Family                                          string   // mode with autoCool/autoHeat folded into auto
 	ShowHeat, ShowCool                              bool     // which setpoint sliders apply in this mode
-	Image                                           string   // model picture URL, https only
+	Image                                           string   // model picture URL on this server
 	Alerts                                          []string // active displayConfig flags, for the banner
 	SpMin, SpMax                                    string   // heat setpoint range from the profile
 	// Selectable values, offered only when the unit is writable and supports
@@ -51,6 +53,13 @@ func choices(cs []control.Choice, current string) []Choice {
 }
 
 const dash = "–"
+
+// ImageKey names a model picture by its source URL; it is the cache file name
+// and the ?v= that makes a changed picture a new URL.
+func ImageKey(url string) string {
+	h := sha256.Sum256([]byte(url))
+	return hex.EncodeToString(h[:8])
+}
 
 func fmtTemp(v *float64) string {
 	if v == nil {
@@ -77,7 +86,7 @@ func BuildCard(s store.Snapshot, ann *annotate.Set, ctl CardControl, now time.Ti
 			}
 		}
 		if strings.HasPrefix(d.ImageURL, "https://") {
-			c.Image = d.ImageURL
+			c.Image = "/ui/img/" + s.Unit.Slug + "?v=" + ImageKey(d.ImageURL) // served from our cache, never the CDN
 		}
 		if d.Display.Filter {
 			c.Alerts = append(c.Alerts, "check filter")

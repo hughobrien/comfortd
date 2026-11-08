@@ -25,6 +25,7 @@ type deps struct {
 	Ann      *annotate.Set
 	Homekit  *homekit.Bridge     // nil when HomeKit is off
 	Ctl      *control.Controller // nil when control is off
+	Images   *imageCache         // nil = no model pictures
 	Inactive []string            // unit slugs shown as a blank placeholder in the web UI
 	Interval time.Duration
 	Now      func() time.Time
@@ -119,6 +120,7 @@ func newMux(d deps) *http.ServeMux {
 
 	mux.HandleFunc("GET /{$}", d.handleIndex)
 	mux.HandleFunc("GET /ui/sse", d.handleSSE)
+	mux.HandleFunc("GET /ui/img/{slug}", d.handleImage)
 	mux.HandleFunc("GET /ui/static/style.css", serveAsset("ui/style.css", "text/css; charset=utf-8"))
 	mux.HandleFunc("GET /ui/static/dial.js", serveAsset("ui/dial.js", "text/javascript; charset=utf-8"))
 	mux.HandleFunc("GET /ui/static/datastar.js", serveAsset(datastarFile, "text/javascript; charset=utf-8"))
