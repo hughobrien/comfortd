@@ -147,7 +147,7 @@ Listens on `--listen` (default `127.0.0.1:9879`); bigthink's nginx serves it as 
 | vent, dry | 1 | Idle (1) | unchanged |
 
   "Allowed" means the value is in the characteristic's `ValidVals`, which is `[Heat]` until cool/auto are probed. Heating means "in heat mode", not "compressor running" (the API doesn't expose that; comfort_HA does the same). `HeatingThresholdTemperature` = top-level `spHeat` (the requested value, so Home doesn't bounce), range from the profile's `minimumSetPoints.heat`/`maximumSetPoints.heat`, step 0.5. `CurrentTemperature` = `roomTemp`; it jumps about 2 °C on heat↔vent changes, which is expected.
-- **Stale unit:** characteristic read requests return HAP status -70402 (communication failure) via `ValueRequestFunc`, which Home shows as "No Response". Segment 4 verifies this on a real iPhone; if it doesn't work, it falls back to leaving the last values and records the finding.
+- **Stale unit:** characteristic read requests return HAP status -70402 (communication failure) via `ValueRequestFunc`, which Home shows as "No Response". Verified on a real iPhone in segment 4: Home shows "No Response".
 - **Segment 4 is read-only:** remote writes are rejected (`OnSetRemoteValue` returns an error).
 - **Segment 6 writes:**
   - Active 0 → `{operationMode: off}`.
