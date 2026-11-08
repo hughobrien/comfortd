@@ -41,9 +41,6 @@ templ activeUnit(v ui.UnitView) {
 			<details class="kv raw" data-preserve-attr="open">
 				<summary>
 					Raw data
-					if len(v.Unknown) > 0 {
-						<span class="next-event">{ strconv.Itoa(len(v.Unknown)) } not yet understood (grey edge)</span>
-					}
 				</summary>
 			for _, e := range v.Endpoints {
 				<details class="endpoint" data-preserve-attr="open">
@@ -96,7 +93,7 @@ func rowClass(r ui.Row) string {
 }
 
 templ fieldRow(r ui.Row, name string) {
-	<tr class={ rowClass(r), templ.KV("unk", r.Unknown) }>
+	<tr class={ rowClass(r) }>
 		<td class="path">
 			{ name }
 		</td>

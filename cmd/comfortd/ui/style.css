@@ -149,8 +149,6 @@ em { color:var(--weak); }
 .raw td { overflow-wrap:anywhere; word-break:normal; }
 .raw td.path { width:44%; }
 .raw td.val.nul { color:var(--weak); }
-.raw tr.unk td.path { box-shadow:inset 3px 0 var(--weak); }
-.raw .next-event { margin-left:.6rem; text-transform:none; letter-spacing:0; font-weight:400; }
 .raw details.endpoint { margin:.5rem 0 0; }
 .raw details.endpoint > summary { font-size:.85rem; font-weight:600; border-bottom:1px solid var(--border); padding-bottom:.15rem; }
 .raw details.group { margin:.3rem 0 .3rem .4rem; padding-left:.5rem; border-left:2px solid var(--border); }
