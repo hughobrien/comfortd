@@ -116,3 +116,13 @@ All times 2026-11-07. Raw copies in the gitignored `spike/out/probe_log.jsonl` (
 | `{"operationMode":"cool","spCool":21}` from dry | accepted as one command; `operationMode` cool, `spCool` 26 -> 21; `spHeat` untouched; `realValues.spCool` showed the old 26 for one poll, then cleared (same pattern as `spHeat`) | confirmed in ~6 s |
 
 So `dry` and `cool` are plain mode values, and `spCool` is written like `spHeat` (0.5 steps, profile range 16-31). Still untested: `auto` (dual setpoints), `spCool` in other modes, and what the unit does at a setpoint near the room temperature.
+
+## Probe log: auto (Office, 2026-11-07, set in the Comfort app by Hugh, read back by our poll)
+
+| Done | Observed |
+|---|---|
+| Hugh chose Auto in the app (from cool 21 / heat 20) | `operationMode` `autoCool` (not plain `auto`; `previousOperationMode` followed it), `spCool` 21 -> 22, `spHeat` 20 -> 19.5 in the same poll. So the app's Auto shows as `autoCool` here, with a 2.5 degree gap, `spAuto` still null. Expect `autoHeat` when it is heating |
+| comfortd sent `{"spCool":24.5,"spHeat":18}` while in `autoCool` | accepted, confirmed in ~6 s, mode stayed `autoCool`. A 6.5 degree gap is fine |
+| Hugh set 19 / 25 in the app | `spCool` 24.5 -> 25, `spHeat` 18 -> 19 in one poll. A 6 degree gap |
+
+Confirms the comfort_HA reading: auto is a band, `spHeat` the floor and `spCool` the ceiling, both written directly with the mode unchanged. Still unknown: the minimum gap, what happens on an inverted band, and whether we can send `operationMode: auto` ourselves (the app evidently can; we have not).
