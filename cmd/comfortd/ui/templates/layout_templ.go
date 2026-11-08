@@ -38,7 +38,7 @@ func Page(units []ui.UnitView, feed []history.Record) templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><title>comfortd</title><link rel=\"stylesheet\" href=\"/ui/static/style.css\"><script type=\"module\" src=\"/ui/static/datastar.js\"></script></head><body data-init=\"@get('/ui/sse')\"><header><h1>comfortd</h1></header><div class=\"layout\"><main id=\"units\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><title>comfortd</title><link rel=\"stylesheet\" href=\"/ui/static/style.css\"><script type=\"module\" src=\"/ui/static/datastar.js\"></script></head><body data-init=\"@get('/ui/sse', {retry: 'always', retryMaxCount: 100000, retryMaxWait: 5000})\"><header><h1>comfortd</h1></header><div class=\"layout\"><main id=\"units\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

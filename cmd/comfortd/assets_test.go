@@ -15,7 +15,7 @@ func TestIndexServesPage(t *testing.T) {
 	if rec.Code != 200 || !strings.HasPrefix(rec.Header().Get("Content-Type"), "text/html") {
 		t.Fatalf("code=%d ct=%s", rec.Code, rec.Header().Get("Content-Type"))
 	}
-	for _, want := range []string{`data-init="@get(&#39;/ui/sse&#39;)"`, "/ui/static/datastar.js", `id="units"`, `id="feed"`, `id="unit-office"`} {
+	for _, want := range []string{`data-init="@get(`data-init="@get(&#39;/ui/sse&#39;)"`#39;/ui/sse`data-init="@get(&#39;/ui/sse&#39;)"`#39;, {retry`, "/ui/static/datastar.js", `id="units"`, `id="feed"`, `id="unit-office"`} {
 		if !strings.Contains(body, want) && !strings.Contains(body, strings.ReplaceAll(want, "&#39;", "'")) {
 			t.Errorf("body missing %s", want)
 		}
