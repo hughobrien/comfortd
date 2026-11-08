@@ -72,3 +72,30 @@ func TestScheduleLimitsFollowTheUnit(t *testing.T) {
 		}
 	}
 }
+
+// Each row's setpoints are checked against its own mode's limits (House's
+// profile: heat 10–28, cool 19–30, auto 19–28).
+func TestScheduleRangesPerMode(t *testing.T) {
+	lim := ScheduleLimits{
+		Modes: []Choice{{"heat", "Heat"}, {"cool", "Cool"}, {"auto", "Auto"}, {"off", "Off"}},
+		Fans:  FanChoices(3), Lo: 10, Hi: 30,
+		Ranges: map[string][2]float64{"heat": {10, 28}, "cool": {19, 30}, "auto": {19, 28}},
+	}
+	for _, tc := range []struct {
+		name string
+		e    kumo.ScheduleEvent
+		ok   bool
+	}{
+		{"heat low", ev("0700", "heat", 12, 25, "Mo"), true},
+		{"heat above heat max", ev("0700", "heat", 29, 29, "Mo"), false},
+		{"cool high", ev("0700", "cool", 20, 30, "Mo"), true},
+		{"cool below cool min", ev("0700", "cool", 20, 18, "Mo"), false},
+		{"auto below auto min", ev("0700", "auto", 18, 24, "Mo"), false},
+		{"auto above auto max", ev("0700", "auto", 20, 29, "Mo"), false},
+	} {
+		_, err := ValidateSchedule([]kumo.ScheduleEvent{tc.e}, lim)
+		if (err == nil) != tc.ok {
+			t.Errorf("%s: err %v, want ok=%v", tc.name, err, tc.ok)
+		}
+	}
+}

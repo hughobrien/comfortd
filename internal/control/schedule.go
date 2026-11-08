@@ -25,7 +25,16 @@ var scheduleDays = []string{"Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"}
 // speeds and setpoint range.
 type ScheduleLimits struct {
 	Modes, Fans []Choice
-	Lo, Hi      float64
+	Lo, Hi      float64               // the widest range over every mode (the editor's input bounds)
+	Ranges      map[string][2]float64 // per profile limit key (heat, cool, auto); missing = Lo–Hi
+}
+
+// rangeFor is the allowed range for one setpoint field of an event in mode.
+func (l ScheduleLimits) rangeFor(field, mode string) (lo, hi float64) {
+	if r, ok := l.Ranges[RangeKey(field, ModeFamily(mode))]; ok {
+		return r[0], r[1]
+	}
+	return l.Lo, l.Hi
 }
 
 // ScheduleLimitsFor derives the limits from the unit's capability profile and
@@ -46,8 +55,21 @@ func ScheduleLimitsFor(s store.Snapshot) ScheduleLimits {
 		}
 	}
 	l.Modes = append(slices.Clone(l.Modes), Choice{"off", "Off"})
-	if lo, hi, ok := s.SetpointRange(); ok {
-		l.Lo, l.Hi = lo, hi
+	first := true
+	for _, k := range []string{"heat", "cool", "auto"} {
+		lo, hi, ok := s.SetpointRange(k)
+		if !ok {
+			continue
+		}
+		if l.Ranges == nil {
+			l.Ranges = map[string][2]float64{}
+		}
+		l.Ranges[k] = [2]float64{lo, hi}
+		if first {
+			l.Lo, l.Hi, first = lo, hi, false
+		} else {
+			l.Lo, l.Hi = min(l.Lo, lo), max(l.Hi, hi)
+		}
 	}
 	return l
 }
@@ -98,9 +120,14 @@ func ValidateSchedule(events []kumo.ScheduleEvent, lim ScheduleLimits) ([]kumo.S
 		if e.SpHeat == nil || e.SpCool == nil {
 			return nil, bad(i, "needs both temperatures")
 		}
-		for _, v := range []float64{*e.SpHeat, *e.SpCool} {
-			if v < lim.Lo || v > lim.Hi || v*2 != float64(int(v*2)) {
-				return nil, bad(i, "temperature %.1f must be %g–%g in steps of 0.5", v, lim.Lo, lim.Hi)
+		for _, sp := range []struct {
+			field string
+			v     float64
+		}{{fieldSpHeat, *e.SpHeat}, {fieldSpCool, *e.SpCool}} {
+			v := sp.v
+			lo, hi := lim.rangeFor(sp.field, e.Mode)
+			if v < lo || v > hi || v*2 != float64(int(v*2)) {
+				return nil, bad(i, "temperature %.1f must be %g–%g in steps of 0.5", v, lo, hi)
 			}
 		}
 		if e.Mode == "auto" && *e.SpCool-*e.SpHeat < MinAutoGap {

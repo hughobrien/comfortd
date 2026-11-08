@@ -333,10 +333,15 @@ func (b *Bridge) Sync(slug string) {
 	}
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	lo, hi := defaultHeatMin, defaultHeatMax
-	if l, h, ok := snap.SetpointRange(); ok {
-		lo, hi = l, h
+	fam := control.ModeFamily(snap.Device.OperationMode)
+	limits := func(field string) (float64, float64) {
+		if l, h, ok := snap.SetpointRange(control.RangeKey(field, fam)); ok {
+			return l, h
+		}
+		return defaultHeatMin, defaultHeatMax
 	}
+	lo, hi := limits(control.FieldSpHeat)
+	clo, chi := limits(control.FieldSpCool)
 	st := FromDevice(*snap.Device, allowedTargets)
 	nf := b.fanSpeeds(slug)
 	st.Speed = SpeedFromFan(snap.Device.FanSpeed, nf)
@@ -346,12 +351,12 @@ func (b *Bridge) Sync(slug string) {
 		lo, hi = min(lo, *st.HeatThresh), max(hi, *st.HeatThresh)
 	}
 	if st.CoolThresh != nil {
-		lo, hi = min(lo, *st.CoolThresh), max(hi, *st.CoolThresh)
+		clo, chi = min(clo, *st.CoolThresh), max(chi, *st.CoolThresh)
 	}
 	ua.thresh.SetMinValue(lo)
 	ua.thresh.SetMaxValue(hi)
-	ua.cool.SetMinValue(lo)
-	ua.cool.SetMaxValue(hi)
+	ua.cool.SetMinValue(clo)
+	ua.cool.SetMaxValue(chi)
 	if st.HeatThresh != nil {
 		ua.thresh.SetValue(*st.HeatThresh)
 	}

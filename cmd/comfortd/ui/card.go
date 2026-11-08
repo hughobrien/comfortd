@@ -121,7 +121,11 @@ func BuildCard(s store.Snapshot, ann *annotate.Set, ctl CardControl, now time.Ti
 		c.Family = control.ModeFamily(d.OperationMode)
 		c.ShowHeat = c.Family == "heat" || c.Family == "auto"
 		c.ShowCool = c.Family == "cool" || c.Family == "dry" || c.Family == "auto" // dry uses the cool setpoint
-		if lo, hi, ok := s.SetpointRange(); ok {
+		field := control.FieldSpHeat
+		if c.Family == "cool" || c.Family == "dry" {
+			field = control.FieldSpCool
+		}
+		if lo, hi, ok := s.SetpointRange(control.RangeKey(field, c.Family)); ok {
 			c.SpMin = strconv.FormatFloat(lo, 'f', -1, 64)
 			c.SpMax = strconv.FormatFloat(hi, 'f', -1, 64)
 		}

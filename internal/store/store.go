@@ -66,21 +66,23 @@ type Snapshot struct {
 	LastDeviceOK time.Time
 }
 
-// SetpointRange is the heat setpoint range the unit allows: the adapter's
-// minSetPoint/maxSetPoint from the status endpoint, else the capability
-// profile's heat limits.
-func (s Snapshot) SetpointRange() (lo, hi float64, ok bool) {
+// SetpointRange is the setpoint range the unit allows under a profile limit
+// key ("heat", "cool" or "auto"): the capability profile's per-mode limits.
+// Without a profile it falls back to the adapter's minSetPoint/maxSetPoint
+// from the status endpoint, which is one range for every mode (House reports
+// 19.5–28 there while its profile allows heat from 10).
+func (s Snapshot) SetpointRange(key string) (lo, hi float64, ok bool) {
+	if s.Profile != nil {
+		lo, hasLo := s.Profile.Min[key]
+		hi, hasHi := s.Profile.Max[key]
+		return lo, hi, hasLo && hasHi && lo < hi
+	}
 	var st struct {
 		Min *float64 `json:"minSetPoint"`
 		Max *float64 `json:"maxSetPoint"`
 	}
 	if json.Unmarshal(s.Raw[EndpointStatus], &st) == nil && st.Min != nil && st.Max != nil && *st.Min < *st.Max {
 		return *st.Min, *st.Max, true
-	}
-	if s.Profile != nil {
-		lo, hasLo := s.Profile.Min["heat"]
-		hi, hasHi := s.Profile.Max["heat"]
-		return lo, hi, hasLo && hasHi
 	}
 	return 0, 0, false
 }

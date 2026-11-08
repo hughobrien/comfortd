@@ -3,9 +3,12 @@
 package store
 
 import (
+	"encoding/json"
 	"os"
 	"testing"
 	"time"
+
+	"github.com/hughobrien/comfortd/pkg/kumo"
 )
 
 func fixture(t *testing.T, name string) []byte {
@@ -77,5 +80,32 @@ func TestStale(t *testing.T) {
 	sn, _ = st.Get("office")
 	if !sn.Stale(now, iv) {
 		t.Fatal("disconnected should be stale")
+	}
+}
+
+func TestSetpointRangePerMode(t *testing.T) {
+	prof := &kumo.Profile{
+		Min: map[string]float64{"heat": 10, "cool": 19, "auto": 19},
+		Max: map[string]float64{"heat": 28, "cool": 30, "auto": 28},
+	}
+	status := map[string]json.RawMessage{EndpointStatus: json.RawMessage(`{"minSetPoint":19.5,"maxSetPoint":28}`)}
+	for _, tc := range []struct {
+		name   string
+		snap   Snapshot
+		key    string
+		lo, hi float64
+		ok     bool
+	}{
+		{"profile heat", Snapshot{Profile: prof, Raw: status}, "heat", 10, 28, true},
+		{"profile cool", Snapshot{Profile: prof, Raw: status}, "cool", 19, 30, true},
+		{"profile auto", Snapshot{Profile: prof, Raw: status}, "auto", 19, 28, true},
+		{"profile without the key", Snapshot{Profile: &kumo.Profile{}, Raw: status}, "cool", 0, 0, false},
+		{"status only", Snapshot{Raw: status}, "cool", 19.5, 28, true},
+		{"nothing", Snapshot{}, "heat", 0, 0, false},
+	} {
+		lo, hi, ok := tc.snap.SetpointRange(tc.key)
+		if lo != tc.lo || hi != tc.hi || ok != tc.ok {
+			t.Errorf("%s: got %v–%v %v", tc.name, lo, hi, ok)
+		}
 	}
 }

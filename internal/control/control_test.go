@@ -497,3 +497,47 @@ func TestSpCoolWithoutProfile(t *testing.T) {
 		t.Fatalf("got %v, want ErrInvalid", err)
 	}
 }
+
+// Apply checks each setpoint against the unit's limits for the mode it is
+// for (House's profile: heat 10–28, cool 19–30, auto 19–28; its status says
+// 19.5–28, which must not cap heat or cool).
+func TestApplyPerModeRanges(t *testing.T) {
+	prof, err := os.ReadFile("../../pkg/kumo/kumotest/fixtures/profile_house.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		name string
+		mode string // the unit's current mode
+		in   Intent
+		ok   bool
+	}{
+		{"heat low", "heat", Intent{SpHeat: f(12)}, true},
+		{"heat above max", "heat", Intent{SpHeat: f(28.5)}, false},
+		{"cool high", "cool", Intent{SpCool: f(30)}, true},
+		{"cool below cool min", "cool", Intent{SpCool: f(18)}, false},
+		{"switch to cool with cool setpoint", "heat", Intent{Mode: s("cool"), SpCool: f(29.5)}, true},
+		{"auto below auto min", "auto", Intent{SpHeat: f(18)}, false},
+		{"auto heat pushes cool within auto max", "auto", Intent{SpHeat: f(27)}, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			st := store.New([]store.Unit{{Slug: "house", Serial: "x"}})
+			now := time.Now()
+			if err := st.Put("house", store.EndpointProfile, prof, now); err != nil {
+				t.Fatal(err)
+			}
+			if err := st.Put("house", store.EndpointStatus, []byte(`{"minSetPoint":19.5,"maxSetPoint":28}`), now); err != nil {
+				t.Fatal(err)
+			}
+			dev := `{"operationMode":"` + tc.mode + `","power":1,"spHeat":20,"spCool":25}`
+			if err := st.Put("house", store.EndpointDevice, []byte(dev), now); err != nil {
+				t.Fatal(err)
+			}
+			c := New(Options{Store: st, Writable: []string{"house"}})
+			err := c.Apply("house", tc.in, "ui")
+			if (err == nil) != tc.ok {
+				t.Fatalf("err %v, want ok=%v", err, tc.ok)
+			}
+		})
+	}
+}

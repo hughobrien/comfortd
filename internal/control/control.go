@@ -49,6 +49,9 @@ const (
 	fieldMode   = "operationMode"
 	fieldSpHeat = "spHeat"
 	fieldSpCool = "spCool"
+	// FieldSpHeat and FieldSpCool name the setpoint fields for RangeKey.
+	FieldSpHeat = fieldSpHeat
+	FieldSpCool = fieldSpCool
 	fieldFan    = "fanSpeed"
 	fieldVane   = "airDirection"
 	sendTimeout = 30 * time.Second
@@ -249,9 +252,10 @@ func (c *Controller) Apply(slug string, in Intent, source string) error {
 		}
 		mode = in.Mode
 	}
+	fam := c.effectiveFamily(slug, mode)
 	if in.SpHeat != nil {
 		snap, ok := c.o.Store.Get(slug)
-		lo, hi, hasRange := snap.SetpointRange()
+		lo, hi, hasRange := snap.SetpointRange(RangeKey(fieldSpHeat, fam))
 		if !ok || !hasRange {
 			return fmt.Errorf("%w: setpoint range unknown", ErrInvalid)
 		}
@@ -264,7 +268,7 @@ func (c *Controller) Apply(slug string, in Intent, source string) error {
 	var spc *float64
 	if in.SpCool != nil {
 		snap, ok := c.o.Store.Get(slug)
-		lo, hi, hasRange := snap.SetpointRange()
+		lo, hi, hasRange := snap.SetpointRange(RangeKey(fieldSpCool, fam))
 		if !ok || !hasRange || snap.Profile == nil || !snap.Profile.SupportsCool() {
 			return fmt.Errorf("%w: unit has no cool setpoint range", ErrInvalid)
 		}
@@ -372,8 +376,8 @@ func (c *Controller) recall(slug, mode string, sp, spc **float64) {
 	if !ok {
 		return
 	}
-	lo, hi, hasRange := snap.SetpointRange()
-	inRange := func(v *float64) *float64 {
+	inRange := func(field string, v *float64) *float64 {
+		lo, hi, hasRange := snap.SetpointRange(RangeKey(field, fam))
 		if v == nil || !hasRange || *v < lo || *v > hi {
 			return nil
 		}
@@ -381,15 +385,40 @@ func (c *Controller) recall(slug, mode string, sp, spc **float64) {
 	}
 	switch fam {
 	case "heat":
-		*sp = inRange(mem.Heat)
+		*sp = inRange(fieldSpHeat, mem.Heat)
 	case "cool", "dry":
-		*spc = inRange(mem.Cool)
+		*spc = inRange(fieldSpCool, mem.Cool)
 	case "auto":
-		h, cl := inRange(mem.Heat), inRange(mem.Cool)
+		h, cl := inRange(fieldSpHeat, mem.Heat), inRange(fieldSpCool, mem.Cool)
 		if h != nil && cl != nil && *cl-*h >= MinAutoGap {
 			*sp, *spc = h, cl
 		}
 	}
+}
+
+// RangeKey is the profile limit key for a setpoint field in a mode family:
+// auto has its own limits for both setpoints; otherwise spCool follows the
+// cool limits and spHeat the heat ones.
+func RangeKey(field, fam string) string {
+	switch {
+	case fam == "auto":
+		return "auto"
+	case field == fieldSpCool:
+		return "cool"
+	}
+	return "heat"
+}
+
+// effectiveFamily is the mode family an intent's setpoints are for: the mode
+// in the intent, else the unit's current one (pending included).
+func (c *Controller) effectiveFamily(slug string, mode *string) string {
+	if mode != nil {
+		return ModeFamily(*mode)
+	}
+	if snap, ok := c.o.Store.Get(slug); ok && snap.Device != nil {
+		return ModeFamily(c.Overlay(snap).Device.OperationMode)
+	}
+	return ""
 }
 
 // holdAutoGap keeps spCool-spHeat >= MinAutoGap when the unit is (or is going
@@ -418,7 +447,7 @@ func (c *Controller) holdAutoGap(slug string, mode *string, sp, spc **float64) e
 	if h == nil || cl == nil || *cl-*h >= MinAutoGap {
 		return nil
 	}
-	lo, hi, _ := snap.SetpointRange()
+	lo, hi, _ := snap.SetpointRange("auto")
 	switch {
 	case *sp != nil && *spc != nil:
 		return fmt.Errorf("%w: auto needs the cool setpoint at least %v above heat", ErrInvalid, MinAutoGap)

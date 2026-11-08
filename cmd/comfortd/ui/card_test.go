@@ -193,7 +193,8 @@ func TestEditOptsFollowTheUnit(t *testing.T) {
 	status := json.RawMessage(`{"minSetPoint":19.5,"maxSetPoint":28}`)
 	sn := fixtureSnap(t, "house", "device_house.json", map[string]json.RawMessage{"profile": prof, "status": status})
 	o := BuildEditOpts(sn)
-	if o.Lo != "19.5" || o.Hi != "28" {
+	// The editor's bounds span every mode's profile limits (heat 10, cool 30).
+	if o.Lo != "10" || o.Hi != "30" {
 		t.Fatalf("range %s–%s", o.Lo, o.Hi)
 	}
 	for _, f := range o.Fans {
