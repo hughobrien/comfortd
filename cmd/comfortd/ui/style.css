@@ -62,9 +62,9 @@ details.unknown { margin-bottom:.5rem; }
 .alert-flag { font-size:.75rem; font-weight:600; padding:.05rem .5rem; margin-left:.5rem; border-radius:3px; background:#f5d90a; color:#111; }
 .card .head img.model { height:3.2rem; width:auto; max-width:40%; object-fit:contain; margin:0 auto; }
 .dial { display:flex; flex-direction:column; align-items:center; }
-.dials { display:flex; gap:1rem; justify-content:space-around; flex-wrap:wrap; }
+.dials { display:flex; gap:.5rem; justify-content:space-around; flex-wrap:wrap; }
 .dials .ctrl { margin:.4rem 0; }
-.dial svg { width:11rem; height:6.5rem; }
+.dial svg { width:22rem; max-width:100%; height:auto; aspect-ratio:180/106; }
 .dial path { fill:var(--border); cursor:pointer; outline:none; }
 .dial path:hover { fill:var(--hl); }
 .dial path.lit { fill:var(--on); opacity:.55; }
@@ -75,3 +75,9 @@ details.unknown { margin-bottom:.5rem; }
 .dial text.wl { fill:var(--weak); font-size:9px; pointer-events:none; }
 .dial-btns { margin-top:.1rem; }
 .dial-btns button { flex:0 1 auto; font-size:.75rem; padding:.15rem .45rem; }
+.dial circle.hub { fill:var(--card); stroke:var(--border); stroke-width:1.5; cursor:pointer; }
+.dial circle.hub:hover { fill:var(--hl); }
+.dial circle.hub[aria-pressed="true"] { fill:var(--on); stroke:var(--on); }
+.dial circle.hub[aria-pressed="true"] + text.center { fill:#fff; }
+.dial circle.hub.pending { stroke:var(--weak); stroke-dasharray:3 2; }
+.dial text.center { pointer-events:none; }

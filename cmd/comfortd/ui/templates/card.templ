@@ -126,6 +126,7 @@ templ seg(c ui.CardView, opts []ui.Choice, path, param, field string) {
 // extra choices (auto, swing) as buttons beneath it.
 templ dial(c ui.CardView, opts []ui.Choice, path, field string, level bool, extra ...string) {
 	{{ wedges, buttons := dialSplit(opts, extra...) }}
+	{{ hub, hasHub, rest := dialHub(buttons) }}
 	<div class="dial">
 		<svg viewBox="0 0 180 106" role="group">
 			for _, a := range dialArcs(wedges, level) {
@@ -141,11 +142,24 @@ templ dial(c ui.CardView, opts []ui.Choice, path, field string, level bool, extr
 				><title>{ a.Label }</title></path>
 				<text class="wl" x={ fmt.Sprintf("%.1f", a.LX) } y={ fmt.Sprintf("%.1f", a.LY) } text-anchor={ a.Anchor } dominant-baseline="middle">{ a.Label }</text>
 			}
+			if hasHub {
+				<circle
+					class={ "hub", templ.KV("pending", hub.Pressed && c.Control.Pending[field] != "") }
+					cx="90"
+					cy="60"
+					r="24"
+					role="button"
+					tabindex="0"
+					aria-label={ hub.Label }
+					aria-pressed={ boolStr(hub.Pressed) }
+					data-on:click={ "@post('/ui/units/" + c.Slug + "/" + path + "?v=" + hub.Value + "')" }
+				><title>{ hub.Label }</title></circle>
+			}
 			<text class="center" x="90" y="60" text-anchor="middle" dominant-baseline="central">{ dialCenter(opts) }</text>
 		</svg>
-		if len(buttons) > 0 {
+		if len(rest) > 0 {
 			<div class="seg dial-btns">
-				for _, o := range buttons {
+				for _, o := range rest {
 					<button
 						type="button"
 						aria-pressed={ boolStr(o.Pressed) }

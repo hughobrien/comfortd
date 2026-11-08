@@ -91,3 +91,16 @@ func dialCenter(opts []ui.Choice) string {
 	}
 	return "–"
 }
+
+// dialHub picks the "auto" choice out of the side buttons to be the clickable
+// hub of the ring; the rest stay as buttons.
+func dialHub(buttons []ui.Choice) (hub ui.Choice, ok bool, rest []ui.Choice) {
+	for _, b := range buttons {
+		if b.Value == "auto" {
+			hub, ok = b, true
+		} else {
+			rest = append(rest, b)
+		}
+	}
+	return
+}
