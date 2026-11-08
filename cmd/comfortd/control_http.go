@@ -17,6 +17,8 @@ func (d deps) registerControl(mux *http.ServeMux) {
 	mux.HandleFunc("POST /v1/units/{slug}/command", d.handleCommand)
 	mux.HandleFunc("POST /ui/units/{slug}/mode", d.handleUIMode)
 	mux.HandleFunc("POST /ui/units/{slug}/spheat", d.handleUISpHeat)
+	mux.HandleFunc("POST /ui/units/{slug}/fan", d.handleUIFan)
+	mux.HandleFunc("POST /ui/units/{slug}/vane", d.handleUIVane)
 }
 
 func (d deps) ctlError(w http.ResponseWriter, err error) {
@@ -56,6 +58,8 @@ func (d deps) handleCommand(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Mode   *string  `json:"mode"`
 		SpHeat *float64 `json:"spHeat"`
+		Fan    *string  `json:"fanSpeed"`
+		Vane   *string  `json:"airDirection"`
 	}
 	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096))
 	dec.DisallowUnknownFields()
@@ -63,7 +67,7 @@ func (d deps) handleCommand(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "bad body: " + err.Error()})
 		return
 	}
-	if err := d.Ctl.Apply(slug, control.Intent{Mode: body.Mode, SpHeat: body.SpHeat}, "api"); err != nil {
+	if err := d.Ctl.Apply(slug, control.Intent{Mode: body.Mode, SpHeat: body.SpHeat, Fan: body.Fan, Vane: body.Vane}, "api"); err != nil {
 		d.ctlError(w, err)
 		return
 	}
@@ -117,6 +121,38 @@ func (d deps) handleUISpHeat(w http.ResponseWriter, r *http.Request) {
 	}
 	v := *snap.Device.SpHeat + delta
 	if err := d.Ctl.Apply(slug, control.Intent{SpHeat: &v}, "ui"); err != nil {
+		d.ctlError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (d deps) handleUIFan(w http.ResponseWriter, r *http.Request) {
+	if !uiOK(w, r) {
+		return
+	}
+	slug := r.PathValue("slug")
+	if !d.known(w, slug) {
+		return
+	}
+	v := r.URL.Query().Get("v")
+	if err := d.Ctl.Apply(slug, control.Intent{Fan: &v}, "ui"); err != nil {
+		d.ctlError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (d deps) handleUIVane(w http.ResponseWriter, r *http.Request) {
+	if !uiOK(w, r) {
+		return
+	}
+	slug := r.PathValue("slug")
+	if !d.known(w, slug) {
+		return
+	}
+	v := r.URL.Query().Get("v")
+	if err := d.Ctl.Apply(slug, control.Intent{Vane: &v}, "ui"); err != nil {
 		d.ctlError(w, err)
 		return
 	}

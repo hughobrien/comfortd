@@ -25,6 +25,7 @@ type deps struct {
 	Ann      *annotate.Set
 	Homekit  *homekit.Bridge     // nil when HomeKit is off
 	Ctl      *control.Controller // nil when control is off
+	Hidden   []string            // unit slugs left out of the web UI
 	Interval time.Duration
 	Now      func() time.Time
 }

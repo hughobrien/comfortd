@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"regexp"
+	"strings"
 	"testing"
 	"time"
 )
@@ -60,5 +61,24 @@ func TestUnknownHomekitUnit(t *testing.T) {
 	var out io.Writer = io.Discard
 	if code := run([]string{"-fake", "-listen", "127.0.0.1:0", "-state-dir", t.TempDir(), "-homekit-units", "nope"}, out); code == 0 {
 		t.Fatal("want non-zero exit")
+	}
+}
+
+func TestHiddenUnitLeftOutOfUI(t *testing.T) {
+	base, _ := startDaemon(t, "-hide-units", "house")
+	get := func(p string) string {
+		resp, err := http.Get(base + p)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer resp.Body.Close()
+		b, _ := io.ReadAll(resp.Body)
+		return string(b)
+	}
+	if page := get("/"); strings.Contains(page, "unit-house") || !strings.Contains(page, `data-preserve-attr="open"`) {
+		t.Fatalf("page: %s", page)
+	}
+	if !strings.Contains(get("/v1/units"), "house") {
+		t.Fatal("API should still list house")
 	}
 }

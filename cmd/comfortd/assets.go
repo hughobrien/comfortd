@@ -6,6 +6,7 @@ import (
 	"embed"
 	"fmt"
 	"net/http"
+	"slices"
 	"time"
 
 	"github.com/a-h/templ"
@@ -38,6 +39,9 @@ func (d deps) unitViews() []ui.UnitView {
 	now := d.Now()
 	var out []ui.UnitView
 	for _, sn := range d.Store.All() {
+		if d.hidden(sn.Unit.Slug) {
+			continue
+		}
 		out = append(out, d.viewFor(sn, now))
 	}
 	return out
@@ -72,8 +76,19 @@ func (d deps) feed() []history.Record {
 	if d.History == nil {
 		return nil
 	}
-	return d.History.Recent("", 50)
+	var out []history.Record
+	for _, r := range d.History.Recent("", 1000) {
+		if !d.hidden(r.Unit) {
+			out = append(out, r)
+			if len(out) == 50 {
+				break
+			}
+		}
+	}
+	return out
 }
+
+func (d deps) hidden(slug string) bool { return slices.Contains(d.Hidden, slug) }
 
 func (d deps) handleIndex(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path != "/" {

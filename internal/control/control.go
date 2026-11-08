@@ -36,13 +36,34 @@ var allowedModes = []string{"off", "heat", "vent"}
 const (
 	fieldMode   = "operationMode"
 	fieldSpHeat = "spHeat"
+	fieldFan    = "fanSpeed"
+	fieldVane   = "airDirection"
 	sendTimeout = 30 * time.Second
 )
 
 type Intent struct {
 	Mode   *string
 	SpHeat *float64
+	Fan    *string // "auto" or a speed name from FanSpeeds
+	Vane   *string // a direction from vaneDirections, or "swing"
 }
+
+// FanSpeeds returns the fan speed names for a unit with n speeds, slowest
+// first. [comfort_HA] names; confirmed on the unit by probe (api-inventory).
+func FanSpeeds(n int) []string {
+	all := []string{"superQuiet", "quiet", "low", "powerful", "superPowerful"}
+	switch {
+	case n >= len(all):
+		return all
+	case n == 3:
+		return []string{"quiet", "low", "powerful"}
+	case n > 0:
+		return all[:n]
+	}
+	return nil
+}
+
+var vaneDirections = []string{"auto", "horizontal", "midhorizontal", "midpoint", "midvertical", "vertical"}
 
 type Sender interface {
 	SendCommand(ctx context.Context, serial string, commands map[string]any) error
@@ -124,8 +145,26 @@ func (c *Controller) Apply(slug string, in Intent, source string) error {
 	if !c.Writable(slug) {
 		return ErrNotWritable
 	}
-	if in.Mode == nil && in.SpHeat == nil {
+	if in.Mode == nil && in.SpHeat == nil && in.Fan == nil && in.Vane == nil {
 		return fmt.Errorf("%w: nothing to change", ErrInvalid)
+	}
+	var prof *kumo.Profile
+	if in.Fan != nil || in.Vane != nil {
+		snap, ok := c.o.Store.Get(slug)
+		if !ok || snap.Profile == nil {
+			return fmt.Errorf("%w: capabilities unknown", ErrInvalid)
+		}
+		prof = snap.Profile
+	}
+	if in.Fan != nil && *in.Fan != "auto" && !slices.Contains(FanSpeeds(prof.NumberOfFanSpeeds), *in.Fan) {
+		return fmt.Errorf("%w: fan speed %q not supported", ErrInvalid, *in.Fan)
+	}
+	if in.Vane != nil {
+		v := *in.Vane
+		ok := (v == "swing" && prof.HasVaneSwing) || (slices.Contains(vaneDirections, v) && prof.HasVaneDir)
+		if !ok {
+			return fmt.Errorf("%w: air direction %q not supported", ErrInvalid, v)
+		}
 	}
 	var mode *string
 	var sp *float64
@@ -158,6 +197,12 @@ func (c *Controller) Apply(slug string, in Intent, source string) error {
 	}
 	if sp != nil {
 		st.fields[fieldSpHeat] = &field{val: *sp}
+	}
+	if in.Fan != nil {
+		st.fields[fieldFan] = &field{val: *in.Fan}
+	}
+	if in.Vane != nil {
+		st.fields[fieldVane] = &field{val: *in.Vane}
 	}
 	st.source = source
 	st.deadline = c.o.Now().Add(c.o.Window)
@@ -236,6 +281,12 @@ func (c *Controller) Overlay(s store.Snapshot) store.Snapshot {
 	if v, ok := pend[fieldSpHeat].(float64); ok {
 		d.SpHeat = &v
 	}
+	if v, ok := pend[fieldFan].(string); ok {
+		d.FanSpeed = v
+	}
+	if v, ok := pend[fieldVane].(string); ok {
+		d.AirDirection = v
+	}
 	s.Device = &d
 	return s
 }
@@ -286,6 +337,10 @@ func matches(name string, val any, d kumo.Device) bool {
 	case fieldSpHeat:
 		v, _ := val.(float64)
 		return d.SpHeat != nil && *d.SpHeat == v
+	case fieldFan:
+		return d.FanSpeed == val
+	case fieldVane:
+		return d.AirDirection == val
 	}
 	return false
 }
@@ -302,6 +357,12 @@ func polledJSON(name string, d *kumo.Device) string {
 		if d.SpHeat != nil {
 			return strconv.FormatFloat(*d.SpHeat, 'f', -1, 64)
 		}
+	case fieldFan:
+		b, _ := json.Marshal(d.FanSpeed)
+		return string(b)
+	case fieldVane:
+		b, _ := json.Marshal(d.AirDirection)
+		return string(b)
 	}
 	return "null"
 }

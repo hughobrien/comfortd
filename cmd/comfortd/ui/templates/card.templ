@@ -21,6 +21,16 @@ templ Card(c ui.CardView) {
 				{ c.SpHeat } °C
 				@pendingBadge(c, "spHeat")
 			</dd>
+			<dt>Fan</dt>
+			<dd>
+				{ c.Fan }
+				@pendingBadge(c, "fanSpeed")
+			</dd>
+			<dt>Vane</dt>
+			<dd>
+				{ c.Vane }
+				@pendingBadge(c, "airDirection")
+			</dd>
 			<dt>Cool to</dt><dd>{ c.SpCool } °C</dd>
 			<dt>Humidity</dt><dd>{ c.Humidity }</dd>
 			<dt>Schedule</dt><dd>{ yesNo(c.ScheduleActive) }{ holdSuffix(c.HoldEnabled) }</dd>
@@ -36,6 +46,16 @@ templ Card(c ui.CardView) {
 				<button data-on:click={ "@post('/ui/units/" + c.Slug + "/mode?m=vent')" }>Fan only</button>
 				<button data-on:click={ "@post('/ui/units/" + c.Slug + "/spheat?delta=-0.5')" }>−</button>
 				<button data-on:click={ "@post('/ui/units/" + c.Slug + "/spheat?delta=0.5')" }>+</button>
+			</div>
+			<div class="controls">
+				for _, o := range c.FanOptions {
+					<button data-on:click={ "@post('/ui/units/" + c.Slug + "/fan?v=" + o + "')" }>{ o }</button>
+				}
+			</div>
+			<div class="controls">
+				for _, o := range c.VaneOptions {
+					<button data-on:click={ "@post('/ui/units/" + c.Slug + "/vane?v=" + o + "')" }>{ o }</button>
+				}
 			</div>
 		}
 	</div>

@@ -17,6 +17,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -82,6 +83,7 @@ func runContext(ctx context.Context, args []string, stdout io.Writer, ready func
 	fake := fs.Bool("fake", false, "run against an in-process fake Kumo server")
 	hapPort := fs.Int("hap-port", 0, "HomeKit (HAP) TCP port; 0 = ephemeral")
 	hkUnits := fs.String("homekit-units", envOr("homekit-units", ""), "comma-separated unit slugs to expose to HomeKit; empty = HomeKit off")
+	hide := fs.String("hide-units", envOr("hide-units", ""), "comma-separated unit slugs left out of the web UI (the API still lists them)")
 	writable := fs.String("writable-units", envOr("writable-units", ""), "comma-separated unit slugs that may receive commands; empty = read-only")
 	bridgeName := fs.String("bridge-name", "comfortd", "HomeKit bridge name")
 	forceStale := fs.String("force-stale", "", "debug: comma-separated unit slugs HomeKit treats as stale (to check \"No Response\")")
@@ -152,6 +154,11 @@ func runContext(ctx context.Context, args []string, stdout io.Writer, ready func
 		slog.Error("annotations", "err", err)
 		return 1
 	}
+	// Background workers write state files; wait for them before returning so
+	// a stopped daemon leaves nothing running (and tests can remove their dir).
+	ctx, stopWorkers := context.WithCancel(ctx)
+	var workers sync.WaitGroup
+	defer func() { stopWorkers(); workers.Wait() }()
 	hub := newPushHub()
 	var p *poller.Poller
 	var bridge *homekit.Bridge // set before any goroutine that can call OnChange starts
@@ -193,16 +200,16 @@ func runContext(ctx context.Context, args []string, stdout io.Writer, ready func
 			return 1
 		}
 		st.Subscribe(func(u store.Update) { bridge.Sync(u.Slug) })
-		go func() {
+		workers.Go(func() {
 			if err := bridge.Run(ctx); err != nil && ctx.Err() == nil {
 				slog.Error("homekit server", "err", err)
 			}
-		}()
+		})
 		slog.Info("homekit enabled", "units", slugs, "port", *hapPort)
 	}
 	p = poller.New(client, st, *interval)
-	go ctl.Run(ctx)
-	go p.Run(ctx)
+	workers.Go(func() { ctl.Run(ctx) })
+	workers.Go(func() { p.Run(ctx) })
 
 	ln, err := net.Listen("tcp", *listen)
 	if err != nil {
@@ -210,7 +217,7 @@ func runContext(ctx context.Context, args []string, stdout io.Writer, ready func
 		return 1
 	}
 	httpSrv := &http.Server{
-		Handler:           newMux(deps{Store: st, History: hist, Ann: ann, Homekit: bridge, Ctl: ctl, Hub: hub, Interval: *interval, Now: time.Now}),
+		Handler:           newMux(deps{Store: st, History: hist, Ann: ann, Homekit: bridge, Ctl: ctl, Hub: hub, Hidden: splitList(*hide), Interval: *interval, Now: time.Now}),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 	slog.Info("listening", "addr", ln.Addr().String())

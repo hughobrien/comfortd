@@ -22,7 +22,7 @@ templ UnitSection(v ui.UnitView) {
 		</h2>
 		@Card(v.Card)
 		if len(v.Unknown) > 0 {
-			<details class="unknown">
+			<details class="unknown" data-preserve-attr="open">
 				<summary>Unknown fields <small>{ strconv.Itoa(len(v.Unknown)) }</small></summary>
 				<table>
 					for _, r := range v.Unknown {
@@ -35,7 +35,7 @@ templ UnitSection(v ui.UnitView) {
 			</details>
 		}
 		for _, e := range v.Endpoints {
-			<details open?={ e.Name == "device" }>
+			<details open?={ e.Name == "device" } data-preserve-attr="open">
 				<summary>
 					{ e.Name }
 					if e.At != "" {

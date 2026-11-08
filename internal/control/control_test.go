@@ -282,3 +282,23 @@ func TestPendingMode(t *testing.T) {
 	eventually(t, time.Second, func() bool { return len(r.srv.Commands()) == 1 }, "sent")
 	eventually(t, time.Second, func() bool { _, ok := r.c.PendingMode("office"); return !ok }, "no longer queued once sent")
 }
+
+func TestFanAndVaneValidation(t *testing.T) {
+	r := newRig(t)
+	for _, bad := range []Intent{{Fan: s("turbo")}, {Vane: s("sideways")}} {
+		if err := r.c.Apply("office", bad, "ui"); err == nil {
+			t.Fatalf("%+v accepted", bad)
+		}
+	}
+	if len(r.srv.Commands()) != 0 {
+		t.Fatal("invalid intent sent")
+	}
+	if err := r.c.Apply("office", Intent{Fan: s("quiet"), Vane: s("swing")}, "ui"); err != nil {
+		t.Fatal(err)
+	}
+	eventually(t, time.Second, func() bool { return len(r.srv.Commands()) == 1 }, "command")
+	cmds := r.srv.Commands()[0].Commands
+	if cmds["fanSpeed"] != "quiet" || cmds["airDirection"] != "swing" {
+		t.Fatalf("sent %v", cmds)
+	}
+}
