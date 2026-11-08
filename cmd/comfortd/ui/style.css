@@ -113,5 +113,7 @@ details.unknown { margin-bottom:.5rem; }
 .dials { display:grid; grid-template-columns:repeat(auto-fit, minmax(min(17.5rem, 100%), 1fr)); column-gap:.5rem; row-gap:0; justify-items:center; }
 .dials .ctrl { flex:none; width:100%; max-width:22rem; }
 .dials img.model, .dials > .room { grid-column:1 / -1; }
-.ctrl.target { position:relative; }
-.ctrl.target .room { position:absolute; left:0; top:.1rem; text-align:left; margin:0; }
+.dials { position:relative; container-type:inline-size; }
+.ctrl.target .room { position:absolute; left:0; top:.1rem; text-align:center; margin:0; }
+/* two columns: centre it in the gutter between the mode and target wheels */
+@container (min-width: 35.5rem) { .ctrl.target .room { left:50%; top:9.5rem; transform:translate(-50%, -50%); } }
