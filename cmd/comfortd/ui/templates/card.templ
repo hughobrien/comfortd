@@ -9,11 +9,18 @@ templ Card(c ui.CardView) {
 		if c.Stale {
 			<p class="stale-banner">stale: no fresh data since { c.LastOK }</p>
 		}
-		<div class="big">{ c.Mode } @pendingBadge(c, "operationMode")</div>
+		<div class="big">
+			{ c.Mode }
+			@pendingBadge(c, "operationMode")
+		</div>
 		<dl>
 			<dt>Power</dt><dd>{ c.Power }</dd>
 			<dt>Room</dt><dd>{ c.RoomTemp } °C</dd>
-			<dt>Heat to</dt><dd>{ c.SpHeat } °C @pendingBadge(c, "spHeat")</dd>
+			<dt>Heat to</dt>
+			<dd>
+				{ c.SpHeat } °C
+				@pendingBadge(c, "spHeat")
+			</dd>
 			<dt>Cool to</dt><dd>{ c.SpCool } °C</dd>
 			<dt>Humidity</dt><dd>{ c.Humidity }</dd>
 			<dt>Schedule</dt><dd>{ yesNo(c.ScheduleActive) }{ holdSuffix(c.HoldEnabled) }</dd>

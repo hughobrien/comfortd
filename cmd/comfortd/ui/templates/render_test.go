@@ -37,3 +37,18 @@ func TestCardStaleRendered(t *testing.T) {
 		t.Fatal(b.String())
 	}
 }
+
+func TestCardPendingBadgeRendered(t *testing.T) {
+	var sb strings.Builder
+	c := ui.CardView{Slug: "office", Mode: "Heat", SpHeat: "19", Control: ui.CardControl{Writable: true, Pending: map[string]string{"spHeat": "19.5"}}}
+	if err := Card(c).Render(context.Background(), &sb); err != nil {
+		t.Fatal(err)
+	}
+	out := sb.String()
+	if strings.Contains(out, "@pendingBadge") || !strings.Contains(out, `class="pending"`) {
+		t.Fatalf("badge not rendered: %s", out)
+	}
+	if strings.Count(out, `class="pending"`) != 1 {
+		t.Fatalf("want one badge (spHeat only): %s", out)
+	}
+}
