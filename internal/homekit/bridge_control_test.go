@@ -203,3 +203,34 @@ func TestThresholdOutOfRange(t *testing.T) {
 	}
 	r.waitCommands(t, 0)
 }
+
+func TestSpeedAndSwingSendCommands(t *testing.T) {
+	r := newCtlRig(t, "heat")
+	if err := r.b.onSetSpeed("office", 100); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.b.onSetSwing("office", 1); err != nil {
+		t.Fatal(err)
+	}
+	cmds := r.waitCommands(t, 1)
+	if cmds[0].Commands["fanSpeed"] != "superPowerful" || cmds[0].Commands["airDirection"] != "swing" {
+		t.Fatalf("got %+v", cmds)
+	}
+	if err := r.b.onSetSwing("office", 0); err != nil {
+		t.Fatal(err)
+	}
+	cmds = r.waitCommands(t, 2)
+	if cmds[1].Commands["airDirection"] != "auto" {
+		t.Fatalf("got %+v", cmds)
+	}
+}
+
+func TestSpeedSwingReadOnlyWhenNotWritable(t *testing.T) {
+	r := newCtlRig(t, "heat")
+	if err := r.b.onSetSpeed("house", 40); !errors.Is(err, ErrReadOnly) {
+		t.Fatal(err)
+	}
+	if err := r.b.onSetSwing("house", 1); !errors.Is(err, ErrReadOnly) {
+		t.Fatal(err)
+	}
+}

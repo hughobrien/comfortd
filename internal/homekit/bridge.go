@@ -68,6 +68,8 @@ type unitAcc struct {
 	acc    *accessory.A
 	hc     *service.HeaterCooler
 	thresh *characteristic.HeatingThresholdTemperature
+	speed  *characteristic.RotationSpeed
+	swing  *characteristic.SwingMode
 }
 
 type Bridge struct {
@@ -145,14 +147,24 @@ func (b *Bridge) buildUnit(u store.Unit, aid uint64) *unitAcc {
 	hc.CurrentTemperature.SetMinValue(-20)
 	hc.CurrentTemperature.SetMaxValue(60)
 	hc.CurrentTemperature.SetStepValue(0.5)
+	speed := characteristic.NewRotationSpeed()
+	speed.SetMinValue(20)
+	speed.SetMaxValue(100)
+	speed.SetStepValue(20) // the five manual fan speeds; auto is not on the slider
+	speed.SetValue(60)
+	hc.AddC(speed.C)
+	swing := characteristic.NewSwingMode()
+	hc.AddC(swing.C)
 	acc.AddS(hc.S)
 
-	ua := &unitAcc{unit: u, aid: aid, acc: acc, hc: hc, thresh: thresh}
+	ua := &unitAcc{unit: u, aid: aid, acc: acc, hc: hc, thresh: thresh, speed: speed, swing: swing}
 	slug := u.Slug
 	hc.Active.OnSetRemoteValue(func(v int) error { return b.onSetActive(slug, v) })
 	hc.TargetHeaterCoolerState.OnSetRemoteValue(func(v int) error { return b.onSetTarget(slug, v) })
 	thresh.OnSetRemoteValue(func(v float64) error { return b.onSetHeatThresh(slug, v) })
-	for _, c := range []*characteristic.C{hc.Active.C, hc.CurrentHeaterCoolerState.C, hc.TargetHeaterCoolerState.C, hc.CurrentTemperature.C, thresh.C} {
+	speed.OnSetRemoteValue(func(v float64) error { return b.onSetSpeed(slug, v) })
+	swing.OnSetRemoteValue(func(v int) error { return b.onSetSwing(slug, v) })
+	for _, c := range []*characteristic.C{hc.Active.C, hc.CurrentHeaterCoolerState.C, hc.TargetHeaterCoolerState.C, hc.CurrentTemperature.C, thresh.C, speed.C, swing.C} {
 		c.ValueRequestFunc = b.valueRequest(slug, c)
 	}
 	return ua
@@ -201,6 +213,26 @@ func (b *Bridge) onSetHeatThresh(slug string, v float64) error {
 		return ErrReadOnly
 	}
 	return b.o.Control.Apply(slug, control.Intent{SpHeat: &v}, "homekit")
+}
+
+func (b *Bridge) onSetSpeed(slug string, v float64) error {
+	if !b.writable(slug) {
+		return ErrReadOnly
+	}
+	fan := FanFromSpeed(v)
+	return b.o.Control.Apply(slug, control.Intent{Fan: &fan}, "homekit")
+}
+
+// onSetSwing: on is the vane's swing mode, off returns it to auto.
+func (b *Bridge) onSetSwing(slug string, v int) error {
+	if !b.writable(slug) {
+		return ErrReadOnly
+	}
+	vane := "auto"
+	if v == characteristic.SwingModeSwingEnabled {
+		vane = "swing"
+	}
+	return b.o.Control.Apply(slug, control.Intent{Vane: &vane}, "homekit")
 }
 
 func (b *Bridge) valueRequest(slug string, c *characteristic.C) func(*http.Request) (interface{}, int) {
@@ -255,6 +287,10 @@ func (b *Bridge) Sync(slug string) {
 	if st.CurrentTemp != nil {
 		ua.hc.CurrentTemperature.SetValue(*st.CurrentTemp)
 	}
+	if st.Speed != nil { // on auto the slider keeps its last position
+		ua.speed.SetValue(*st.Speed)
+	}
+	ua.swing.SetValue(st.Swing)
 	ua.hc.Active.SetValue(st.Active)
 	ua.hc.CurrentHeaterCoolerState.SetValue(st.Current)
 	if st.Target != nil {

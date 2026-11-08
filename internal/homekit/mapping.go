@@ -4,6 +4,7 @@
 package homekit
 
 import (
+	"math"
 	"slices"
 
 	"github.com/hughobrien/comfortd/pkg/kumo"
@@ -29,12 +30,38 @@ type HKState struct {
 	Target      *int
 	HeatThresh  *float64
 	CurrentTemp *float64
+	Speed       *float64 // Rotation Speed 20..100; nil when the fan is on auto or unknown
+	Swing       int      // 0 off, 1 swinging
+}
+
+// fanSteps are the manual fan speeds, slowest first. Rotation Speed is
+// 20 * (index+1); auto has no place on the slider.
+var fanSteps = []string{"superQuiet", "quiet", "low", "powerful", "superPowerful"}
+
+// SpeedFromFan maps a fan speed name to Rotation Speed, nil for auto/unknown.
+func SpeedFromFan(name string) *float64 {
+	for i, s := range fanSteps {
+		if s == name {
+			v := float64(20 * (i + 1))
+			return &v
+		}
+	}
+	return nil
+}
+
+// FanFromSpeed maps a Rotation Speed to the nearest fan speed name.
+func FanFromSpeed(v float64) string {
+	i := int(math.Round(v/20)) - 1
+	return fanSteps[min(max(i, 0), len(fanSteps)-1)]
 }
 
 // FromDevice maps a device to HomeKit values. Target is only set to a value
 // in allowedTargets.
 func FromDevice(d kumo.Device, allowedTargets []int) HKState {
-	st := HKState{HeatThresh: d.SpHeat, CurrentTemp: d.RoomTemp}
+	st := HKState{HeatThresh: d.SpHeat, CurrentTemp: d.RoomTemp, Speed: SpeedFromFan(d.FanSpeed)}
+	if d.AirDirection == "swing" {
+		st.Swing = 1
+	}
 	if d.Power == 0 || d.OperationMode == "off" {
 		return st
 	}

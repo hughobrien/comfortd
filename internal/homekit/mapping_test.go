@@ -51,3 +51,22 @@ func TestFromDeviceTemps(t *testing.T) {
 		t.Fatalf("got %+v", got)
 	}
 }
+
+func TestFanSpeedMapping(t *testing.T) {
+	for name, want := range map[string]float64{"superQuiet": 20, "quiet": 40, "low": 60, "powerful": 80, "superPowerful": 100} {
+		if got := SpeedFromFan(name); got == nil || *got != want {
+			t.Errorf("%s: %v", name, got)
+		}
+		if FanFromSpeed(want) != name {
+			t.Errorf("%v -> %s", want, FanFromSpeed(want))
+		}
+	}
+	if SpeedFromFan("auto") != nil || SpeedFromFan("") != nil {
+		t.Error("auto must not map to a speed")
+	}
+	for v, want := range map[float64]string{0: "superQuiet", 29: "superQuiet", 31: "quiet", 70: "powerful", 500: "superPowerful"} {
+		if got := FanFromSpeed(v); got != want {
+			t.Errorf("%v -> %s want %s", v, got, want)
+		}
+	}
+}
