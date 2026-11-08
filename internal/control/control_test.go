@@ -1,0 +1,273 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+package control
+
+import (
+	"context"
+	"os"
+	"path/filepath"
+	"sync"
+	"testing"
+	"time"
+
+	"github.com/hughobrien/comfortd/internal/history"
+	"github.com/hughobrien/comfortd/internal/poller"
+	"github.com/hughobrien/comfortd/internal/store"
+	"github.com/hughobrien/comfortd/pkg/kumo"
+	"github.com/hughobrien/comfortd/pkg/kumo/kumotest"
+)
+
+type rig struct {
+	srv   *kumotest.Server
+	st    *store.Store
+	hist  *history.Log
+	p     *poller.Poller
+	c     *Controller
+	mu    sync.Mutex
+	kicks []string
+	chg   []string
+	dir   string
+}
+
+func (r *rig) changes() []string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return append([]string(nil), r.chg...)
+}
+
+func newRig(t *testing.T) *rig {
+	t.Helper()
+	srv := kumotest.New()
+	t.Cleanup(srv.Close)
+	dir := t.TempDir()
+	creds := filepath.Join(dir, "creds")
+	os.WriteFile(creds, []byte(kumotest.User+"\n"+kumotest.Password+"\n"), 0o600)
+	client := kumo.New(kumo.Options{BaseURL: srv.URL, CredentialsPath: creds})
+	units, err := poller.Discover(context.Background(), client, filepath.Join(dir, "disc.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	st := store.New(units)
+	hist, err := history.Open(filepath.Join(dir, "history.jsonl"), history.DefaultMaxBytes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { hist.Close() })
+	p := poller.New(client, st, time.Minute)
+	r := &rig{srv: srv, st: st, hist: hist, p: p, dir: dir}
+	r.c = r.newController(client)
+	st.Subscribe(r.c.Observe)
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	go r.c.Run(ctx)
+	p.PollSlow(ctx)
+	p.PollOnce(ctx)
+	return r
+}
+
+func (r *rig) newController(s Sender) *Controller {
+	return New(Options{
+		Sender: s, Store: r.st, History: r.hist, Writable: []string{"office"},
+		Window: 50 * time.Millisecond, HoldTimeout: 300 * time.Millisecond,
+		LastModePath: filepath.Join(r.dir, "lastmode.json"),
+		Kick:         func(slug string) { r.mu.Lock(); r.kicks = append(r.kicks, slug); r.mu.Unlock() },
+		OnChange:     func(slug string) { r.mu.Lock(); r.chg = append(r.chg, slug); r.mu.Unlock() },
+	})
+}
+
+func f(v float64) *float64 { return &v }
+func s(v string) *string   { return &v }
+
+func eventually(t *testing.T, d time.Duration, cond func() bool, msg string) {
+	t.Helper()
+	deadline := time.Now().Add(d)
+	for time.Now().Before(deadline) {
+		if cond() {
+			return
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	t.Fatal("timed out: " + msg)
+}
+
+func TestNotWritable(t *testing.T) {
+	r := newRig(t)
+	if err := r.c.Apply("house", Intent{SpHeat: f(21)}, "ui"); err != ErrNotWritable {
+		t.Fatalf("got %v", err)
+	}
+	time.Sleep(150 * time.Millisecond)
+	if n := len(r.srv.Commands()); n != 0 {
+		t.Fatalf("%d commands", n)
+	}
+}
+
+func TestInvalid(t *testing.T) {
+	r := newRig(t)
+	if err := r.c.Apply("office", Intent{Mode: s("cool")}, "ui"); err == nil {
+		t.Fatal("cool accepted")
+	}
+	if err := r.c.Apply("office", Intent{SpHeat: f(40)}, "ui"); err == nil {
+		t.Fatal("40 accepted")
+	}
+	if err := r.c.Apply("office", Intent{}, "ui"); err == nil {
+		t.Fatal("empty accepted")
+	}
+	if err := r.c.Apply("office", Intent{SpHeat: f(20.3)}, "ui"); err != nil {
+		t.Fatal(err)
+	}
+	eventually(t, time.Second, func() bool { return len(r.srv.Commands()) == 1 }, "command")
+	if v := r.srv.Commands()[0].Commands["spHeat"]; v != 20.5 {
+		t.Fatalf("sent %v", v)
+	}
+}
+
+func TestCoalescesBurst(t *testing.T) {
+	r := newRig(t)
+	for _, v := range []float64{20, 20.5, 21} {
+		r.c.Apply("office", Intent{SpHeat: f(v)}, "ui")
+		time.Sleep(5 * time.Millisecond)
+	}
+	r.c.Apply("office", Intent{Mode: s("heat")}, "ui")
+	time.Sleep(200 * time.Millisecond)
+	cmds := r.srv.Commands()
+	if len(cmds) != 1 || len(cmds[0].Commands) != 2 || cmds[0].Commands["operationMode"] != "heat" || cmds[0].Commands["spHeat"] != 21.0 {
+		t.Fatalf("got %+v", cmds)
+	}
+}
+
+func TestOverlayShowsPending(t *testing.T) {
+	r := newRig(t)
+	r.c.Apply("office", Intent{SpHeat: f(21)}, "ui")
+	snap, _ := r.st.Get("office")
+	if got := r.c.Overlay(snap).Device.SpHeat; got == nil || *got != 21 {
+		t.Fatalf("queued overlay %v", got)
+	}
+	eventually(t, time.Second, func() bool { return len(r.srv.Commands()) == 1 }, "sent")
+	if got := r.c.Overlay(snap).Device.SpHeat; got == nil || *got != 21 {
+		t.Fatalf("sent overlay %v", got)
+	}
+	if snap.Device.SpHeat != nil && *snap.Device.SpHeat == 21 {
+		t.Fatal("overlay mutated the snapshot")
+	}
+}
+
+func TestHoldConfirmsNumerically(t *testing.T) {
+	r := newRig(t)
+	r.c.Apply("office", Intent{SpHeat: f(21)}, "ui")
+	eventually(t, time.Second, func() bool { return len(r.srv.Commands()) == 1 }, "sent")
+	r.p.PollOnce(context.Background())
+	if p := r.c.Pending("office"); len(p) != 0 {
+		t.Fatalf("pending %v", p)
+	}
+	time.Sleep(400 * time.Millisecond)
+	for _, rec := range r.hist.Recent("office", 100) {
+		if rec.Endpoint == "unconfirmed" {
+			t.Fatalf("unexpected %+v", rec)
+		}
+	}
+}
+
+func TestHoldTimesOut(t *testing.T) {
+	r := newRig(t)
+	snap, _ := r.st.Get("office")
+	old := *snap.Device.SpHeat
+	r.c.Apply("office", Intent{SpHeat: f(old + 2)}, "ui")
+	eventually(t, time.Second, func() bool { return len(r.srv.Commands()) == 1 }, "sent")
+	r.srv.SetField(kumotest.OfficeSerial, "spHeat", old)
+	r.p.PollOnce(context.Background())
+	eventually(t, 2*time.Second, func() bool { return len(r.c.Pending("office")) == 0 }, "hold released")
+	var found bool
+	for _, rec := range r.hist.Recent("office", 100) {
+		if rec.Endpoint == "unconfirmed" && rec.Path == "spHeat" {
+			found = true
+			if rec.New != jsonOf(old+2) {
+				t.Errorf("new %q", rec.New)
+			}
+			if rec.Old != jsonOf(old) {
+				t.Errorf("old %q", rec.Old)
+			}
+		}
+	}
+	if !found {
+		t.Fatal("no unconfirmed record")
+	}
+}
+
+func TestSendFailureNoHold(t *testing.T) {
+	r := newRig(t)
+	r.srv.FailNext("/devices/send-command", 500, 1)
+	r.c.Apply("office", Intent{SpHeat: f(21)}, "ui")
+	eventually(t, time.Second, func() bool { return r.c.LastError("office") != "" }, "error")
+	if len(r.c.Pending("office")) != 0 || len(r.srv.Commands()) != 0 {
+		t.Fatalf("pending %v commands %v", r.c.Pending("office"), r.srv.Commands())
+	}
+	r.c.Apply("office", Intent{SpHeat: f(21)}, "ui")
+	eventually(t, time.Second, func() bool { return len(r.srv.Commands()) == 1 && r.c.LastError("office") == "" }, "retry succeeded")
+}
+
+func TestCommandRecorded(t *testing.T) {
+	r := newRig(t)
+	r.c.Apply("office", Intent{SpHeat: f(21)}, "ui")
+	eventually(t, time.Second, func() bool {
+		for _, rec := range r.hist.Recent("office", 100) {
+			if rec.Endpoint == "command" && rec.Path == "spHeat" && rec.Old == "null" && rec.New == "21" && rec.Source == "ui" {
+				return true
+			}
+		}
+		return false
+	}, "command record")
+}
+
+func TestKickCalled(t *testing.T) {
+	r := newRig(t)
+	r.c.Apply("office", Intent{SpHeat: f(21)}, "ui")
+	eventually(t, time.Second, func() bool { r.mu.Lock(); defer r.mu.Unlock(); return len(r.kicks) == 1 && r.kicks[0] == "office" }, "kick")
+}
+
+func TestLastModePersists(t *testing.T) {
+	r := newRig(t)
+	obs := func(mode string) {
+		r.c.Observe(store.Update{Slug: "office", Endpoint: store.EndpointDevice, New: []byte(`{"operationMode":"` + mode + `","power":1}`)})
+	}
+	obs("vent")
+	if r.c.LastMode("office") != "vent" {
+		t.Fatal(r.c.LastMode("office"))
+	}
+	obs("off")
+	obs("cool")
+	if r.c.LastMode("office") != "vent" {
+		t.Fatal(r.c.LastMode("office"))
+	}
+	c2 := r.newController(nil)
+	if c2.LastMode("office") != "vent" {
+		t.Fatal(c2.LastMode("office"))
+	}
+	if c2.LastMode("house") != "heat" {
+		t.Fatal("default")
+	}
+}
+
+func TestOnChangeCalled(t *testing.T) {
+	r := newRig(t)
+	r.c.Apply("office", Intent{SpHeat: f(21)}, "ui")
+	eventually(t, time.Second, func() bool { return len(r.srv.Commands()) == 1 }, "sent")
+	n := len(r.changes())
+	if n < 2 {
+		t.Fatalf("changes %v", r.changes())
+	}
+	r.p.PollOnce(context.Background())
+	if len(r.changes()) <= n {
+		t.Fatal("no change on confirm")
+	}
+}
+
+func TestNoSendWithoutApply(t *testing.T) {
+	r := newRig(t)
+	for range 3 {
+		r.p.PollOnce(context.Background())
+		time.Sleep(50 * time.Millisecond)
+	}
+	if n := len(r.srv.Commands()); n != 0 {
+		t.Fatalf("%d commands", n)
+	}
+}
