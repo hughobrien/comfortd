@@ -1,6 +1,6 @@
-:root { --bg:#f6f6f6; --card:#fff; --fg:#111; --weak:#777; --border:#ddd; --hl:#fff3b0; --err:#c00; --on:#276; --heat:#d9680f; }
+:root { --bg:#f6f6f6; --card:#fff; --fg:#111; --weak:#777; --border:#ddd; --hl:#fff3b0; --err:#c00; --on:#276; --heat:#d9680f; --cool:#1f6fc4; }
 @media (prefers-color-scheme: dark) {
-  :root { --bg:#161616; --card:#1f1f1f; --fg:#e8e8e8; --weak:#999; --border:#333; --hl:#4a4000; --err:#f66; --on:#3a8; --heat:#e8832e; }
+  :root { --bg:#161616; --card:#1f1f1f; --fg:#e8e8e8; --weak:#999; --border:#333; --hl:#4a4000; --err:#f66; --on:#3a8; --heat:#e8832e; --cool:#4a9be8; }
 }
 * { box-sizing: border-box; }
 body { margin:0; font:14px/1.4 system-ui, sans-serif; background:var(--bg); color:var(--fg); }
@@ -43,6 +43,7 @@ details.unknown { margin-bottom:.5rem; }
 .seg button:hover:not([aria-pressed="true"]), .stepper button:hover, .power-toggle:hover:not([aria-pressed="true"]) { background:var(--hl); }
 .seg button[aria-pressed="true"], .power-toggle[aria-pressed="true"] { background:var(--on); color:#fff; border-color:var(--on); }
 .seg button[data-value="heat"][aria-pressed="true"] { background:var(--heat); border-color:var(--heat); }
+.seg button[data-value="cool"][aria-pressed="true"] { background:var(--cool); border-color:var(--cool); }
 .seg button:focus-visible, .stepper button:focus-visible, .power-toggle:focus-visible { outline:2px solid var(--on); outline-offset:1px; }
 .seg button.pending { outline:2px dashed var(--weak); outline-offset:1px; }
 .slider-row { display:flex; gap:.5rem; align-items:center; }

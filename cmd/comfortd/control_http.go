@@ -17,6 +17,7 @@ func (d deps) registerControl(mux *http.ServeMux) {
 	mux.HandleFunc("POST /v1/units/{slug}/command", d.handleCommand)
 	mux.HandleFunc("POST /ui/units/{slug}/mode", d.handleUIMode)
 	mux.HandleFunc("POST /ui/units/{slug}/spheat", d.handleUISpHeat)
+	mux.HandleFunc("POST /ui/units/{slug}/spcool", d.handleUISpCool)
 	mux.HandleFunc("POST /ui/units/{slug}/fan", d.handleUIFan)
 	mux.HandleFunc("POST /ui/units/{slug}/vane", d.handleUIVane)
 }
@@ -170,6 +171,26 @@ func (d deps) handleUIVane(w http.ResponseWriter, r *http.Request) {
 	}
 	v := r.URL.Query().Get("v")
 	if err := d.Ctl.Apply(slug, control.Intent{Vane: &v}, "ui"); err != nil {
+		d.ctlError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (d deps) handleUISpCool(w http.ResponseWriter, r *http.Request) {
+	if !uiOK(w, r) {
+		return
+	}
+	slug := r.PathValue("slug")
+	if !d.known(w, slug) {
+		return
+	}
+	v, err := strconv.ParseFloat(r.URL.Query().Get("v"), 64)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "bad value"})
+		return
+	}
+	if err := d.Ctl.Apply(slug, control.Intent{SpCool: &v}, "ui"); err != nil {
 		d.ctlError(w, err)
 		return
 	}

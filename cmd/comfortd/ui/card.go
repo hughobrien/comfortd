@@ -27,6 +27,8 @@ type CardView struct {
 	LastOK                                          string // "15:04:05", or "never"
 	Fan, Vane                                       string
 	On                                              bool
+	Family                                          string   // mode with autoCool/autoHeat folded into auto
+	ShowHeat, ShowCool                              bool     // which setpoint sliders apply in this mode
 	Image                                           string   // model picture URL, https only
 	Alerts                                          []string // active displayConfig flags, for the banner
 	SpMin, SpMax                                    string   // heat setpoint range from the profile
@@ -104,12 +106,15 @@ func BuildCard(s store.Snapshot, ann *annotate.Set, ctl CardControl, now time.Ti
 	if ctl.Writable && s.Device != nil {
 		d := s.Device
 		c.On = d.Power == 1
-		c.Modes = choices(control.ModeChoices(), d.OperationMode)
+		c.Family = control.ModeFamily(d.OperationMode)
+		c.ShowHeat = c.Family == "heat" || c.Family == "auto"
+		c.ShowCool = c.Family == "cool" || c.Family == "auto"
 		if lo, hi, ok := s.SetpointRange(); ok {
 			c.SpMin = strconv.FormatFloat(lo, 'f', -1, 64)
 			c.SpMax = strconv.FormatFloat(hi, 'f', -1, 64)
 		}
 		if p := s.Profile; p != nil {
+			c.Modes = choices(control.ModeChoices(*p), c.Family)
 			c.Fans = choices(control.FanChoices(p.NumberOfFanSpeeds), d.FanSpeed)
 			c.Vanes = choices(control.VaneChoices(*p), d.AirDirection)
 		}

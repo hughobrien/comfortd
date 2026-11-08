@@ -31,7 +31,19 @@ var (
 )
 
 // allowedModes are the modes Apply accepts. Extended per feature.
-var allowedModes = []string{"off", "heat", "vent", "dry", "cool"}
+var allowedModes = []string{"off", "heat", "vent", "dry", "cool", "auto"}
+
+// MinAutoGap is the smallest spCool-spHeat the unit keeps in auto; it moves
+// the other setpoint to hold it (observed on Office).
+const MinAutoGap = 1.5
+
+// ModeFamily folds the unit's auto sub-states (autoCool, autoHeat) into auto.
+func ModeFamily(m string) string {
+	if m == "autoCool" || m == "autoHeat" {
+		return "auto"
+	}
+	return m
+}
 
 const (
 	fieldMode   = "operationMode"
@@ -53,9 +65,27 @@ type Intent struct {
 // Choice is one selectable value: the API value and the Comfort app's label.
 type Choice struct{ Value, Label string }
 
-// ModeChoices are the modes the UI offers (off is the power button).
-func ModeChoices() []Choice {
-	return []Choice{{"heat", "Heat"}, {"vent", "Fan only"}}
+// ModeChoices are the modes the UI offers for a unit (off is the power
+// button), in the Comfort app's order. Cool and auto are detected from the
+// profile's setpoint limits; the profile has no flags for them.
+func ModeChoices(p kumo.Profile) []Choice {
+	var out []Choice
+	if p.HasModeHeat {
+		out = append(out, Choice{"heat", "Heat"})
+	}
+	if p.SupportsCool() {
+		out = append(out, Choice{"cool", "Cool"})
+	}
+	if p.HasModeDry {
+		out = append(out, Choice{"dry", "Dry"})
+	}
+	if p.SupportsAuto() {
+		out = append(out, Choice{"auto", "Auto"})
+	}
+	if p.HasModeVent {
+		out = append(out, Choice{"vent", "Fan only"})
+	}
+	return out
 }
 
 // FanChoices returns the fan speeds for a unit with n speeds, slowest first,
@@ -210,12 +240,8 @@ func (c *Controller) Apply(slug string, in Intent, source string) error {
 	var spc *float64
 	if in.SpCool != nil {
 		snap, ok := c.o.Store.Get(slug)
-		if !ok || snap.Profile == nil {
-			return fmt.Errorf("%w: cool setpoint range unknown", ErrInvalid)
-		}
-		lo, hasLo := snap.Profile.Min["cool"]
-		hi, hasHi := snap.Profile.Max["cool"]
-		if !hasLo || !hasHi {
+		lo, hi, hasRange := snap.SetpointRange()
+		if !ok || !hasRange || !snap.Profile.SupportsCool() {
 			return fmt.Errorf("%w: unit has no cool setpoint range", ErrInvalid)
 		}
 		v := math.Round(*in.SpCool*2) / 2
@@ -224,16 +250,19 @@ func (c *Controller) Apply(slug string, in Intent, source string) error {
 		}
 		spc = &v
 	}
+	if err := c.holdAutoGap(slug, mode, &sp, &spc); err != nil {
+		return err
+	}
 	c.mu.Lock()
 	st := c.state(slug)
+	if sp != nil {
+		st.fields[fieldSpHeat] = &field{val: *sp}
+	}
 	if spc != nil {
 		st.fields[fieldSpCool] = &field{val: *spc}
 	}
 	if mode != nil {
 		st.fields[fieldMode] = &field{val: *mode}
-	}
-	if sp != nil {
-		st.fields[fieldSpHeat] = &field{val: *sp}
 	}
 	if in.Fan != nil {
 		st.fields[fieldFan] = &field{val: *in.Fan}
@@ -249,6 +278,52 @@ func (c *Controller) Apply(slug string, in Intent, source string) error {
 	default:
 	}
 	c.changed(slug)
+	return nil
+}
+
+// holdAutoGap keeps spCool-spHeat >= MinAutoGap when the unit is (or is going
+// to be) in auto: a lone setpoint pushes the other one, as the unit would; a
+// pair that breaks the gap is refused.
+func (c *Controller) holdAutoGap(slug string, mode *string, sp, spc **float64) error {
+	snap, ok := c.o.Store.Get(slug)
+	if !ok || snap.Device == nil {
+		return nil
+	}
+	cur := c.Overlay(snap).Device
+	eff := ModeFamily(cur.OperationMode)
+	if mode != nil {
+		eff = ModeFamily(*mode)
+	}
+	if eff != "auto" || (*sp == nil && *spc == nil) {
+		return nil
+	}
+	h, cl := cur.SpHeat, cur.SpCool
+	if *sp != nil {
+		h = *sp
+	}
+	if *spc != nil {
+		cl = *spc
+	}
+	if h == nil || cl == nil || *cl-*h >= MinAutoGap {
+		return nil
+	}
+	lo, hi, _ := snap.SetpointRange()
+	switch {
+	case *sp != nil && *spc != nil:
+		return fmt.Errorf("%w: auto needs the cool setpoint at least %v above heat", ErrInvalid, MinAutoGap)
+	case *sp != nil:
+		v := *h + MinAutoGap
+		if v > hi {
+			return fmt.Errorf("%w: auto needs cool at least %v above heat, but cool tops out at %v", ErrInvalid, MinAutoGap, hi)
+		}
+		*spc = &v
+	default:
+		v := *cl - MinAutoGap
+		if v < lo {
+			return fmt.Errorf("%w: auto needs heat at least %v below cool, but heat bottoms out at %v", ErrInvalid, MinAutoGap, lo)
+		}
+		*sp = &v
+	}
 	return nil
 }
 
@@ -351,8 +426,8 @@ func (c *Controller) Observe(u store.Update) {
 		}
 	}
 	saveMode := false
-	if d.OperationMode != "off" && slices.Contains(allowedModes, d.OperationMode) && c.lastMode[u.Slug] != d.OperationMode {
-		c.lastMode[u.Slug] = d.OperationMode
+	if fam := ModeFamily(d.OperationMode); fam != "off" && slices.Contains(allowedModes, fam) && c.lastMode[u.Slug] != fam {
+		c.lastMode[u.Slug] = fam
 		saveMode = true
 	}
 	var modes []byte
@@ -373,7 +448,7 @@ func (c *Controller) Observe(u store.Update) {
 func matches(name string, val any, d kumo.Device) bool {
 	switch name {
 	case fieldMode:
-		return d.OperationMode == val
+		return d.OperationMode == val || (val == "auto" && ModeFamily(d.OperationMode) == "auto")
 	case fieldSpHeat:
 		v, _ := val.(float64)
 		return d.SpHeat != nil && *d.SpHeat == v

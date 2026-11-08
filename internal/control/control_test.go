@@ -103,8 +103,8 @@ func TestNotWritable(t *testing.T) {
 
 func TestInvalid(t *testing.T) {
 	r := newRig(t)
-	if err := r.c.Apply("office", Intent{Mode: s("auto")}, "ui"); err == nil {
-		t.Fatal("auto accepted")
+	if err := r.c.Apply("office", Intent{Mode: s("autoHeat")}, "ui"); err == nil {
+		t.Fatal("autoHeat accepted (a state the unit reports, not a mode we send)")
 	}
 	if err := r.c.Apply("office", Intent{SpCool: f(40)}, "ui"); err == nil {
 		t.Fatal("spCool 40 accepted")
@@ -247,7 +247,7 @@ func TestLastModePersists(t *testing.T) {
 		t.Fatal(r.c.LastMode("office"))
 	}
 	obs("off")
-	obs("auto")
+	obs("test") // a mode we never offer
 	if r.c.LastMode("office") != "vent" {
 		t.Fatal(r.c.LastMode("office"))
 	}
@@ -328,5 +328,67 @@ func TestDryThenCoolWithSetpoint(t *testing.T) {
 	cmds := r.srv.Commands()[0].Commands
 	if cmds["operationMode"] != "cool" || cmds["spCool"] != 21.0 && cmds["spCool"] != 21.5 || len(cmds) != 2 {
 		t.Fatalf("sent %v", cmds)
+	}
+}
+
+func autoRig(t *testing.T) *rig {
+	t.Helper()
+	r := newRig(t)
+	r.srv.SetField(kumotest.OfficeSerial, "operationMode", "autoCool")
+	r.srv.SetField(kumotest.OfficeSerial, "spCool", 22)
+	r.srv.SetField(kumotest.OfficeSerial, "spHeat", 19.5)
+	r.p.PollOnce(context.Background())
+	return r
+}
+
+func TestAutoGapPushesTheOtherSetpoint(t *testing.T) {
+	r := autoRig(t)
+	if err := r.c.Apply("office", Intent{SpHeat: f(21.5)}, "ui"); err != nil { // 22-21.5 < 1.5
+		t.Fatal(err)
+	}
+	eventually(t, time.Second, func() bool { return len(r.srv.Commands()) == 1 }, "command")
+	cmds := r.srv.Commands()[0].Commands
+	if cmds["spHeat"] != 21.5 || cmds["spCool"] != 23.0 {
+		t.Fatalf("sent %v", cmds)
+	}
+	if err := r.c.Apply("office", Intent{SpCool: f(18)}, "ui"); err != nil {
+		t.Fatal(err)
+	}
+	eventually(t, time.Second, func() bool { return len(r.srv.Commands()) == 2 }, "second command")
+	cmds = r.srv.Commands()[1].Commands
+	if cmds["spCool"] != 18.0 || cmds["spHeat"] != 16.5 {
+		t.Fatalf("sent %v", cmds)
+	}
+}
+
+func TestAutoGapPairRefusedAndOtherModesUntouched(t *testing.T) {
+	r := autoRig(t)
+	if err := r.c.Apply("office", Intent{SpHeat: f(20), SpCool: f(21)}, "ui"); err == nil {
+		t.Fatal("pair with a 1.0 gap accepted in auto")
+	}
+	if err := r.c.Apply("office", Intent{SpHeat: f(31)}, "ui"); err == nil { // would need cool 32.5
+		t.Fatal("heat 31 accepted: cool cannot clear it")
+	}
+	if err := r.c.Apply("office", Intent{Mode: s("heat"), SpHeat: f(21.5)}, "ui"); err != nil {
+		t.Fatal("heat setpoint close to cool must be fine outside auto:", err)
+	}
+}
+
+func TestAutoModeConfirmsAsAutoCool(t *testing.T) {
+	r := newRig(t)
+	if err := r.c.Apply("office", Intent{Mode: s("auto")}, "ui"); err != nil {
+		t.Fatal(err)
+	}
+	eventually(t, time.Second, func() bool { return len(r.srv.Commands()) == 1 }, "sent")
+	r.srv.SetField(kumotest.OfficeSerial, "operationMode", "autoCool") // what the unit reports
+	r.p.PollOnce(context.Background())
+	eventually(t, time.Second, func() bool { return len(r.c.Pending("office")) == 0 }, "hold released")
+	for _, rec := range r.hist.Recent("office", 50) {
+		if rec.Endpoint == "unconfirmed" {
+			t.Fatalf("auto reported as autoCool must confirm: %+v", rec)
+		}
+	}
+	if r.c.LastMode("office") != "auto" {
+		t.Fatal(r.c.LastMode("office"))
 	}
 }

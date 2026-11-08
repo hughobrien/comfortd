@@ -5,6 +5,7 @@ package ui
 import (
 	"encoding/json"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -125,4 +126,44 @@ func TestCardAlertsImageAndRange(t *testing.T) {
 	if c.SpMin != "16" || c.SpMax != "31" {
 		t.Fatalf("range %q–%q (want the status endpoint's, not the profile's 10–31)", c.SpMin, c.SpMax)
 	}
+}
+
+func TestCardModesAndSetpointsFollowMode(t *testing.T) {
+	prof, err := os.ReadFile("../../../pkg/kumo/kumotest/fixtures/profile_office.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	status := json.RawMessage(`{"minSetPoint":16,"maxSetPoint":31}`)
+	extra := map[string]json.RawMessage{"profile": prof, "status": status}
+	sn := fixtureSnap(t, "office", "device_office.json", extra)
+	var vals []string
+	for _, m := range BuildCard(sn, mustAnn(t), CardControl{Writable: true}, time.Now(), time.Minute).Modes {
+		vals = append(vals, m.Value)
+	}
+	if got := strings.Join(vals, ","); got != "heat,cool,dry,auto,vent" {
+		t.Fatalf("modes %s", got)
+	}
+	cases := map[string][2]bool{"heat": {true, false}, "cool": {false, true}, "autoCool": {true, true}, "autoHeat": {true, true}, "dry": {false, false}, "vent": {false, false}}
+	for mode, want := range cases {
+		s := sn
+		d := *sn.Device
+		d.OperationMode = mode
+		s.Device = &d
+		c := BuildCard(s, mustAnn(t), CardControl{Writable: true}, time.Now(), time.Minute)
+		if c.ShowHeat != want[0] || c.ShowCool != want[1] {
+			t.Errorf("%s: heat=%v cool=%v", mode, c.ShowHeat, c.ShowCool)
+		}
+		if (mode == "autoCool" || mode == "autoHeat") && !pressed(c.Modes, "auto") {
+			t.Errorf("%s should light the Auto button", mode)
+		}
+	}
+}
+
+func pressed(cs []Choice, v string) bool {
+	for _, c := range cs {
+		if c.Value == v && c.Pressed {
+			return true
+		}
+	}
+	return false
 }
