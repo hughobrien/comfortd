@@ -133,6 +133,21 @@ func TestSensorNotFound(t *testing.T) {
 	}
 }
 
+func TestSkipSensor(t *testing.T) {
+	srv, st, p := newPoller(t)
+	p.SkipSensor("office")
+	p.PollSensor(context.Background())
+	if n := srv.Requests("/devices/" + kumotest.OfficeSerial + "/sensor"); n != 0 {
+		t.Fatalf("skipped unit polled %d times", n)
+	}
+	if o, _ := st.Get("office"); o.Errors[store.EndpointSensor] != "" {
+		t.Fatalf("errors = %v", o.Errors)
+	}
+	if n := srv.Requests("/devices/" + kumotest.HouseSerial + "/sensor"); n != 1 {
+		t.Fatalf("house polled %d times, want 1", n)
+	}
+}
+
 func TestKickPollsSoon(t *testing.T) {
 	srv, _, p := newPoller(t)
 	p.kickDelays = []time.Duration{10 * time.Millisecond, 20 * time.Millisecond, 30 * time.Millisecond}

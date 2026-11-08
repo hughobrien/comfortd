@@ -84,6 +84,7 @@ func runContext(ctx context.Context, args []string, stdout io.Writer, ready func
 	hapPort := fs.Int("hap-port", 0, "HomeKit (HAP) TCP port; 0 = ephemeral")
 	hkUnits := fs.String("homekit-units", envOr("homekit-units", ""), "comma-separated unit slugs to expose to HomeKit; empty = HomeKit off")
 	inactive := fs.String("inactive-units", envOr("inactive-units", ""), "comma-separated unit slugs shown as a blank placeholder in the web UI (the API still lists them)")
+	noSensor := fs.String("no-sensor-units", envOr("no-sensor-units", ""), "comma-separated unit slugs whose wireless-sensor endpoint is not polled (self-contained units have none)")
 	writable := fs.String("writable-units", envOr("writable-units", ""), "comma-separated unit slugs that may receive commands; empty = read-only")
 	bridgeName := fs.String("bridge-name", "comfortd", "HomeKit bridge name")
 	forceStale := fs.String("force-stale", "", "debug: comma-separated unit slugs HomeKit treats as stale (to check \"No Response\")")
@@ -209,6 +210,7 @@ func runContext(ctx context.Context, args []string, stdout io.Writer, ready func
 		slog.Info("homekit enabled", "units", slugs, "port", *hapPort)
 	}
 	p = poller.New(client, st, *interval)
+	p.SkipSensor(splitList(*noSensor)...)
 	workers.Go(func() { ctl.Run(ctx) })
 	workers.Go(func() { p.Run(ctx) })
 
