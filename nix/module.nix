@@ -14,6 +14,28 @@
 
 let
   cfg = config.services.comfortd;
+
+  # Generic systemd sandboxing, nothing specific to comfortd.
+  sandbox = {
+    NoNewPrivileges = true;
+    ProtectSystem = "strict";
+    ProtectHome = true;
+    PrivateTmp = true;
+    PrivateDevices = true;
+    ProtectKernelTunables = true;
+    ProtectKernelModules = true;
+    ProtectKernelLogs = true;
+    ProtectControlGroups = true;
+    ProtectClock = true;
+    ProtectHostname = true;
+    ProtectProc = "invisible";
+    RestrictNamespaces = true;
+    RestrictRealtime = true;
+    RestrictSUIDSGID = true;
+    LockPersonality = true;
+    MemoryDenyWriteExecute = true;
+    SystemCallArchitectures = "native";
+  };
 in {
   options.services.comfortd = {
     enable = lib.mkEnableOption "comfortd — Mitsubishi Comfort (Kumo Cloud) bridge and web UI";
@@ -103,7 +125,7 @@ in {
       after = [ "network-online.target" ];
       wantedBy = [ "multi-user.target" ];
 
-      serviceConfig = {
+      serviceConfig = sandbox // {
         ExecStart = lib.concatStringsSep " " ([
           "${cfg.package}/bin/comfortd"
           "--listen" (lib.escapeShellArg cfg.listen)
@@ -126,27 +148,10 @@ in {
         StateDirectory = "comfortd";
         StateDirectoryMode = "0700";
 
-        # Hardening. AF_NETLINK is kept for HomeKit mDNS later (Go's
-        # net.Interfaces() needs it).
-        NoNewPrivileges = true;
-        ProtectSystem = "strict";
-        ProtectHome = true;
-        PrivateTmp = true;
-        PrivateDevices = true;
-        ProtectKernelTunables = true;
-        ProtectKernelModules = true;
-        ProtectKernelLogs = true;
-        ProtectControlGroups = true;
-        ProtectClock = true;
-        ProtectHostname = true;
-        ProtectProc = "invisible";
+        # Hardening: the generic sandbox below, plus the two settings that
+        # depend on what comfortd does. AF_NETLINK is kept for HomeKit mDNS
+        # (Go's net.Interfaces() needs it).
         RestrictAddressFamilies = [ "AF_INET" "AF_INET6" "AF_UNIX" "AF_NETLINK" ];
-        RestrictNamespaces = true;
-        RestrictRealtime = true;
-        RestrictSUIDSGID = true;
-        LockPersonality = true;
-        MemoryDenyWriteExecute = true;
-        SystemCallArchitectures = "native";
         SystemCallFilter = [ "@system-service" "~@privileged" ];
       };
     };
