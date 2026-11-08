@@ -21,15 +21,16 @@ import (
 )
 
 type rig struct {
-	srv   *kumotest.Server
-	st    *store.Store
-	hist  *history.Log
-	p     *poller.Poller
-	c     *Controller
-	mu    sync.Mutex
-	kicks []string
-	chg   []string
-	dir   string
+	srv    *kumotest.Server
+	st     *store.Store
+	hist   *history.Log
+	p      *poller.Poller
+	c      *Controller
+	mu     sync.Mutex
+	kicks  []string
+	chg    []string
+	dir    string
+	window time.Duration
 }
 
 func (r *rig) changes() []string {
@@ -38,7 +39,10 @@ func (r *rig) changes() []string {
 	return append([]string(nil), r.chg...)
 }
 
-func newRig(t *testing.T) *rig {
+func newRig(t *testing.T) *rig { return newRigWindow(t, 50*time.Millisecond) }
+
+// newRigWindow is newRig with the controller's coalescing window set.
+func newRigWindow(t *testing.T, window time.Duration) *rig {
 	t.Helper()
 	srv := kumotest.New()
 	t.Cleanup(srv.Close)
@@ -57,7 +61,7 @@ func newRig(t *testing.T) *rig {
 	}
 	t.Cleanup(func() { hist.Close() })
 	p := poller.New(client, st, time.Minute)
-	r := &rig{srv: srv, st: st, hist: hist, p: p, dir: dir}
+	r := &rig{srv: srv, st: st, hist: hist, p: p, dir: dir, window: window}
 	r.c = r.newController(client)
 	st.Subscribe(r.c.Observe)
 	ctx, cancel := context.WithCancel(context.Background())
@@ -71,7 +75,7 @@ func newRig(t *testing.T) *rig {
 func (r *rig) newController(s Sender) *Controller {
 	return New(Options{
 		Sender: s, Store: r.st, History: r.hist, Writable: []string{"office"},
-		Window: 50 * time.Millisecond, HoldTimeout: 300 * time.Millisecond,
+		Window: r.window, HoldTimeout: 300 * time.Millisecond,
 		LastModePath: filepath.Join(r.dir, "lastmode.json"), SetpointsPath: filepath.Join(r.dir, "setpoints.json"),
 		Kick:     func(slug string) { r.mu.Lock(); r.kicks = append(r.kicks, slug); r.mu.Unlock() },
 		OnChange: func(slug string) { r.mu.Lock(); r.chg = append(r.chg, slug); r.mu.Unlock() },
@@ -128,7 +132,7 @@ func TestInvalid(t *testing.T) {
 }
 
 func TestCoalescesBurst(t *testing.T) {
-	r := newRig(t)
+	r := newRigWindow(t, 400*time.Millisecond) // a scheduling stall must not split the burst
 	// Back to back: a sleep between them could outlast the 50 ms window on a
 	// loaded machine and split the burst.
 	for _, v := range []float64{20, 20.5, 21} {
@@ -136,7 +140,7 @@ func TestCoalescesBurst(t *testing.T) {
 	}
 	r.c.Apply("office", Intent{Mode: s("heat")}, "ui")
 	eventually(t, 2*time.Second, func() bool { return len(r.srv.Commands()) >= 1 }, "sent")
-	time.Sleep(200 * time.Millisecond) // any stray second command would show by now
+	time.Sleep(600 * time.Millisecond) // any stray second command would show by now
 	cmds := r.srv.Commands()
 	if len(cmds) != 1 || len(cmds[0].Commands) != 2 || cmds[0].Commands["operationMode"] != "heat" || cmds[0].Commands["spHeat"] != 21.0 {
 		t.Fatalf("got %+v", cmds)
