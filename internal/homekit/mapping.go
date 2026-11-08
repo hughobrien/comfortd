@@ -29,6 +29,7 @@ type HKState struct {
 	Current     int
 	Target      *int
 	HeatThresh  *float64
+	CoolThresh  *float64
 	CurrentTemp *float64
 	Speed       *float64 // Rotation Speed 20..100; nil when the fan is on auto or unknown
 	Swing       int      // 0 off, 1 swinging
@@ -58,7 +59,7 @@ func FanFromSpeed(v float64) string {
 // FromDevice maps a device to HomeKit values. Target is only set to a value
 // in allowedTargets.
 func FromDevice(d kumo.Device, allowedTargets []int) HKState {
-	st := HKState{HeatThresh: d.SpHeat, CurrentTemp: d.RoomTemp, Speed: SpeedFromFan(d.FanSpeed)}
+	st := HKState{HeatThresh: d.SpHeat, CoolThresh: d.SpCool, CurrentTemp: d.RoomTemp, Speed: SpeedFromFan(d.FanSpeed)}
 	if d.AirDirection == "swing" {
 		st.Swing = 1
 	}

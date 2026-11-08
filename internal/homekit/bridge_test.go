@@ -129,12 +129,27 @@ func TestStaleReadReturnsCommFailure(t *testing.T) {
 	}
 }
 
-func TestCoolShowsWithoutBadTarget(t *testing.T) {
+func TestModesShowTargetAndCurrent(t *testing.T) {
+	for mode, want := range map[string][2]int{
+		"heat": {CurrentHeating, TargetHeat}, "cool": {CurrentCooling, TargetCool},
+		"autoCool": {CurrentCooling, TargetAuto}, "autoHeat": {CurrentHeating, TargetAuto}, "auto": {CurrentIdle, TargetAuto},
+	} {
+		sn := officeSnap()
+		sn.Device.OperationMode = mode
+		b := newBridge(t, fakeSnaps{"office": sn}, nil)
+		hc := b.by["office"].hc
+		if hc.CurrentHeaterCoolerState.Value() != want[0] || hc.TargetHeaterCoolerState.Value() != want[1] {
+			t.Errorf("%s: cur %v target %v, want %v", mode, hc.CurrentHeaterCoolerState.Value(), hc.TargetHeaterCoolerState.Value(), want)
+		}
+	}
+}
+
+func TestDryShowsActiveIdleKeepsTarget(t *testing.T) {
 	sn := officeSnap()
-	sn.Device.OperationMode = "cool"
+	sn.Device.OperationMode = "dry"
 	b := newBridge(t, fakeSnaps{"office": sn}, nil)
 	hc := b.by["office"].hc
-	if hc.CurrentHeaterCoolerState.Value() != CurrentCooling || hc.TargetHeaterCoolerState.Value() != TargetHeat {
-		t.Fatalf("cur %v target %v", hc.CurrentHeaterCoolerState.Value(), hc.TargetHeaterCoolerState.Value())
+	if hc.Active.Value() != 1 || hc.CurrentHeaterCoolerState.Value() != CurrentIdle {
+		t.Fatalf("active %v cur %v", hc.Active.Value(), hc.CurrentHeaterCoolerState.Value())
 	}
 }

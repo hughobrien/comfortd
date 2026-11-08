@@ -41,9 +41,10 @@ const (
 	defaultHeatMax = 31.0
 )
 
-// allowedTargets is the set of TargetHeaterCoolerState values we accept
-// until cool/auto are probed.
-var allowedTargets = []int{TargetHeat}
+// allowedTargets are the TargetHeaterCoolerState values Home may set: Auto,
+// Heat and Cool. Dry and fan-only have no HeaterCooler equivalent; they show
+// as active/idle and are set from the web UI.
+var allowedTargets = []int{TargetAuto, TargetHeat, TargetCool}
 
 type Options struct {
 	StateDir, BridgeName, Version string
@@ -68,6 +69,7 @@ type unitAcc struct {
 	acc    *accessory.A
 	hc     *service.HeaterCooler
 	thresh *characteristic.HeatingThresholdTemperature
+	cool   *characteristic.CoolingThresholdTemperature
 	speed  *characteristic.RotationSpeed
 	swing  *characteristic.SwingMode
 }
@@ -142,6 +144,12 @@ func (b *Bridge) buildUnit(u store.Unit, aid uint64) *unitAcc {
 	thresh.SetStepValue(0.5)
 	thresh.SetValue(defaultHeatMin)
 	hc.AddC(thresh.C)
+	cool := characteristic.NewCoolingThresholdTemperature()
+	cool.SetMinValue(defaultHeatMin)
+	cool.SetMaxValue(defaultHeatMax)
+	cool.SetStepValue(0.5)
+	cool.SetValue(defaultHeatMax)
+	hc.AddC(cool.C)
 	hc.TargetHeaterCoolerState.ValidVals = allowedTargets
 	hc.TargetHeaterCoolerState.SetValue(TargetHeat)
 	hc.CurrentTemperature.SetMinValue(-20)
@@ -157,14 +165,15 @@ func (b *Bridge) buildUnit(u store.Unit, aid uint64) *unitAcc {
 	hc.AddC(swing.C)
 	acc.AddS(hc.S)
 
-	ua := &unitAcc{unit: u, aid: aid, acc: acc, hc: hc, thresh: thresh, speed: speed, swing: swing}
+	ua := &unitAcc{unit: u, aid: aid, acc: acc, hc: hc, thresh: thresh, cool: cool, speed: speed, swing: swing}
 	slug := u.Slug
 	hc.Active.OnSetRemoteValue(func(v int) error { return b.onSetActive(slug, v) })
 	hc.TargetHeaterCoolerState.OnSetRemoteValue(func(v int) error { return b.onSetTarget(slug, v) })
 	thresh.OnSetRemoteValue(func(v float64) error { return b.onSetHeatThresh(slug, v) })
+	cool.OnSetRemoteValue(func(v float64) error { return b.onSetCoolThresh(slug, v) })
 	speed.OnSetRemoteValue(func(v float64) error { return b.onSetSpeed(slug, v) })
 	swing.OnSetRemoteValue(func(v int) error { return b.onSetSwing(slug, v) })
-	for _, c := range []*characteristic.C{hc.Active.C, hc.CurrentHeaterCoolerState.C, hc.TargetHeaterCoolerState.C, hc.CurrentTemperature.C, thresh.C, speed.C, swing.C} {
+	for _, c := range []*characteristic.C{hc.Active.C, hc.CurrentHeaterCoolerState.C, hc.TargetHeaterCoolerState.C, hc.CurrentTemperature.C, thresh.C, cool.C, speed.C, swing.C} {
 		c.ValueRequestFunc = b.valueRequest(slug, c)
 	}
 	return ua
@@ -201,11 +210,11 @@ func (b *Bridge) onSetTarget(slug string, v int) error {
 	if !b.writable(slug) {
 		return ErrReadOnly
 	}
-	if v != TargetHeat {
+	mode, ok := map[int]string{TargetAuto: "auto", TargetHeat: "heat", TargetCool: "cool"}[v]
+	if !ok {
 		return fmt.Errorf("%w: target state %d", control.ErrInvalid, v)
 	}
-	heat := "heat"
-	return b.o.Control.Apply(slug, control.Intent{Mode: &heat}, "homekit")
+	return b.o.Control.Apply(slug, control.Intent{Mode: &mode}, "homekit")
 }
 
 func (b *Bridge) onSetHeatThresh(slug string, v float64) error {
@@ -213,6 +222,13 @@ func (b *Bridge) onSetHeatThresh(slug string, v float64) error {
 		return ErrReadOnly
 	}
 	return b.o.Control.Apply(slug, control.Intent{SpHeat: &v}, "homekit")
+}
+
+func (b *Bridge) onSetCoolThresh(slug string, v float64) error {
+	if !b.writable(slug) {
+		return ErrReadOnly
+	}
+	return b.o.Control.Apply(slug, control.Intent{SpCool: &v}, "homekit")
 }
 
 func (b *Bridge) onSetSpeed(slug string, v float64) error {
@@ -279,10 +295,18 @@ func (b *Bridge) Sync(slug string) {
 		// The real value must show even if it is outside the advertised range.
 		lo, hi = min(lo, *st.HeatThresh), max(hi, *st.HeatThresh)
 	}
+	if st.CoolThresh != nil {
+		lo, hi = min(lo, *st.CoolThresh), max(hi, *st.CoolThresh)
+	}
 	ua.thresh.SetMinValue(lo)
 	ua.thresh.SetMaxValue(hi)
+	ua.cool.SetMinValue(lo)
+	ua.cool.SetMaxValue(hi)
 	if st.HeatThresh != nil {
 		ua.thresh.SetValue(*st.HeatThresh)
+	}
+	if st.CoolThresh != nil {
+		ua.cool.SetValue(*st.CoolThresh)
 	}
 	if st.CurrentTemp != nil {
 		ua.hc.CurrentTemperature.SetValue(*st.CurrentTemp)

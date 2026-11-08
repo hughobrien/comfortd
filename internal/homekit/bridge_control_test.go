@@ -234,3 +234,27 @@ func TestSpeedSwingReadOnlyWhenNotWritable(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestTargetStatesAndCoolThreshold(t *testing.T) {
+	r := newCtlRig(t, "heat")
+	for target, mode := range map[int]string{TargetCool: "cool", TargetAuto: "auto"} {
+		n := len(r.srv.Commands())
+		if err := r.b.onSetTarget("office", target); err != nil {
+			t.Fatal(err)
+		}
+		cmds := r.waitCommands(t, n+1)
+		if cmds[n].Commands["operationMode"] != mode {
+			t.Fatalf("target %d sent %+v", target, cmds[n])
+		}
+	}
+	if err := r.b.onSetTarget("office", 7); err == nil {
+		t.Fatal("bogus target accepted")
+	}
+	n := len(r.srv.Commands())
+	if err := r.b.onSetCoolThresh("office", 24); err != nil {
+		t.Fatal(err)
+	}
+	if cmds := r.waitCommands(t, n+1); cmds[n].Commands["spCool"] != 24.0 {
+		t.Fatalf("sent %+v", cmds[n])
+	}
+}
