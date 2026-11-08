@@ -90,10 +90,14 @@ func ModeChoices(p kumo.Profile) []Choice {
 
 // FanChoices returns the fan speeds for a unit with n speeds, slowest first,
 // after auto. Names and labels are comfort_HA's table (API value → app label);
-// the 5-speed set is verified by probe on Office (api-inventory). The 3-speed
-// mapping (House) is not known, so none are offered.
+// the 5-speed set is verified on Office and the 3-speed set on House
+// (api-inventory); other counts offer none.
 func FanChoices(n int) []Choice {
-	if n != 5 {
+	switch n {
+	case 3:
+		return []Choice{{"auto", "Auto"}, {"quiet", "Low"}, {"low", "Medium"}, {"powerful", "High"}}
+	case 5:
+	default:
 		return nil
 	}
 	return []Choice{{"auto", "Auto"}, {"superQuiet", "Quiet"}, {"quiet", "Low"}, {"low", "Medium"}, {"powerful", "High"}, {"superPowerful", "Powerful"}}

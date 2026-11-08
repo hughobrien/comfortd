@@ -198,6 +198,14 @@ func modeSwitch(name string) *service.Switch {
 	return sw
 }
 
+// fanSpeeds is the unit's number of fan speeds from its profile, 5 if unknown.
+func (b *Bridge) fanSpeeds(slug string) int {
+	if snap, ok := b.o.Snapshot(slug); ok && snap.Profile != nil && snap.Profile.NumberOfFanSpeeds > 0 {
+		return snap.Profile.NumberOfFanSpeeds
+	}
+	return 5
+}
+
 // writable reports whether Home may write to slug.
 func (b *Bridge) writable(slug string) bool {
 	return b.o.Control != nil && b.o.Control.Writable(slug)
@@ -274,7 +282,7 @@ func (b *Bridge) onSetSpeed(slug string, v float64) error {
 	if !b.writable(slug) {
 		return ErrReadOnly
 	}
-	fan := FanFromSpeed(v)
+	fan := FanFromSpeed(v, b.fanSpeeds(slug))
 	return b.o.Control.Apply(slug, control.Intent{Fan: &fan}, "homekit")
 }
 
@@ -330,6 +338,9 @@ func (b *Bridge) Sync(slug string) {
 		lo, hi = l, h
 	}
 	st := FromDevice(*snap.Device, allowedTargets)
+	nf := b.fanSpeeds(slug)
+	st.Speed = SpeedFromFan(snap.Device.FanSpeed, nf)
+	ua.speed.SetStepValue(fanStep(nf))
 	if st.HeatThresh != nil {
 		// The real value must show even if it is outside the advertised range.
 		lo, hi = min(lo, *st.HeatThresh), max(hi, *st.HeatThresh)

@@ -42,7 +42,7 @@ Base `https://app-prod.kumocloud.com/v3`, header `x-app-version: 3.2.4`, bearer 
 | `realValues.spHeat` | `20` | read-only? | differs from `spHeat` (19 vs 20): unit's actual setpoint? Investigate |
 | `roomTemp` | `20.5` | read-only | °C |
 | `humidity` | `null` | read-only | this unit reports none |
-| `fanSpeed` | `auto` | **[observed] yes** | Office, all five names confirmed 2026-11-07 (set in the Comfort app, read back by our poll; `superPowerful` also sent by comfortd): `superQuiet` = app "Quiet", `quiet` = "Low", `low` = "Medium", `powerful` = "High", `superPowerful` = "Powerful", plus `auto`. House (3 speeds) mapping not known |
+| `fanSpeed` | `auto` | **[observed] yes** | Office, all five names confirmed 2026-11-07 (set in the Comfort app, read back by our poll; `superPowerful` also sent by comfortd): `superQuiet` = app "Quiet", `quiet` = "Low", `low` = "Medium", `powerful` = "High", `superPowerful` = "Powerful", plus `auto`. House (3 speeds) confirmed the same way 2026-11-08: `quiet` = app "Low", `low` = "Medium", `powerful` = "High", plus `auto` (the app also changed the hold on each change) |
 | `airDirection` | `auto` | **[observed] yes** | Office, all seven values sent by comfortd and confirmed by the next poll in 2-6 s (2026-11-07): `auto`, `swing`, `vertical` (app "Lowest"), `midvertical` ("Low"), `midpoint` ("Middle"), `midhorizontal` ("High"), `horizontal` ("Highest"). Multi-field `fanSpeed`+`airDirection` in one command also accepted |
 | `connected` | `true` | read-only | |
 | `rssi` | `-42` | read-only | adapter wifi |

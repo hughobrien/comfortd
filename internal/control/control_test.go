@@ -6,6 +6,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -434,5 +435,24 @@ func TestSetpointMemorySurvivesRestart(t *testing.T) {
 	c2 := r.newController(nil)
 	if got := c2.Remembered("office", "heat"); got.Heat == nil || *got.Heat != 21 {
 		t.Fatalf("after restart %+v", got)
+	}
+}
+
+func TestFanChoicesBySpeedCount(t *testing.T) {
+	vals := func(n int) string {
+		var out []string
+		for _, c := range FanChoices(n) {
+			out = append(out, c.Value)
+		}
+		return strings.Join(out, ",")
+	}
+	if got := vals(3); got != "auto,quiet,low,powerful" {
+		t.Errorf("3 speeds: %s", got)
+	}
+	if got := vals(5); got != "auto,superQuiet,quiet,low,powerful,superPowerful" {
+		t.Errorf("5 speeds: %s", got)
+	}
+	if got := vals(4); got != "" {
+		t.Errorf("4 speeds: %s", got)
 	}
 }

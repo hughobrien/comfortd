@@ -36,15 +36,28 @@ type HKState struct {
 	Dry, FanOnly bool     // the Dry and Fan only switches
 }
 
-// fanSteps are the manual fan speeds, slowest first. Rotation Speed is
-// 20 * (index+1); auto has no place on the slider.
-var fanSteps = []string{"superQuiet", "quiet", "low", "powerful", "superPowerful"}
+// fanSteps returns the manual fan speeds of a unit with n speeds, slowest
+// first (auto has no place on the slider): Office's five, House's three.
+func fanSteps(n int) []string {
+	if n == 3 {
+		return []string{"quiet", "low", "powerful"}
+	}
+	return []string{"superQuiet", "quiet", "low", "powerful", "superPowerful"}
+}
 
-// SpeedFromFan maps a fan speed name to Rotation Speed, nil for auto/unknown.
-func SpeedFromFan(name string) *float64 {
-	for i, s := range fanSteps {
+// FanSteps is how many manual speeds there are for a unit with n speeds.
+func fanCount(n int) int { return len(fanSteps(n)) }
+
+// FanStep is the Rotation Speed distance between two speeds: the speeds are
+// spread over 20..100 (20 apart for five, 40 for three).
+func fanStep(n int) float64 { return 80 / float64(fanCount(n)-1) }
+
+// SpeedFromFan maps a fan speed name to Rotation Speed for a unit with n
+// speeds, nil for auto/unknown.
+func SpeedFromFan(name string, n int) *float64 {
+	for i, s := range fanSteps(n) {
 		if s == name {
-			v := float64(20 * (i + 1))
+			v := 20 + fanStep(n)*float64(i)
 			return &v
 		}
 	}
@@ -52,15 +65,16 @@ func SpeedFromFan(name string) *float64 {
 }
 
 // FanFromSpeed maps a Rotation Speed to the nearest fan speed name.
-func FanFromSpeed(v float64) string {
-	i := int(math.Round(v/20)) - 1
-	return fanSteps[min(max(i, 0), len(fanSteps)-1)]
+func FanFromSpeed(v float64, n int) string {
+	steps := fanSteps(n)
+	i := int(math.Round((v - 20) / fanStep(n)))
+	return steps[min(max(i, 0), len(steps)-1)]
 }
 
 // FromDevice maps a device to HomeKit values. Target is only set to a value
 // in allowedTargets.
 func FromDevice(d kumo.Device, allowedTargets []int) HKState {
-	st := HKState{HeatThresh: d.SpHeat, CoolThresh: d.SpCool, CurrentTemp: d.RoomTemp, Speed: SpeedFromFan(d.FanSpeed)}
+	st := HKState{HeatThresh: d.SpHeat, CoolThresh: d.SpCool, CurrentTemp: d.RoomTemp}
 	if d.AirDirection == "swing" {
 		st.Swing = 1
 	}

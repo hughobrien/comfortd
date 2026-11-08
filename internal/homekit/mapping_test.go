@@ -54,18 +54,37 @@ func TestFromDeviceTemps(t *testing.T) {
 
 func TestFanSpeedMapping(t *testing.T) {
 	for name, want := range map[string]float64{"superQuiet": 20, "quiet": 40, "low": 60, "powerful": 80, "superPowerful": 100} {
-		if got := SpeedFromFan(name); got == nil || *got != want {
+		if got := SpeedFromFan(name, 5); got == nil || *got != want {
 			t.Errorf("%s: %v", name, got)
 		}
-		if FanFromSpeed(want) != name {
-			t.Errorf("%v -> %s", want, FanFromSpeed(want))
+		if FanFromSpeed(want, 5) != name {
+			t.Errorf("%v -> %s", want, FanFromSpeed(want, 5))
 		}
 	}
-	if SpeedFromFan("auto") != nil || SpeedFromFan("") != nil {
+	if SpeedFromFan("auto", 5) != nil || SpeedFromFan("", 5) != nil {
 		t.Error("auto must not map to a speed")
 	}
 	for v, want := range map[float64]string{0: "superQuiet", 29: "superQuiet", 31: "quiet", 70: "powerful", 500: "superPowerful"} {
-		if got := FanFromSpeed(v); got != want {
+		if got := FanFromSpeed(v, 5); got != want {
+			t.Errorf("%v -> %s want %s", v, got, want)
+		}
+	}
+}
+
+func TestFanSpeedMappingThree(t *testing.T) {
+	for name, want := range map[string]float64{"quiet": 20, "low": 60, "powerful": 100} {
+		if got := SpeedFromFan(name, 3); got == nil || *got != want {
+			t.Errorf("%s: %v", name, got)
+		}
+		if FanFromSpeed(want, 3) != name {
+			t.Errorf("%v -> %s", want, FanFromSpeed(want, 3))
+		}
+	}
+	if SpeedFromFan("superQuiet", 3) != nil {
+		t.Error("five-speed names are not House's")
+	}
+	for v, want := range map[float64]string{0: "quiet", 39: "quiet", 41: "low", 79: "low", 81: "powerful"} {
+		if got := FanFromSpeed(v, 3); got != want {
 			t.Errorf("%v -> %s want %s", v, got, want)
 		}
 	}
