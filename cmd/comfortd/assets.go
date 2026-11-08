@@ -23,7 +23,7 @@ import (
 // datastarFile is the vendored datastar bundle; see ui/vendor/README.md.
 const datastarFile = "ui/vendor/datastar-1.0.1.min.js"
 
-//go:embed ui/style.css ui/dial.js ui/reorder.js ui/vendor
+//go:embed ui/style.css ui/dial.js ui/reorder.js ui/favicon.svg ui/vendor
 var assetFS embed.FS
 
 // computeBuildID hashes the running binary, which changes on every deploy.

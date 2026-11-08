@@ -129,6 +129,7 @@ func newMux(d deps) *http.ServeMux {
 	mux.HandleFunc("GET /ui/static/style.css", serveAsset("ui/style.css", "text/css; charset=utf-8"))
 	mux.HandleFunc("GET /ui/static/dial.js", serveAsset("ui/dial.js", "text/javascript; charset=utf-8"))
 	mux.HandleFunc("GET /ui/static/reorder.js", serveAsset("ui/reorder.js", "text/javascript; charset=utf-8"))
+	mux.HandleFunc("GET /ui/static/favicon.svg", serveAsset("ui/favicon.svg", "image/svg+xml"))
 	mux.HandleFunc("POST /ui/order", d.handleUIOrder)
 	mux.HandleFunc("GET /ui/static/datastar.js", serveAsset(datastarFile, "text/javascript; charset=utf-8"))
 
