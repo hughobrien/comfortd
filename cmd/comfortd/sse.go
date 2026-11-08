@@ -56,6 +56,11 @@ func (d deps) handleSSE(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// A tab opened before a deploy reloads when the stream reconnects to the new daemon.
+	if err := sse.ExecuteScript(fmt.Sprintf(`var m=document.querySelector('meta[name=build]');if(m&&m.content!==%q)location.reload()`, templates.BuildID)); err != nil {
+		return
+	}
+
 	keepalive := time.NewTicker(keepaliveInterval)
 	defer keepalive.Stop()
 	for {

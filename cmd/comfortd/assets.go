@@ -3,9 +3,13 @@
 package main
 
 import (
+	"crypto/sha256"
 	"embed"
+	"encoding/hex"
 	"fmt"
+	"io"
 	"net/http"
+	"os"
 	"slices"
 	"time"
 
@@ -21,6 +25,21 @@ const datastarFile = "ui/vendor/datastar-1.0.1.min.js"
 
 //go:embed ui/style.css ui/dial.js ui/vendor
 var assetFS embed.FS
+
+// computeBuildID hashes the running binary, which changes on every deploy.
+func computeBuildID() string {
+	exe, err := os.Executable()
+	if err == nil {
+		if f, err := os.Open(exe); err == nil {
+			defer f.Close()
+			h := sha256.New()
+			if _, err := io.Copy(h, f); err == nil {
+				return hex.EncodeToString(h.Sum(nil))[:12]
+			}
+		}
+	}
+	return "dev"
+}
 
 func serveAsset(file, ctype string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {

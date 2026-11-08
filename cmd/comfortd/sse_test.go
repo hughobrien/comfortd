@@ -4,6 +4,7 @@ package main
 
 import (
 	"bufio"
+	"github.com/hughobrien/comfortd/cmd/comfortd/ui/templates"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -94,6 +95,7 @@ func TestSSEPushesUnitOnStorePut(t *testing.T) {
 	defer done()
 	readEvent(t, sc)
 	readEvent(t, sc)
+	readEvent(t, sc) // the build check
 	srv.SetField("TESTSERIAL0001", "spHeat", 23)
 	raw, _ := d.Store.Get("office")
 	changed := strings.Replace(string(raw.Raw["device"]), `"spHeat": 19`, `"spHeat": 23`, 1)
@@ -112,5 +114,22 @@ func TestSSEPushesUnitOnStorePut(t *testing.T) {
 		}
 	case <-time.After(2 * time.Second):
 		t.Fatal("no push within 2s")
+	}
+}
+
+func TestSSEChecksBuildID(t *testing.T) {
+	old := templates.BuildID
+	templates.BuildID = "abc123"
+	defer func() { templates.BuildID = old }()
+	_, d, _ := polledDeps(t)
+	d.Hub = newPushHub()
+	sc, done := openSSE(t, d, nil)
+	defer done()
+	var all string
+	for range 3 { // two units, then the check
+		all += readEvent(t, sc)
+	}
+	if !strings.Contains(all, `m.content!=="abc123"`) || !strings.Contains(all, "location.reload()") {
+		t.Fatalf("no build check: %.400s", all)
 	}
 }

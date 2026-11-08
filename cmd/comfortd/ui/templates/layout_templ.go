@@ -15,6 +15,11 @@ import (
 	"github.com/hughobrien/comfortd/internal/history"
 )
 
+// BuildID names this build of the daemon. The page carries it in a meta tag
+// and the event stream checks it on every (re)connect, so a tab left open
+// across a deploy reloads itself instead of mixing new markup with old CSS.
+var BuildID = "dev"
+
 // Page renders the explorer shell. The body opens /ui/sse on first datastar
 // processing; the server then patches every unit section and the feed.
 func Page(units []ui.UnitView, feed []history.Record) templ.Component {
@@ -38,7 +43,20 @@ func Page(units []ui.UnitView, feed []history.Record) templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><title>comfortd</title><link rel=\"stylesheet\" href=\"/ui/static/style.css\"><script type=\"module\" src=\"/ui/static/datastar.js\"></script><script defer src=\"/ui/static/dial.js\"></script></head><body data-init=\"@get('/ui/sse', {retry: 'always', retryMaxCount: 100000, retryMaxWait: 5000})\"><header><h1>comfortd</h1></header><div class=\"layout\"><main id=\"units\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><title>comfortd</title><meta name=\"build\" content=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var2 string
+		templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.ResolveAttributeValue(BuildID)
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `cmd/comfortd/ui/templates/layout.templ`, Line: 24, Col: 39}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var2)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "\"><link rel=\"stylesheet\" href=\"/ui/static/style.css\"><script type=\"module\" src=\"/ui/static/datastar.js\"></script><script defer src=\"/ui/static/dial.js\"></script></head><body data-init=\"@get('/ui/sse', {retry: 'always', retryMaxCount: 100000, retryMaxWait: 5000})\"><header><h1>comfortd</h1></header><div class=\"layout\"><main id=\"units\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -48,7 +66,7 @@ func Page(units []ui.UnitView, feed []history.Record) templ.Component {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "</main><aside><h2>Changes</h2><ol id=\"feed\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "</main><aside><h2>Changes</h2><ol id=\"feed\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -58,7 +76,7 @@ func Page(units []ui.UnitView, feed []history.Record) templ.Component {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "</ol></aside></div></body></html>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "</ol></aside></div></body></html>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

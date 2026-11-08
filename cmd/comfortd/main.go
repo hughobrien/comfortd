@@ -8,6 +8,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"github.com/hughobrien/comfortd/cmd/comfortd/ui/templates"
 	"io"
 	"log/slog"
 	"net"
@@ -72,6 +73,7 @@ func run(args []string, stdout io.Writer) int {
 }
 
 func runContext(ctx context.Context, args []string, stdout io.Writer, ready func(addr net.Addr)) int {
+	templates.BuildID = computeBuildID()
 	fs := flag.NewFlagSet("comfortd", flag.ContinueOnError)
 	showVersion := fs.Bool("version", false, "print version and exit")
 	listen := fs.String("listen", envOr("listen", "127.0.0.1:9879"), "HTTP listen address")
