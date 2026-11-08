@@ -303,12 +303,12 @@ func TestFanAndVaneValidation(t *testing.T) {
 	if len(r.srv.Commands()) != 0 {
 		t.Fatal("invalid intent sent")
 	}
-	if err := r.c.Apply("office", Intent{Fan: s("quiet"), Vane: s("swing")}, "ui"); err != nil {
+	if err := r.c.Apply("office", Intent{Fan: s("superQuiet"), Vane: s("swing")}, "ui"); err != nil {
 		t.Fatal(err)
 	}
 	eventually(t, time.Second, func() bool { return len(r.srv.Commands()) == 1 }, "command")
 	cmds := r.srv.Commands()[0].Commands
-	if cmds["fanSpeed"] != "quiet" || cmds["airDirection"] != "swing" {
+	if cmds["fanSpeed"] != "superQuiet" || cmds["airDirection"] != "swing" {
 		t.Fatalf("sent %v", cmds)
 	}
 }

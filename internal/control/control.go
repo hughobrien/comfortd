@@ -48,22 +48,43 @@ type Intent struct {
 	Vane   *string // a direction from vaneDirections, or "swing"
 }
 
-// FanSpeeds returns the fan speed names for a unit with n speeds, slowest
-// first. [comfort_HA] names; confirmed on the unit by probe (api-inventory).
-func FanSpeeds(n int) []string {
-	all := []string{"superQuiet", "quiet", "low", "powerful", "superPowerful"}
-	switch {
-	case n >= len(all):
-		return all
-	case n == 3:
-		return []string{"quiet", "low", "powerful"}
-	case n > 0:
-		return all[:n]
-	}
-	return nil
+// Choice is one selectable value: the API value and the Comfort app's label.
+type Choice struct{ Value, Label string }
+
+// ModeChoices are the modes the UI offers (off is the power button).
+func ModeChoices() []Choice {
+	return []Choice{{"heat", "Heat"}, {"vent", "Fan only"}}
 }
 
-var vaneDirections = []string{"auto", "horizontal", "midhorizontal", "midpoint", "midvertical", "vertical"}
+// FanChoices returns the fan speeds for a unit with n speeds, slowest first,
+// after auto. Names and labels are comfort_HA's table (API value → app label);
+// the 5-speed set is verified by probe on Office (api-inventory). The 3-speed
+// mapping (House) is not known, so none are offered.
+func FanChoices(n int) []Choice {
+	if n != 5 {
+		return nil
+	}
+	return []Choice{{"auto", "Auto"}, {"superQuiet", "Quiet"}, {"quiet", "Low"}, {"low", "Medium"}, {"powerful", "High"}, {"superPowerful", "Powerful"}}
+}
+
+// VaneChoices returns the vane positions the profile supports.
+func VaneChoices(p kumo.Profile) []Choice {
+	var out []Choice
+	if p.HasVaneDir {
+		out = append(out, Choice{"auto", "Auto"})
+	}
+	if p.HasVaneSwing {
+		out = append(out, Choice{"swing", "Swing"})
+	}
+	if p.HasVaneDir {
+		out = append(out, Choice{"vertical", "Lowest"}, Choice{"midvertical", "Low"}, Choice{"midpoint", "Middle"}, Choice{"midhorizontal", "High"}, Choice{"horizontal", "Highest"})
+	}
+	return out
+}
+
+func hasValue(cs []Choice, v string) bool {
+	return slices.ContainsFunc(cs, func(c Choice) bool { return c.Value == v })
+}
 
 type Sender interface {
 	SendCommand(ctx context.Context, serial string, commands map[string]any) error
@@ -156,14 +177,12 @@ func (c *Controller) Apply(slug string, in Intent, source string) error {
 		}
 		prof = snap.Profile
 	}
-	if in.Fan != nil && *in.Fan != "auto" && !slices.Contains(FanSpeeds(prof.NumberOfFanSpeeds), *in.Fan) {
+	if in.Fan != nil && !hasValue(FanChoices(prof.NumberOfFanSpeeds), *in.Fan) {
 		return fmt.Errorf("%w: fan speed %q not supported", ErrInvalid, *in.Fan)
 	}
 	if in.Vane != nil {
-		v := *in.Vane
-		ok := (v == "swing" && prof.HasVaneSwing) || (slices.Contains(vaneDirections, v) && prof.HasVaneDir)
-		if !ok {
-			return fmt.Errorf("%w: air direction %q not supported", ErrInvalid, v)
+		if !hasValue(VaneChoices(*prof), *in.Vane) {
+			return fmt.Errorf("%w: air direction %q not supported", ErrInvalid, *in.Vane)
 		}
 	}
 	var mode *string

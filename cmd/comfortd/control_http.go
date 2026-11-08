@@ -93,6 +93,9 @@ func (d deps) handleUIMode(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	m := r.URL.Query().Get("m")
+	if m == "on" { // the power button: back to the last mode
+		m = d.Ctl.LastMode(slug)
+	}
 	if err := d.Ctl.Apply(slug, control.Intent{Mode: &m}, "ui"); err != nil {
 		d.ctlError(w, err)
 		return
@@ -106,6 +109,19 @@ func (d deps) handleUISpHeat(w http.ResponseWriter, r *http.Request) {
 	}
 	slug := r.PathValue("slug")
 	if !d.known(w, slug) {
+		return
+	}
+	if q := r.URL.Query().Get("v"); q != "" { // absolute setpoint (slider / text box)
+		v, err := strconv.ParseFloat(q, 64)
+		if err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "bad value"})
+			return
+		}
+		if err := d.Ctl.Apply(slug, control.Intent{SpHeat: &v}, "ui"); err != nil {
+			d.ctlError(w, err)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
 		return
 	}
 	delta, err := strconv.ParseFloat(r.URL.Query().Get("delta"), 64)

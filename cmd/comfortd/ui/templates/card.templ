@@ -9,62 +9,117 @@ templ Card(c ui.CardView) {
 		if c.Stale {
 			<p class="stale-banner">stale: no fresh data since { c.LastOK }</p>
 		}
-		<div class="big">
-			{ c.Mode }
-			@pendingBadge(c, "operationMode")
+		<div class="head">
+			<div class="big">
+				{ c.RoomTemp } °C
+			</div>
+			if len(c.Modes) > 0 {
+				<button
+					type="button"
+					class="power-toggle"
+					aria-pressed={ boolStr(c.On) }
+					data-on:click={ powerClick(c) }
+				>power</button>
+			}
 		</div>
-		<dl>
-			<dt>Power</dt><dd>{ c.Power }</dd>
-			<dt>Room</dt><dd>{ c.RoomTemp } °C</dd>
-			<dt>Heat to</dt>
-			<dd>
-				{ c.SpHeat } °C
-				@pendingBadge(c, "spHeat")
-			</dd>
-			<dt>Fan</dt>
-			<dd>
-				{ c.Fan }
-				@pendingBadge(c, "fanSpeed")
-			</dd>
-			<dt>Vane</dt>
-			<dd>
-				{ c.Vane }
-				@pendingBadge(c, "airDirection")
-			</dd>
-			<dt>Cool to</dt><dd>{ c.SpCool } °C</dd>
-			<dt>Humidity</dt><dd>{ c.Humidity }</dd>
-			<dt>Schedule</dt><dd>{ yesNo(c.ScheduleActive) }{ holdSuffix(c.HoldEnabled) }</dd>
-			<dt>Adapter</dt><dd>{ connText(c.Connected) }</dd>
-		</dl>
+		<div class="sub">room · { c.Mode }</div>
 		if c.Control.LastError != "" {
 			<p class="ctl-error">last command failed: { c.Control.LastError }</p>
 		}
-		if c.Control.Writable {
-			<div class="controls">
-				<button data-on:click={ "@post('/ui/units/" + c.Slug + "/mode?m=off')" }>Off</button>
-				<button data-on:click={ "@post('/ui/units/" + c.Slug + "/mode?m=heat')" }>Heat</button>
-				<button data-on:click={ "@post('/ui/units/" + c.Slug + "/mode?m=vent')" }>Fan only</button>
-				<button data-on:click={ "@post('/ui/units/" + c.Slug + "/spheat?delta=-0.5')" }>−</button>
-				<button data-on:click={ "@post('/ui/units/" + c.Slug + "/spheat?delta=0.5')" }>+</button>
+		if len(c.Modes) > 0 {
+			<div class="ctrl">
+				<span class="ctrl-label">MODE</span>
+				@seg(c, c.Modes, "mode", "m", "operationMode")
 			</div>
-			<div class="controls">
-				for _, o := range c.FanOptions {
-					<button data-on:click={ "@post('/ui/units/" + c.Slug + "/fan?v=" + o + "')" }>{ o }</button>
+			<div class="ctrl">
+				<span class="ctrl-label">HEAT TO</span>
+				if c.SpMin != "" && c.SpMax != "" {
+					<div class="slider-row">
+						<input
+							type="range"
+							min={ c.SpMin }
+							max={ c.SpMax }
+							step="0.5"
+							value={ c.SpHeat }
+							data-on:input="el.closest('.slider-row').querySelector('.val-input').value = evt.target.value"
+							data-on:change={ setpointPost(c) }
+						/>
+						<span class="val">
+							<input
+								type="number"
+								class="val-input"
+								min={ c.SpMin }
+								max={ c.SpMax }
+								step="0.5"
+								value={ c.SpHeat }
+								data-on:input="el.closest('.slider-row').querySelector('input[type=range]').value = evt.target.value"
+								data-on:change={ setpointPost(c) }
+							/><span class={ "val-suffix", templ.KV("pending", c.Control.Pending["spHeat"] != "") }>°C</span>
+						</span>
+					</div>
 				}
 			</div>
-			<div class="controls">
-				for _, o := range c.VaneOptions {
-					<button data-on:click={ "@post('/ui/units/" + c.Slug + "/vane?v=" + o + "')" }>{ o }</button>
-				}
+		} else {
+			<div class="ctrl">
+				<span class="ctrl-label">HEAT TO</span>
+				<span class="val">{ c.SpHeat } °C</span>
 			</div>
+		}
+		if len(c.Fans) > 0 {
+			<div class="ctrl">
+				<span class="ctrl-label">FAN</span>
+				@seg(c, c.Fans, "fan", "v", "fanSpeed")
+			</div>
+		}
+		if len(c.Vanes) > 0 {
+			<div class="ctrl">
+				<span class="ctrl-label">VANE</span>
+				@seg(c, c.Vanes, "vane", "v", "airDirection")
+			</div>
+		}
+		<div class="kv">
+			<div class="row"><span>Power</span><span>{ c.Power }</span></div>
+			<div class="row"><span>Cool to</span><span>{ c.SpCool } °C</span></div>
+			<div class="row"><span>Humidity</span><span>{ c.Humidity }</span></div>
+			<div class="row"><span>Schedule</span><span>{ yesNo(c.ScheduleActive) }{ holdSuffix(c.HoldEnabled) }</span></div>
+			<div class="row"><span>Adapter</span><span>{ connText(c.Connected) }</span></div>
+		</div>
+	</div>
+}
+
+// seg renders a segmented control; the current value is the pressed button.
+templ seg(c ui.CardView, opts []ui.Choice, path, param, field string) {
+	<div class="seg">
+		for _, o := range opts {
+			<button
+				type="button"
+				aria-pressed={ boolStr(o.Pressed) }
+				class={ templ.KV("pending", o.Pressed && c.Control.Pending[field] != "") }
+				data-on:click={ "@post('/ui/units/" + c.Slug + "/" + path + "?" + param + "=" + o.Value + "')" }
+			>{ o.Label }</button>
 		}
 	</div>
 }
 
-templ pendingBadge(c ui.CardView, field string) {
-	if _, ok := c.Control.Pending[field]; ok {
-		<span class="pending">pending</span>
+// setpointPost sends the absolute value from the slider or text box; the
+// controller range-checks it, so the clamp here is only for tidiness.
+func setpointPost(c ui.CardView) string {
+	return "const v = Math.min(" + c.SpMax + ", Math.max(" + c.SpMin + ", parseFloat(evt.target.value))); if (!isNaN(v)) { @post('/ui/units/" + c.Slug + "/spheat?v=' + v) }"
+}
+
+func powerClick(c ui.CardView) string {
+	m := "on"
+	if c.On {
+		m = "off"
 	}
+	return "@post('/ui/units/" + c.Slug + "/mode?m=" + m + "')"
+}
+
+func boolStr(b bool) string {
+	if b {
+		return "true"
+	}
+	return "false"
 }
 
 func yesNo(b bool) string {

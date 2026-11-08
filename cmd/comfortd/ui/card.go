@@ -25,7 +25,24 @@ type CardView struct {
 	Connected, Stale, ScheduleActive, HoldEnabled   bool
 	LastOK                                          string // "15:04:05", or "never"
 	Fan, Vane                                       string
-	FanOptions, VaneOptions                         []string // offered only when the unit supports them
+	On                                              bool
+	SpMin, SpMax                                    string // heat setpoint range from the profile
+	// Selectable values, offered only when the unit is writable and supports
+	// them; Pressed marks the current one.
+	Modes, Fans, Vanes []Choice
+}
+
+type Choice struct {
+	Value, Label string
+	Pressed      bool
+}
+
+func choices(cs []control.Choice, current string) []Choice {
+	out := make([]Choice, len(cs))
+	for i, c := range cs {
+		out[i] = Choice{c.Value, c.Label, c.Value == current}
+	}
+	return out
 }
 
 const dash = "–"
@@ -66,15 +83,19 @@ func BuildCard(s store.Snapshot, ann *annotate.Set, ctl CardControl, now time.Ti
 			c.Power = "Off"
 		}
 	}
-	if p := s.Profile; p != nil {
-		if n := p.NumberOfFanSpeeds; n > 0 {
-			c.FanOptions = append([]string{"auto"}, control.FanSpeeds(n)...)
-		}
-		if p.HasVaneDir {
-			c.VaneOptions = append(c.VaneOptions, "auto", "horizontal", "midhorizontal", "midpoint", "midvertical", "vertical")
-		}
-		if p.HasVaneSwing {
-			c.VaneOptions = append(c.VaneOptions, "swing")
+	if ctl.Writable && s.Device != nil {
+		d := s.Device
+		c.On = d.Power == 1
+		c.Modes = choices(control.ModeChoices(), d.OperationMode)
+		if p := s.Profile; p != nil {
+			if lo, ok := p.Min["heat"]; ok {
+				c.SpMin = strconv.FormatFloat(lo, 'f', -1, 64)
+			}
+			if hi, ok := p.Max["heat"]; ok {
+				c.SpMax = strconv.FormatFloat(hi, 'f', -1, 64)
+			}
+			c.Fans = choices(control.FanChoices(p.NumberOfFanSpeeds), d.FanSpeed)
+			c.Vanes = choices(control.VaneChoices(*p), d.AirDirection)
 		}
 	}
 	if z := s.Zone; z != nil {

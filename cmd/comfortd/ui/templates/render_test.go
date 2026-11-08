@@ -38,17 +38,22 @@ func TestCardStaleRendered(t *testing.T) {
 	}
 }
 
-func TestCardPendingBadgeRendered(t *testing.T) {
+func TestCardPendingMarked(t *testing.T) {
 	var sb strings.Builder
-	c := ui.CardView{Slug: "office", Mode: "Heat", SpHeat: "19", Control: ui.CardControl{Writable: true, Pending: map[string]string{"spHeat": "19.5"}}}
+	c := ui.CardView{Slug: "office", Mode: "Heat", SpHeat: "19", SpMin: "10", SpMax: "31", On: true,
+		Modes:   []ui.Choice{{Value: "heat", Label: "Heat", Pressed: true}, {Value: "vent", Label: "Fan only"}},
+		Control: ui.CardControl{Writable: true, Pending: map[string]string{"spHeat": "19.5"}}}
 	if err := Card(c).Render(context.Background(), &sb); err != nil {
 		t.Fatal(err)
 	}
 	out := sb.String()
-	if strings.Contains(out, "@pendingBadge") || !strings.Contains(out, `class="pending"`) {
-		t.Fatalf("badge not rendered: %s", out)
+	if !strings.Contains(out, `class="val-suffix pending"`) {
+		t.Fatalf("setpoint not marked pending: %s", out)
 	}
-	if strings.Count(out, `class="pending"`) != 1 {
-		t.Fatalf("want one badge (spHeat only): %s", out)
+	if strings.Count(out, `aria-pressed="true"`) != 2 { // power + current mode
+		t.Fatalf("want power and Heat pressed: %s", out)
+	}
+	if strings.Contains(out, `class="pending"`) {
+		t.Fatalf("mode wasn't pending: %s", out)
 	}
 }

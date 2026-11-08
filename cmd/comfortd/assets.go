@@ -45,6 +45,16 @@ func (d deps) unitViews() []ui.UnitView {
 		}
 		out = append(out, d.viewFor(sn, now))
 	}
+	// Inactive placeholders go last (the right-hand column).
+	slices.SortStableFunc(out, func(a, b ui.UnitView) int {
+		if a.Inactive == b.Inactive {
+			return 0
+		}
+		if a.Inactive {
+			return 1
+		}
+		return -1
+	})
 	return out
 }
 
