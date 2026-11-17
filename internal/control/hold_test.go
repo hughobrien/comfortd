@@ -138,3 +138,41 @@ func TestHoldWriteFails(t *testing.T) {
 		t.Fatalf("kicked after a failure: %v", r.kicks)
 	}
 }
+
+// spyHolds checks, from inside the cloud call, that LastSent is already set:
+// the push echo can arrive before the HTTP response does.
+type spyHolds struct {
+	fakeHolds
+	sawSet func() bool
+	saw    []bool
+}
+
+func (s *spyHolds) SetHold(ctx context.Context, site, zone string, until *time.Time) error {
+	s.saw = append(s.saw, s.sawSet())
+	return s.fakeHolds.SetHold(ctx, site, zone, until)
+}
+
+func (s *spyHolds) EndHold(ctx context.Context, site, zone string) error {
+	s.saw = append(s.saw, s.sawSet())
+	return s.fakeHolds.EndHold(ctx, site, zone)
+}
+
+func TestLastSentIsSetBeforeTheHoldCall(t *testing.T) {
+	r := newRig(t)
+	sp := &spyHolds{}
+	c := holdCtl(r, sp, "office")
+	sp.sawSet = func() bool { return !c.LastSent("office").IsZero() }
+	if !c.LastSent("office").IsZero() {
+		t.Fatal("LastSent should start zero")
+	}
+	until := time.Date(2026, 11, 17, 6, 22, 0, 0, time.UTC)
+	if err := c.SetHold(context.Background(), "office", &until, "ui"); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.EndHold(context.Background(), "office", "ui"); err != nil {
+		t.Fatal(err)
+	}
+	if len(sp.saw) != 2 || !sp.saw[0] || !sp.saw[1] {
+		t.Fatalf("LastSent set before the call: %v", sp.saw)
+	}
+}

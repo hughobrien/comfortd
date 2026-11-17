@@ -29,7 +29,7 @@ func openHist(t *testing.T) *history.Log {
 
 func TestNoRecordsOnFirstSight(t *testing.T) {
 	h := openHist(t)
-	err := recordUpdate(h, store.Update{Slug: "office", Endpoint: "device", New: json.RawMessage(`{"a":1}`), At: time.Now()})
+	err := recordUpdate(h, store.Update{Slug: "office", Endpoint: "device", New: json.RawMessage(`{"a":1}`), At: time.Now()}, nil)
 	if err != nil || len(h.Recent("", 10)) != 0 {
 		t.Fatalf("err=%v recs=%v", err, h.Recent("", 10))
 	}
@@ -39,7 +39,7 @@ func TestRecordsDeviceChange(t *testing.T) {
 	h := openHist(t)
 	at := time.Now()
 	err := recordUpdate(h, store.Update{Slug: "office", Endpoint: "device", At: at,
-		Old: json.RawMessage(`{"spHeat":19,"x":"a"}`), New: json.RawMessage(`{"spHeat":21,"x":"a"}`)})
+		Old: json.RawMessage(`{"spHeat":19,"x":"a"}`), New: json.RawMessage(`{"spHeat":21,"x":"a"}`)}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -80,7 +80,7 @@ func TestHistoryEndpoint(t *testing.T) {
 func TestPollerToHistory(t *testing.T) {
 	srv, d, _ := polledDeps(t)
 	d.History = openHist(t)
-	d.Store.Subscribe(func(u store.Update) { recordUpdate(d.History, u) })
+	d.Store.Subscribe(func(u store.Update) { recordUpdate(d.History, u, nil) })
 	// A second poller sharing the store is not available here, so re-poll via a fresh one.
 	p := newPollerFor(t, srv, d.Store)
 	p.PollOnce(context.Background())

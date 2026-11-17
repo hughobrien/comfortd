@@ -547,3 +547,32 @@ func TestApplyPerModeRanges(t *testing.T) {
 		})
 	}
 }
+
+type spySender struct {
+	inner Sender
+	saw   func() bool
+	mu    sync.Mutex
+	seen  []bool
+}
+
+func (s *spySender) SendCommand(ctx context.Context, serial string, cmds map[string]any) error {
+	s.mu.Lock()
+	s.seen = append(s.seen, s.saw())
+	s.mu.Unlock()
+	return s.inner.SendCommand(ctx, serial, cmds)
+}
+
+func TestLastSentIsSetBeforeTheCommandCall(t *testing.T) {
+	r := newRig(t)
+	c := r.c
+	sp := &spySender{inner: c.o.Sender}
+	c.o.Sender = sp
+	sp.saw = func() bool { return !c.LastSent("office").IsZero() }
+	c.Apply("office", Intent{SpHeat: f(21)}, "ui")
+	eventually(t, time.Second, func() bool { return len(r.srv.Commands()) == 1 }, "sent")
+	sp.mu.Lock()
+	defer sp.mu.Unlock()
+	if len(sp.seen) != 1 || !sp.seen[0] {
+		t.Fatalf("LastSent set before the send: %v", sp.seen)
+	}
+}

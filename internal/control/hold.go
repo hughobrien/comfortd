@@ -55,6 +55,7 @@ func (c *Controller) SetHold(ctx context.Context, slug string, until *time.Time,
 	}
 	sctx, cancel := context.WithTimeout(ctx, sendTimeout)
 	defer cancel()
+	c.markSent(slug)
 	if err := c.o.Holds.SetHold(sctx, snap.Unit.SiteID, snap.Unit.ZoneID, until); err != nil {
 		return err
 	}
@@ -75,6 +76,7 @@ func (c *Controller) EndHold(ctx context.Context, slug, source string) error {
 	}
 	sctx, cancel := context.WithTimeout(ctx, sendTimeout)
 	defer cancel()
+	c.markSent(slug)
 	if err := c.o.Holds.EndHold(sctx, snap.Unit.SiteID, snap.Unit.ZoneID); err != nil {
 		return err
 	}

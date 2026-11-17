@@ -149,7 +149,7 @@ func runContext(ctx context.Context, args []string, stdout io.Writer, ready func
 	}
 	defer hist.Close()
 	st.Subscribe(func(u store.Update) {
-		if err := recordUpdate(hist, u); err != nil {
+		if err := recordUpdate(hist, u, nil); err != nil {
 			slog.Warn("record history", "unit", u.Slug, "endpoint", u.Endpoint, "err", err)
 		}
 	})

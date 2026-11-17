@@ -166,6 +166,7 @@ type Controller struct {
 
 	mu       sync.Mutex
 	units    map[string]*unitState
+	lastSent map[string]time.Time // when we last sent this unit a command or hold, for attributing pushes
 	lastMode map[string]string
 	lastFam  map[string]string               // mode family seen on the previous poll
 	mem      map[string]map[string]Setpoints // slug -> mode family -> setpoints last seen in it
@@ -798,11 +799,30 @@ func (c *Controller) record(slug, endpoint, path, old, new, source string) {
 	}
 }
 
+// LastSent is when comfortd last sent slug a command or hold request (zero if
+// never). It is set before the request goes out, because the cloud's push echo
+// can arrive before the HTTP response does.
+func (c *Controller) LastSent(slug string) time.Time {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.lastSent[slug]
+}
+
+func (c *Controller) markSent(slug string) {
+	c.mu.Lock()
+	if c.lastSent == nil {
+		c.lastSent = map[string]time.Time{}
+	}
+	c.lastSent[slug] = c.o.Now()
+	c.mu.Unlock()
+}
+
 func (c *Controller) send(ctx context.Context, s flush) {
 	snap, ok := c.o.Store.Get(s.slug)
 	if !ok {
 		return
 	}
+	c.markSent(s.slug)
 	sctx, cancel := context.WithTimeout(ctx, sendTimeout)
 	defer cancel()
 	err := c.o.Sender.SendCommand(sctx, snap.Unit.Serial, s.cmds)
