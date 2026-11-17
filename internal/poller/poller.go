@@ -134,6 +134,15 @@ func (p *Poller) PollSlow(ctx context.Context) {
 	}
 }
 
+// PollStatus fetches each unit's status (the adapter's setpoint limits, which
+// the Comfort app lets the user change), without the profile.
+func (p *Poller) PollStatus(ctx context.Context) {
+	for _, u := range p.st.Units() {
+		raw, err := p.api.Get(ctx, "/devices/"+u.Serial+"/"+store.EndpointStatus)
+		p.record(u.Slug, store.EndpointStatus, raw, err)
+	}
+}
+
 // zoneFlag reports whether the unit's zone has adapter.<flag> true. It needs
 // the zone to have been polled.
 func (p *Poller) zoneFlag(slug, flag string) bool {
@@ -275,6 +284,7 @@ func (p *Poller) Run(ctx context.Context) error {
 		case <-timer.C:
 			p.PollOnce(ctx)
 			if up { // the push feed does not cover these, so the backstop does
+				p.PollStatus(ctx)
 				p.PollMhk2(ctx)
 				p.PollSensor(ctx)
 				p.PollSchedule(ctx)

@@ -500,8 +500,8 @@ func TestSpCoolWithoutProfile(t *testing.T) {
 
 // Apply checks each setpoint against the unit's limits for the mode it is
 // for. With House's profile alone (heat 10–28, cool 19–30, auto 19–28) a low
-// cool setpoint must not pass on the heat range; with its status range
-// (19.5–28) as well, that narrower range holds for every mode.
+// cool setpoint must not pass on the heat range. Its status range (19.5–28)
+// floors cool and caps heat, as in the Comfort app.
 func TestApplyPerModeRanges(t *testing.T) {
 	prof, err := os.ReadFile("../../pkg/kumo/kumotest/fixtures/profile_house.json")
 	if err != nil {
@@ -515,10 +515,13 @@ func TestApplyPerModeRanges(t *testing.T) {
 		status bool // also store House's status range
 	}{
 		{"heat low, profile only", "heat", Intent{SpHeat: f(12)}, true, false},
-		{"heat low, status says 19.5", "heat", Intent{SpHeat: f(12)}, false, true},
+		{"heat low, status says 19.5 (floors cool only)", "heat", Intent{SpHeat: f(12)}, true, true},
+		{"heat at the status cap", "heat", Intent{SpHeat: f(28)}, true, true},
 		{"heat above max", "heat", Intent{SpHeat: f(28.5)}, false, false},
 		{"cool high, profile only", "cool", Intent{SpCool: f(30)}, true, false},
-		{"cool high, status says 28", "cool", Intent{SpCool: f(30)}, false, true},
+		{"cool high, status says 28 (caps heat only)", "cool", Intent{SpCool: f(30)}, true, true},
+		{"cool below the status floor", "cool", Intent{SpCool: f(19)}, false, true},
+		{"cool at the status floor", "cool", Intent{SpCool: f(19.5)}, true, true},
 		{"cool below cool min (heat range would allow it)", "cool", Intent{SpCool: f(18)}, false, false},
 		{"switch to cool with cool setpoint", "heat", Intent{Mode: s("cool"), SpCool: f(29.5)}, true, false},
 		{"auto below auto min", "auto", Intent{SpHeat: f(18)}, false, false},

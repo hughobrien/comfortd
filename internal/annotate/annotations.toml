@@ -138,3 +138,17 @@ endpoint = "profile"
 path = "[0].maximumSetPoints.heat"
 label = "Maximum heat setpoint (°C)"
 confidence = "api-only"
+
+[[field]]
+endpoint = "status"
+path = "minSetPoint"
+label = "Adapter minimum setpoint (°C)"
+confidence = "app-confirmed"
+note = "House's 'setpoint limit' setting in the Comfort app. It floors the cool range only (heat can still go to the profile's 10): with the limit on House cool read 19 to 30, and with it off 19.5 to 30. Read in the app 2026-11-17."
+
+[[field]]
+endpoint = "status"
+path = "maxSetPoint"
+label = "Adapter maximum setpoint (°C)"
+confidence = "app-confirmed"
+note = "Caps the heat range only (cool can still go to the profile's 30): House heat read 10 to 25 with the limit on (maxSetPoint 25) and 10 to 28 with it off. Read in the app 2026-11-17."

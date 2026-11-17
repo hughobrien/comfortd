@@ -206,3 +206,15 @@ A throwaway client (python-socketio, Bearer token from the v3 login, `websocket`
 - **Not seen:** `device_status_v2`, `schedule_version_migrated` and the other update events (nothing triggered them).
 
 - **No `subscribed` reply.** The real server answers `subscribe <serial>` with no `subscribed` event (only the snapshot `device_update` follows); comfortd's client counts replies if they come but does not depend on them. Seen 2026-11-17 on the first deploy: events flowed with the reply count at 0.
+
+## Setpoint ranges: what the app shows (House, 2026-11-17)
+
+Hugh read the ranges in the Comfort app on House with its setpoint-limit setting on and off, and on Office, and compared them with the profile (`minimumSetPoints`/`maximumSetPoints`) and the status endpoint (`minSetPoint`/`maxSetPoint`, also pushed as `adapter_update`). **[observed]**
+
+| Unit, state | status min/max | app cool | app heat |
+|---|---|---|---|
+| House, limit on | 19 / 25 | 19 to 30 | 10 to 25 |
+| House, limit off | 19.5 / 28 | 19.5 to 30 | 10 to 28 |
+| Office | 16 / 31 | 16 to 31 | 10 to 31 |
+
+House's profile is cool 19 to 30, heat 10 to 28, auto 19 to 28; Office's is cool 16 to 31, heat 10 to 31. The rule that fits every row: **cool floor = max(profile min, status min); heat ceiling = min(profile max, status max); the other ends are the profile's.** (Auto: narrowed on both ends, a conservative guess; not read in the app.) The status endpoint is the source that follows the app setting (it read 19.5/28 within seconds of the setting being turned off); the pushed `adapter_update` was seconds late and did not repeat, so comfortd refreshes status itself, on every backstop poll.

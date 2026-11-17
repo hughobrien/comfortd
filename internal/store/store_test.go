@@ -89,6 +89,7 @@ func TestSetpointRangePerMode(t *testing.T) {
 		Max: map[string]float64{"heat": 28, "cool": 30, "auto": 28},
 	}
 	status := map[string]json.RawMessage{EndpointStatus: json.RawMessage(`{"minSetPoint":19.5,"maxSetPoint":28}`)}
+	limited := map[string]json.RawMessage{EndpointStatus: json.RawMessage(`{"minSetPoint":19,"maxSetPoint":25}`)}
 	for _, tc := range []struct {
 		name   string
 		snap   Snapshot
@@ -96,11 +97,15 @@ func TestSetpointRangePerMode(t *testing.T) {
 		lo, hi float64
 		ok     bool
 	}{
-		{"profile heat, narrowed by status", Snapshot{Profile: prof, Raw: status}, "heat", 19.5, 28, true},
+		// Read from the Comfort app on House (2026-11-17): the adapter minimum floors
+		// cool, the adapter maximum caps heat; the rest is the profile.
+		{"heat: status caps the top only", Snapshot{Profile: prof, Raw: status}, "heat", 10, 28, true},
+		{"heat: limit on caps it at 25", Snapshot{Profile: prof, Raw: limited}, "heat", 10, 25, true},
 		{"profile heat alone", Snapshot{Profile: prof}, "heat", 10, 28, true},
-		{"profile cool, narrowed by status", Snapshot{Profile: prof, Raw: status}, "cool", 19.5, 28, true},
+		{"cool: status floors the bottom only", Snapshot{Profile: prof, Raw: status}, "cool", 19.5, 30, true},
+		{"cool: limit on leaves 19 to 30", Snapshot{Profile: prof, Raw: limited}, "cool", 19, 30, true},
 		{"profile cool alone", Snapshot{Profile: prof}, "cool", 19, 30, true},
-		{"profile auto, narrowed by status", Snapshot{Profile: prof, Raw: status}, "auto", 19.5, 28, true},
+		{"auto: narrowed on both ends", Snapshot{Profile: prof, Raw: status}, "auto", 19.5, 28, true},
 		{"profile without the key", Snapshot{Profile: &kumo.Profile{}, Raw: status}, "cool", 0, 0, false},
 		{"status only", Snapshot{Raw: status}, "cool", 19.5, 28, true},
 		{"nothing", Snapshot{}, "heat", 0, 0, false},

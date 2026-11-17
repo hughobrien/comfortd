@@ -205,3 +205,19 @@ func TestMhk2PolledOnlyWhenZoneSaysSo(t *testing.T) {
 		t.Fatalf("no mhk2 stored: %v", h.Errors)
 	}
 }
+
+func TestPollStatusRefreshesOnlyStatus(t *testing.T) {
+	srv, st, p := newPoller(t)
+	p.PollSlow(context.Background())
+	status := "/devices/" + kumotest.HouseSerial + "/status"
+	profile := "/devices/" + kumotest.HouseSerial + "/profile"
+	s0, p0 := srv.Requests(status), srv.Requests(profile)
+	p.PollStatus(context.Background())
+	if srv.Requests(status) != s0+1 || srv.Requests(profile) != p0 {
+		t.Fatalf("status +%d, profile +%d; want +1, +0", srv.Requests(status)-s0, srv.Requests(profile)-p0)
+	}
+	sn, _ := st.Get("house")
+	if sn.Raw[store.EndpointStatus] == nil {
+		t.Fatal("status not stored")
+	}
+}

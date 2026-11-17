@@ -68,11 +68,13 @@ type Snapshot struct {
 }
 
 // SetpointRange is the setpoint range the unit allows under a profile limit
-// key ("heat", "cool" or "auto"): the capability profile's limits for that
-// key, narrowed to the adapter's minSetPoint/maxSetPoint from the status
-// endpoint when it has them (House's status says 19.5–28, inside every one of
-// its profile ranges; what the unit does outside it is untested). With no
-// profile, the status range alone.
+// key ("heat", "cool" or "auto"). It is the capability profile's range for the
+// key, with the adapter's limits from the status endpoint (minSetPoint,
+// maxSetPoint: House's "setpoint limit" setting in the Comfort app) applied the
+// way the app applies them (read off House on 2026-11-17, with the limit on
+// and off): the adapter minimum floors cool, the adapter maximum caps heat, and
+// auto is narrowed at both ends. The other ends are the profile's alone. With
+// no profile, the status range alone.
 func (s Snapshot) SetpointRange(key string) (lo, hi float64, ok bool) {
 	var st struct {
 		Min *float64 `json:"minSetPoint"`
@@ -91,7 +93,14 @@ func (s Snapshot) SetpointRange(key string) (lo, hi float64, ok bool) {
 		return 0, 0, false
 	}
 	if hasStatus {
-		lo, hi = max(lo, *st.Min), min(hi, *st.Max)
+		switch key {
+		case "cool":
+			lo = max(lo, *st.Min)
+		case "heat":
+			hi = min(hi, *st.Max)
+		default:
+			lo, hi = max(lo, *st.Min), min(hi, *st.Max)
+		}
 	}
 	return lo, hi, lo < hi
 }
