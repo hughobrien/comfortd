@@ -23,8 +23,16 @@ type Poller struct {
 	slowEvery  time.Duration
 	kickDelays []time.Duration
 
-	mu  sync.Mutex
-	ctx context.Context
+	// KickNeeded, when set and false, makes Kick do nothing (the socket's echo
+	// confirms commands instead).
+	KickNeeded func() bool
+
+	mu        sync.Mutex
+	ctx       context.Context
+	connected func() bool   // socket state, nil = no socket
+	backstop  time.Duration // full-poll interval while the socket is up
+	lastFull  time.Time
+	wake      chan struct{}
 }
 
 func New(api API, st *store.Store, interval time.Duration) *Poller {
@@ -32,6 +40,7 @@ func New(api API, st *store.Store, interval time.Duration) *Poller {
 		api: api, st: st, interval: interval,
 		slowEvery:  6 * time.Hour,
 		kickDelays: []time.Duration{3 * time.Second, 8 * time.Second, 15 * time.Second},
+		wake:       make(chan struct{}, 1),
 	}
 }
 
@@ -54,8 +63,28 @@ func (p *Poller) pollDevice(ctx context.Context, u store.Unit) {
 	p.record(u.Slug, store.EndpointDevice, raw, err)
 }
 
+// UseSocket tells the poller a push socket is feeding the store: while
+// connected() is true it polls every backstop (and also refreshes the MHK2,
+// sensor and schedule each time); otherwise at its normal interval.
+func (p *Poller) UseSocket(connected func() bool, backstop time.Duration) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.connected, p.backstop = connected, backstop
+}
+
+// Wake makes Run re-evaluate when the next poll is due (the socket changed state).
+func (p *Poller) Wake() {
+	select {
+	case p.wake <- struct{}{}:
+	default:
+	}
+}
+
 // PollOnce fetches zones (once per site) and each unit's device.
 func (p *Poller) PollOnce(ctx context.Context) {
+	p.mu.Lock()
+	p.lastFull = time.Now()
+	p.mu.Unlock()
 	units := p.st.Units()
 	sites := map[string][]store.Unit{}
 	for _, u := range units {
@@ -225,17 +254,33 @@ func (p *Poller) Run(ctx context.Context) error {
 	p.PollMhk2(ctx)
 	p.PollSchedule(ctx)
 	p.PollOnce(ctx) // again, so the first view has the profile
-	fast := time.NewTicker(p.interval)
 	slow := time.NewTicker(p.slowEvery)
-	defer fast.Stop()
 	defer slow.Stop()
 	for {
+		p.mu.Lock()
+		up := p.connected != nil && p.connected()
+		wait := p.interval
+		if up {
+			wait = p.backstop
+		}
+		due := time.Until(p.lastFull.Add(wait))
+		p.mu.Unlock()
+		timer := time.NewTimer(max(due, 0))
 		select {
 		case <-ctx.Done():
+			timer.Stop()
 			return ctx.Err()
-		case <-fast.C:
+		case <-p.wake:
+			timer.Stop()
+		case <-timer.C:
 			p.PollOnce(ctx)
+			if up { // the push feed does not cover these, so the backstop does
+				p.PollMhk2(ctx)
+				p.PollSensor(ctx)
+				p.PollSchedule(ctx)
+			}
 		case <-slow.C:
+			timer.Stop()
 			p.PollSlow(ctx)
 			p.PollSensor(ctx)
 			p.PollMhk2(ctx)
@@ -246,6 +291,9 @@ func (p *Poller) Run(ctx context.Context) error {
 
 // Kick schedules extra device polls for slug shortly after a change. It never blocks.
 func (p *Poller) Kick(slug string) {
+	if p.KickNeeded != nil && !p.KickNeeded() {
+		return
+	}
 	var unit *store.Unit
 	for _, u := range p.st.Units() {
 		if u.Slug == slug {
