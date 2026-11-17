@@ -91,7 +91,7 @@ func (d deps) viewFor(sn store.Snapshot, now time.Time) ui.UnitView {
 		}
 		sn = d.Ctl.Overlay(sn)
 	}
-	return ui.BuildUnitView(sn, d.changed(sn.Unit.Slug, now), now, d.Interval, d.Ann, cc)
+	return ui.BuildUnitView(sn, d.changed(sn.Unit.Slug, now), now, d.interval(), d.Ann, cc)
 }
 
 func (d deps) changed(slug string, now time.Time) func(string) map[string]bool {

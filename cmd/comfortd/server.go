@@ -30,7 +30,10 @@ type deps struct {
 	Order    *orderStore         // nil = default order
 	Inactive []string            // unit slugs shown as a blank placeholder in the web UI
 	Interval time.Duration
-	Now      func() time.Time
+	// Beat, when set, is the staleness base instead of Interval: the push
+	// beat while the socket is up, the poll interval otherwise.
+	Beat func() time.Duration
+	Now  func() time.Time
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {
@@ -56,7 +59,7 @@ func newMux(d deps) *http.ServeMux {
 		now := d.Now()
 		var stale []string
 		for _, sn := range d.Store.All() {
-			if sn.Stale(now, d.Interval) {
+			if sn.Stale(now, d.interval()) {
 				stale = append(stale, sn.Unit.Slug)
 			}
 		}
@@ -82,7 +85,7 @@ func newMux(d deps) *http.ServeMux {
 		out := []unitJSON{}
 		for _, sn := range d.Store.All() {
 			u := unitJSON{Slug: sn.Unit.Slug, Name: sn.Unit.Name, Serial: sn.Unit.Serial,
-				Stale: sn.Stale(now, d.Interval), Errors: sn.Errors}
+				Stale: sn.Stale(now, d.interval()), Errors: sn.Errors}
 			if !sn.LastDeviceOK.IsZero() {
 				t := sn.LastDeviceOK
 				u.LastDeviceOK = &t
@@ -124,7 +127,7 @@ func newMux(d deps) *http.ServeMux {
 	mux.HandleFunc("GET /ui/sse", d.handleSSE)
 	mux.HandleFunc("GET /ui/img/{slug}", d.handleImage)
 	if d.Metrics != nil {
-		mux.Handle("GET /metrics", d.Metrics.Handler(d.Store, d.Now, d.Interval))
+		mux.Handle("GET /metrics", d.Metrics.Handler(d.Store, d.Now, d.interval))
 	}
 	mux.HandleFunc("GET /ui/static/style.css", serveAsset("ui/style.css", "text/css; charset=utf-8"))
 	mux.HandleFunc("GET /ui/static/dial.js", serveAsset("ui/dial.js", "text/javascript; charset=utf-8"))
@@ -134,4 +137,12 @@ func newMux(d deps) *http.ServeMux {
 	mux.HandleFunc("GET /ui/static/datastar.js", serveAsset(datastarFile, "text/javascript; charset=utf-8"))
 
 	return mux
+}
+
+// interval is the base of the staleness window (stale after three of it).
+func (d deps) interval() time.Duration {
+	if d.Beat != nil {
+		return d.Beat()
+	}
+	return d.Interval
 }

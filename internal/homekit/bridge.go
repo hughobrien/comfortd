@@ -51,7 +51,8 @@ type Options struct {
 	Port                          int
 	Units                         []store.Unit // only the units to expose
 	Snapshot                      func(slug string) (store.Snapshot, bool)
-	Interval                      time.Duration // poll interval, for staleness
+	Interval                      time.Duration        // poll interval, for staleness
+	Beat                          func() time.Duration // when set, the staleness base instead of Interval
 	Now                           func() time.Time
 	ForceStale                    map[string]bool
 	Control                       Controller // nil = read-only everywhere
@@ -315,7 +316,11 @@ func (b *Bridge) stale(slug string) bool {
 	if !ok || snap.Device == nil {
 		return true
 	}
-	return snap.Stale(b.o.Now(), b.o.Interval)
+	iv := b.o.Interval
+	if b.o.Beat != nil {
+		iv = b.o.Beat()
+	}
+	return snap.Stale(b.o.Now(), iv)
 }
 
 // Sync re-reads the unit's snapshot and updates its characteristics.

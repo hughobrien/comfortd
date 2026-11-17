@@ -172,3 +172,21 @@ func TestRunFakeServes(t *testing.T) {
 		}
 	}
 }
+
+// With the push socket up the staleness window follows the push beat, not the
+// (much longer) backstop poll interval.
+func TestStalenessFollowsBeat(t *testing.T) {
+	_, d, now := polledDeps(t)
+	d.Interval = 15 * time.Minute
+	beat := time.Minute
+	d.Beat = func() time.Duration { return beat }
+	h := newMux(d)
+	*now = now.Add(4 * time.Minute) // over 3 beats, far under 3 backstop polls
+	if rec := get(h, "/healthz"); rec.Code != 503 {
+		t.Fatalf("socket up and quiet for 4 min: %d, want 503", rec.Code)
+	}
+	beat = 15 * time.Minute // socket down: back to the poll interval
+	if rec := get(h, "/healthz"); rec.Code != 200 {
+		t.Fatalf("socket down, 4 min old: %d, want 200", rec.Code)
+	}
+}

@@ -143,10 +143,10 @@ func (m *Metrics) Update(st *store.Store, now time.Time, interval time.Duration)
 }
 
 // Handler serves /metrics, refreshing the gauges first.
-func (m *Metrics) Handler(st *store.Store, now func() time.Time, interval time.Duration) http.Handler {
+func (m *Metrics) Handler(st *store.Store, now func() time.Time, interval func() time.Duration) http.Handler {
 	h := promhttp.HandlerFor(m.reg, promhttp.HandlerOpts{})
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		m.Update(st, now(), interval)
+		m.Update(st, now(), interval())
 		h.ServeHTTP(w, r)
 	})
 }
