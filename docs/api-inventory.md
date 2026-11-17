@@ -204,3 +204,5 @@ A throwaway client (python-socketio, Bearer token from the v3 login, `websocket`
 - **`profile_update`**: capabilities (`hasModeDry`, `hasVaneDir`, `numberOfFanSpeeds`, `minimumSetPoints`/`maximumSetPoints`). **`adapter_update`**: `firmwareVersion`, `routerSsid`, `routerRssi`, `minSetpoint`/`maxSetpoint`, `lastUpdated`.
 - **Latency:** the app's changes reached the socket within about a second of the event timestamps, against our 120 s poll.
 - **Not seen:** `device_status_v2`, `schedule_version_migrated` and the other update events (nothing triggered them).
+
+- **No `subscribed` reply.** The real server answers `subscribe <serial>` with no `subscribed` event (only the snapshot `device_update` follows); comfortd's client counts replies if they come but does not depend on them. Seen 2026-11-17 on the first deploy: events flowed with the reply count at 0.

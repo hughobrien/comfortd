@@ -77,14 +77,12 @@ func NewMetrics() *Metrics {
 
 // RegisterSocket adds the push socket's gauges: connected now, reconnects so
 // far, events dropped from a full queue.
-func (m *Metrics) RegisterSocket(connected func() bool, reconnects, dropped, subscribed func() int) {
+func (m *Metrics) RegisterSocket(connected func() bool, reconnects, dropped func() int) {
 	m.reg.MustRegister(
 		prometheus.NewGaugeFunc(prometheus.GaugeOpts{Name: "comfortd_socket_connected", Help: "The push socket is connected (0/1)."},
 			func() float64 { return b2f(connected()) }),
 		prometheus.NewCounterFunc(prometheus.CounterOpts{Name: "comfortd_socket_reconnects_total", Help: "Push socket reconnects."},
 			func() float64 { return float64(reconnects()) }),
-		prometheus.NewGaugeFunc(prometheus.GaugeOpts{Name: "comfortd_socket_subscribed", Help: "Units the server has confirmed subscriptions for in the current session."},
-			func() float64 { return float64(subscribed()) }),
 		prometheus.NewCounterFunc(prometheus.CounterOpts{Name: "comfortd_socket_dropped_total", Help: "Push events dropped because the queue was full."},
 			func() float64 { return float64(dropped()) }),
 	)

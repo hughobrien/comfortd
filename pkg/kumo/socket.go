@@ -144,11 +144,6 @@ func (s *Socket) session(ctx context.Context) (err error) {
 		return errors.New("dial failed") // never include the URL or headers
 	}
 	defer ws.CloseNow()
-	defer func() {
-		if n := int(s.subscribed.Load()); n < len(s.o.Serials) {
-			slog.Warn("kumo socket session ended with missing subscriptions", "confirmed", n, "asked", len(s.o.Serials))
-		}
-	}()
 	ws.SetReadLimit(4 << 20)
 	s.subscribed.Store(0)
 	ready := false

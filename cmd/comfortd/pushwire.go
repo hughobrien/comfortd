@@ -56,7 +56,7 @@ func wirePush(o pushOptions, ctx context.Context) *pushWiring {
 	sock := o.Client.NewSocket(kumo.SocketOptions{
 		URL: o.SocketURL, Serials: serials, OnEvent: push.OnEvent, OnState: push.OnState,
 	})
-	o.Metrics.RegisterSocket(push.Connected, sock.Reconnects, push.Dropped, sock.Subscribed)
+	o.Metrics.RegisterSocket(push.Connected, sock.Reconnects, push.Dropped)
 
 	// A poll that finds an intent field changed while the socket was up means
 	// the socket missed it (or our own command's echo is not pushed).
