@@ -19,6 +19,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -82,6 +83,9 @@ func runContext(ctx context.Context, args []string, stdout io.Writer, ready func
 	apiBase := fs.String("api-base", envOr("api-base", kumo.DefaultBaseURL), "Kumo API base URL")
 	appVersion := fs.String("app-version", envOr("app-version", kumo.DefaultAppVersion), "x-app-version header")
 	interval := fs.Duration("poll-interval", 60*time.Second, "poll interval")
+	noSocket := fs.Bool("no-socket", false, "do not use the Comfort app's push socket; poll at -poll-interval only")
+	socketURL := fs.String("socket-url", envOr("socket-url", kumo.DefaultSocketURL), "Socket.IO push server URL")
+	backstop := fs.Duration("backstop", 15*time.Minute, "full poll interval while the push socket is connected")
 	fake := fs.Bool("fake", false, "run against an in-process fake Kumo server")
 	hapPort := fs.Int("hap-port", 0, "HomeKit (HAP) TCP port; 0 = ephemeral")
 	hkUnits := fs.String("homekit-units", envOr("homekit-units", ""), "comma-separated unit slugs to expose to HomeKit; empty = HomeKit off")
@@ -92,6 +96,11 @@ func runContext(ctx context.Context, args []string, stdout io.Writer, ready func
 	if v := os.Getenv("COMFORTD_POLL_INTERVAL"); v != "" {
 		if d, err := time.ParseDuration(v); err == nil {
 			*interval = d
+		}
+	}
+	if v := os.Getenv("COMFORTD_BACKSTOP"); v != "" {
+		if d, err := time.ParseDuration(v); err == nil {
+			*backstop = d
 		}
 	}
 	if err := fs.Parse(args); err != nil {
@@ -110,6 +119,7 @@ func runContext(ctx context.Context, args []string, stdout io.Writer, ready func
 		srv := kumotest.New()
 		defer srv.Close()
 		*apiBase = srv.URL
+		*socketURL = srv.URL
 		*creds = filepath.Join(*stateDir, "fake-credentials")
 		if err := os.WriteFile(*creds, []byte(kumotest.User+"\n"+kumotest.Password+"\n"), 0o600); err != nil {
 			slog.Error("fake credentials", "err", err)
@@ -148,8 +158,21 @@ func runContext(ctx context.Context, args []string, stdout io.Writer, ready func
 		return 1
 	}
 	defer hist.Close()
+	var pw atomic.Pointer[pushWiring] // set once the push socket is wired
+	source := func(slug, endpoint, path, old, new string, at time.Time) string {
+		if w := pw.Load(); w != nil {
+			return w.Source.source(slug, endpoint, path, old, new, at)
+		}
+		return ""
+	}
+	beat := func() time.Duration {
+		if w := pw.Load(); w != nil {
+			return w.Beat()
+		}
+		return *interval
+	}
 	st.Subscribe(func(u store.Update) {
-		if err := recordUpdate(hist, u, nil); err != nil {
+		if err := recordUpdate(hist, u, source); err != nil {
 			slog.Warn("record history", "unit", u.Slug, "endpoint", u.Endpoint, "err", err)
 		}
 	})
@@ -200,7 +223,7 @@ func runContext(ctx context.Context, args []string, stdout io.Writer, ready func
 		}
 		bridge, err = homekit.New(homekit.Options{
 			StateDir: *stateDir, BridgeName: *bridgeName, Version: version, Port: *hapPort,
-			Units: sel, Snapshot: st.Get, Control: ctl, Interval: *interval, Now: time.Now, ForceStale: force,
+			Units: sel, Snapshot: st.Get, Control: ctl, Interval: *interval, Beat: beat, Now: time.Now, ForceStale: force,
 		})
 		if err != nil {
 			slog.Error("homekit", "err", err)
@@ -215,6 +238,13 @@ func runContext(ctx context.Context, args []string, stdout io.Writer, ready func
 		slog.Info("homekit enabled", "units", slugs, "port", *hapPort)
 	}
 	p = poller.New(client, st, *interval)
+	if !*noSocket {
+		pw.Store(wirePush(pushOptions{
+			Client: client, Store: st, Poller: p, SocketURL: *socketURL, Backstop: *backstop, PollInterval: *interval,
+			Metrics: metrics, LastSent: ctl.LastSent, Go: workers.Go,
+		}, ctx))
+		slog.Info("push socket enabled", "backstop", *backstop)
+	}
 	workers.Go(func() { ctl.Run(ctx) })
 	workers.Go(func() { p.Run(ctx) })
 
@@ -224,7 +254,7 @@ func runContext(ctx context.Context, args []string, stdout io.Writer, ready func
 		return 1
 	}
 	httpSrv := &http.Server{
-		Handler:           newMux(deps{Metrics: metrics, Store: st, History: hist, Ann: ann, Homekit: bridge, Ctl: ctl, Hub: hub, Images: newImageCache(filepath.Join(*stateDir, "images"), nil), Order: loadOrder(filepath.Join(*stateDir, "order.json")), Inactive: splitList(*inactive), Interval: *interval, Now: time.Now}),
+		Handler:           newMux(deps{Metrics: metrics, Store: st, History: hist, Ann: ann, Homekit: bridge, Ctl: ctl, Hub: hub, Images: newImageCache(filepath.Join(*stateDir, "images"), nil), Order: loadOrder(filepath.Join(*stateDir, "order.json")), Inactive: splitList(*inactive), Interval: *interval, Beat: beat, Now: time.Now}),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 	slog.Info("listening", "addr", ln.Addr().String())

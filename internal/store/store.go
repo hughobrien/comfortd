@@ -108,6 +108,7 @@ type Update struct {
 	Slug, Endpoint string
 	Old, New       json.RawMessage
 	At             time.Time
+	Patched        bool // from Patch (a push), not a fetched body
 }
 
 type Store struct {
@@ -259,7 +260,7 @@ func (s *Store) Patch(slug, endpoint string, fn func(old json.RawMessage) (json.
 		}
 	}
 	s.mu.Unlock()
-	s.notify(Update{Slug: slug, Endpoint: endpoint, Old: old, New: raw, At: at}, !changed)
+	s.notify(Update{Slug: slug, Endpoint: endpoint, Old: old, New: raw, At: at, Patched: true}, !changed)
 	return changed, nil
 }
 

@@ -37,3 +37,34 @@ func TestMetricsScrape(t *testing.T) {
 		t.Error("registry should be private")
 	}
 }
+
+func TestSocketMetrics(t *testing.T) {
+	_, d := ctlDeps(t)
+	d.Metrics = NewMetrics()
+	up := true
+	d.Metrics.RegisterSocket(func() bool { return up }, func() int { return 3 }, func() int { return 2 })
+	d.Metrics.SocketEvent("hold_update")
+	d.Metrics.SocketEvent("hold_update")
+	d.Metrics.SocketMissed("spHeat")
+	mux := newMux(d)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, httptest.NewRequest("GET", "/metrics", nil))
+	body := w.Body.String()
+	for _, want := range []string{
+		"comfortd_socket_connected 1",
+		"comfortd_socket_reconnects_total 3",
+		"comfortd_socket_dropped_total 2",
+		`comfortd_socket_events_total{event="hold_update"} 2`,
+		`comfortd_socket_missed_changes_total{field="spHeat"} 1`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("missing %s\n%s", want, body)
+		}
+	}
+	up = false
+	w = httptest.NewRecorder()
+	mux.ServeHTTP(w, httptest.NewRequest("GET", "/metrics", nil))
+	if !strings.Contains(w.Body.String(), "comfortd_socket_connected 0") {
+		t.Error("connected should drop to 0")
+	}
+}

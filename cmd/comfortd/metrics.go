@@ -26,8 +26,9 @@ type Metrics struct {
 	mode, fan                                                      *prometheus.GaugeVec // one-hot
 	hold, scheduleActive, alert, thermostatBattery, endpointError  *prometheus.GaugeVec
 
-	requests *prometheus.CounterVec
-	latency  *prometheus.HistogramVec
+	requests                   *prometheus.CounterVec
+	socketEvents, socketMissed *prometheus.CounterVec
+	latency                    *prometheus.HistogramVec
 	// perUnit are reset on every Update so a value that went away disappears.
 	perUnit []*prometheus.GaugeVec
 }
@@ -66,8 +67,32 @@ func NewMetrics() *Metrics {
 		Buckets: []float64{.1, .25, .5, 1, 2.5, 5, 10, 15},
 	}, []string{"route"})
 	m.reg.MustRegister(m.requests, m.latency)
+	m.socketEvents = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "comfortd_socket_events_total", Help: "Push events applied from the Comfort app's Socket.IO feed, by event name."}, []string{"event"})
+	m.socketMissed = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "comfortd_socket_missed_changes_total", Help: "Changes a poll found that the connected socket had not pushed, by field."}, []string{"field"})
+	m.reg.MustRegister(m.socketEvents, m.socketMissed)
 	return m
 }
+
+// RegisterSocket adds the push socket's gauges: connected now, reconnects so
+// far, events dropped from a full queue.
+func (m *Metrics) RegisterSocket(connected func() bool, reconnects, dropped func() int) {
+	m.reg.MustRegister(
+		prometheus.NewGaugeFunc(prometheus.GaugeOpts{Name: "comfortd_socket_connected", Help: "The push socket is connected (0/1)."},
+			func() float64 { return b2f(connected()) }),
+		prometheus.NewCounterFunc(prometheus.CounterOpts{Name: "comfortd_socket_reconnects_total", Help: "Push socket reconnects."},
+			func() float64 { return float64(reconnects()) }),
+		prometheus.NewCounterFunc(prometheus.CounterOpts{Name: "comfortd_socket_dropped_total", Help: "Push events dropped because the queue was full."},
+			func() float64 { return float64(dropped()) }),
+	)
+}
+
+// SocketEvent counts one applied push event.
+func (m *Metrics) SocketEvent(name string) { m.socketEvents.WithLabelValues(name).Inc() }
+
+// SocketMissed counts a change a poll found that the socket had not pushed.
+func (m *Metrics) SocketMissed(field string) { m.socketMissed.WithLabelValues(field).Inc() }
 
 // ObserveRequest is the kumo client's OnRequest hook.
 func (m *Metrics) ObserveRequest(method, route string, status int, took time.Duration) {
