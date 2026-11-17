@@ -76,8 +76,8 @@ func TestOverlayDeviceFastAppliesLiveFieldsOnly(t *testing.T) {
 	if m["modelNumber"] != o["modelNumber"] || m["updatedAt"] != o["updatedAt"] {
 		t.Fatal("non-live fields must be kept from the stored body")
 	}
-	if dc := m["displayConfig"].(map[string]any); dc["filter"] != true {
-		t.Fatalf("displayConfigFast should map onto displayConfig: %v", dc)
+	if !equalJSON(m["displayConfig"], o["displayConfig"]) {
+		t.Fatalf("displayConfigFast disagrees with the full displayConfig and must be ignored: %v", m["displayConfig"])
 	}
 }
 
@@ -137,4 +137,10 @@ func TestOverlayHoldNeedsStoredZone(t *testing.T) {
 	if _, err := OverlayHold(nil, json.RawMessage(`{"enabled":true}`)); err != errNothingStored {
 		t.Fatalf("err = %v", err)
 	}
+}
+
+func equalJSON(a, b any) bool {
+	x, _ := json.Marshal(a)
+	y, _ := json.Marshal(b)
+	return string(x) == string(y)
 }

@@ -19,8 +19,8 @@ var pushFastKeys = []string{"rssi", "roomTemp", "operationMode", "power", "spCoo
 // OverlayDevice applies a device_update push onto the stored REST device body.
 // Only keys the stored body already has are touched, so the stored key set stays
 // the REST one and history sees only real changes. A "full" push overlays every
-// such key; a "fast" one only the live fields (displayConfigFast maps onto
-// displayConfig).
+// such key; a "fast" one only the live fields (displayConfigFast is ignored: it
+// disagrees with the full record's displayConfig, e.g. filter, and would flip it).
 func OverlayDevice(old, push json.RawMessage) (json.RawMessage, error) {
 	if len(old) == 0 {
 		return nil, errNothingStored
@@ -40,11 +40,6 @@ func OverlayDevice(old, push json.RawMessage) (json.RawMessage, error) {
 				if _, has := base[k]; has {
 					base[k] = v
 				}
-			}
-		}
-		if v, ok := p["displayConfigFast"]; ok {
-			if _, has := base["displayConfig"]; has {
-				base["displayConfig"] = v
 			}
 		}
 	} else {

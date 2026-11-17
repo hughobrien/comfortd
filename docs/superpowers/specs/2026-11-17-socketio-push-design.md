@@ -69,7 +69,7 @@ of a change. This gives instant state, instant holds, and a way to tell the app'
     - Both shapes are applied as an **overlay onto the stored REST device JSON**, never stored as received, so the stored key set is
       always the REST one and history sees only real changes. Only keys already present in the stored map are overlaid (full:
       all of them; fast: `rssi`, `roomTemp`, `operationMode`, `power`, `spCool`, `spHeat`, `airDirection`, `fanSpeed`, `connected`;
-      `displayConfigFast` maps onto `displayConfig`). `date`, `payloadType`, `scheduleOwner`, `lastStatusChangeAt` and other
+      `displayConfigFast` is ignored: it disagrees with the full `displayConfig`, e.g. filter, and flipped history rows). `date`, `payloadType`, `scheduleOwner`, `lastStatusChangeAt` and other
       push-only keys are dropped. If nothing is stored yet, the event is ignored.
     - The overlay runs through a new atomic `store.Patch(slug, endpoint, func(old json.RawMessage) (json.RawMessage, error))` that
       holds the store lock across read and write, so it cannot overwrite a fresher poll (the hold patch lands just when
