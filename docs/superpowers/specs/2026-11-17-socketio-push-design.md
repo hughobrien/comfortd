@@ -47,7 +47,7 @@ of a change. This gives instant state, instant holds, and a way to tell the app'
 - It reports `connected`/`disconnected` through callbacks so the daemon can run a catch-up refresh and expose a metric.
 - Handshake: after the websocket opens, wait for the server's open packet `0{...}`, send `40`, and only emit `subscribe` after the
   server's `40{sid}`. Two separate unauthorised paths: HTTP 401 on the upgrade and a `44` connect_error packet; both force one token
-  refresh, bounded by the existing `authRejectGap` so a non-auth rejection cannot loop logins. Each `subscribe` should be answered
+  refresh, bounded by a socket-side gap (30 s between forced refreshes; `authRejectGap` only gates failed logins). Each `subscribe` should be answered
   by `subscribed`; a missing reply is logged and counted.
 - The reader goroutine does nothing slow: events go on a buffered channel to a worker that applies them, so history appends,
   HomeKit syncs and the catch-up `PollOnce` cannot make a pong miss `pingTimeout`.
@@ -58,11 +58,13 @@ of a change. This gives instant state, instant holds, and a way to tell the app'
 - `Run`: initial full poll as today. Then **one ticker at 15 min** for the backstop (device, zone, MHK2, sensor, schedule) and the
   existing 6 h ticker for profile and status. The 60/120 s fast poll goes away; the `interval` argument becomes the backstop interval.
 - Also a full `PollOnce` on every socket (re)connect, so anything missed while it was down is picked up. Debounced to once a minute.
-- `Kick` **stays** (`control` calls it after every send and hold, and a sent field expires after `HoldTimeout`, 30 s, with an
-  `unconfirmed` history record if no update confirms it). While the socket is connected `Kick` does nothing; while it is down or
-  `-no-socket` is set it polls at +3/+8/+15 s as now. Removing it for good waits on a live check that our own REST command
-  echoes on the socket (needs Hugh's OK to send one change to Office; until then the kicks stay as the fallback).
-- Socket handlers (`internal/poller/push.go`), run on the socket goroutine:
+- `Kick` **stays and keeps polling** until a live check proves our own REST command echoes on the socket (a flag, `pushEchoVerified`,
+  false for now; Kick does nothing only when it is true and the socket is connected). Without the echo every command would time out as
+  `unconfirmed`. Detail: (`control` calls it after every send and hold, and a sent field expires after `HoldTimeout`, 30 s, with an
+  `unconfirmed` history record if no update confirms it). It polls at +3/+8/+15 s as now. Setting the flag needs a live check (Hugh's OK for one Office change); until then the kicks stay.
+- Socket handlers (`internal/poller/push.go`) run on a **worker**, fed by a buffered channel (256). If the buffer is full the oldest
+  event is dropped and counted (`comfortd_socket_dropped_total`); a later full `device_update` supersedes it anyway. The reconnect
+  catch-up `PollOnce` runs in its own goroutine, never on the worker, so events keep flowing during a poll:
   - `device_update`, serial → slug via `store.Units()`:
     - Both shapes are applied as an **overlay onto the stored REST device JSON**, never stored as received, so the stored key set is
       always the REST one and history sees only real changes. Only keys already present in the stored map are overlaid (full:
@@ -71,7 +73,16 @@ of a change. This gives instant state, instant holds, and a way to tell the app'
       push-only keys are dropped. If nothing is stored yet, the event is ignored.
     - The overlay runs through a new atomic `store.Patch(slug, endpoint, func(old json.RawMessage) (json.RawMessage, error))` that
       holds the store lock across read and write, so it cannot overwrite a fresher poll (the hold patch lands just when
-      `AfterHold`'s `PollOnce` does).
+      `AfterHold`'s `PollOnce` does). `Patch` shares `Put`'s internals (a `put` helper called with the lock held: `ParseDevice`, the
+      `ParseZones` wrap, setting `Device`/`Zone`/`LastDeviceOK`/`At`); `fn` must not call the store. A `hold_update` is ignored until
+      a zone is stored, like a device push.
+    - **The store still notifies subscribers on every Put/Patch** (`At[ep]` and `LastDeviceOK` must advance on an unchanged value,
+      and `ctl.Observe` must confirm a sent field whose value equals the stored one, or it would go `unconfirmed` at 30 s). To avoid
+      SSE and HomeKit churn, a push whose overlay changes nothing is handled by `Patch` returning "unchanged": it advances `At` and
+      `LastDeviceOK` and notifies **nobody except `Observe`** (a separate, always-called subscriber slot); the other subscribers
+      (history, hub, HomeKit) are called only when the JSON changed. Tests pin both behaviours.
+    - The push `holdMode.endTime` may format differently from the REST zone's (ms precision, e.g. `...06:00:01.834Z`). A fixture of a
+      real push decides; if the formats differ, the overlay normalises the push to the REST format so the 15 min poll records no fake change.
   - `hold_update`: patch the stored zone JSON's `holdMode` (`enabled`, `type`, `holdType`, `origin`, `endTime`, `id`, plus the held
     values; `deviceSerial` and `date` stripped) through `store.Patch`. The event arrives twice per change and the two are **not**
     identical (on a hold end the first `endTime` is a minute earlier), so patches are debounced ~150 ms per unit and only the last
@@ -87,9 +98,11 @@ So the rule is: a changed **intent field** (`operationMode`, `power`, `spHeat`, 
 `holdMode.*`) is recorded with `Source: "app"` only if a `hold_update` with `enabled` true arrived for that unit in the last 60 s
 that comfortd did not cause. Everything else keeps an empty source: `roomTemp`, `rssi`, `connected`, `realValues` jitter, schedule
 events firing, a hold expiring at its `endTime`, the wall thermostat and the IR remote. "Did comfortd cause it" uses a new
-`Controller.LastSent(slug) time.Time`, set in `send`, `SetHold` and `EndHold` (there is no pending-hold state today); a hold update
-within 60 s after our own send is ours. Siri versus Home-app sliders cannot be told apart and are not. This subscriber must be
-registered before `ctl.Observe` (as now) so pending fields are still present; a test pins that.
+`Controller.LastSent(slug) time.Time`, set **before** the HTTP call in `send`, `SetHold` and `EndHold` (the echo can beat the HTTP
+response; there is no pending-hold state today); a hold update within 60 s after our own send is ours. A shared tracker
+(`holdSeen`: time of the last `hold_update` with `enabled` true per slug, written by the push worker) lives in `cmd/comfortd`;
+`recordUpdate` receives `source func(slug string, at time.Time, path string) string` that reads the tracker and `LastSent`. An app
+hold **end** (`enabled` false) is not tagged `app` (acceptable). Siri versus Home-app sliders cannot be told apart and are not.
 
 ### Wiring and operation
 
@@ -99,8 +112,10 @@ registered before `ctl.Observe` (as now) so pending fields are still present; a 
   runs the same path end to end offline. `-no-socket` is for emergencies and for tests of the polling path.
 - Metrics: `comfortd_socket_connected` gauge and `comfortd_socket_events_total{event}`, `comfortd_socket_reconnects_total`.
 - Staleness: `Snapshot.Stale` is `3 × interval` today, and the interval becomes 15 min, which would hide a dead socket for 45 min.
-  Staleness gets its own window, `3 × the push beat` (a constant, 3 min, set once the live beat is measured: the capture saw
-  `device_update` for a quiet unit every ~10 to 15 s, which Task 1's live check confirms), measured from the last `device_update` of
+  Staleness gets its own window function, `window func() time.Duration`, (3 × 60 s while the socket is connected: the capture saw `device_update` for a quiet unit every ~10 to 15 s; 3 × the poll interval
+  while it is down or with `-no-socket`; the poller returns to the old interval while the socket is down, so a short window never
+  sits against a 15 min backstop). `Snapshot.Stale(now, interval)` keeps its signature; its callers (server.go, metrics.go,
+  ui/view.go, ui/card.go, homekit/bridge.go, `Options.Interval`) pass `window()` instead of the poll interval, measured from the last `device_update` of
   any shape, or from the last poll when the socket is down for more than a minute. HomeKit, the UI and the metrics read the new
   window; they no longer take the poll interval.
 - Churn: the store only notifies subscribers when a `Patch`/`Put` changes the JSON, so an unchanged overlay does not trigger
@@ -121,4 +136,4 @@ registered before `ctl.Observe` (as now) so pending fields are still present; a 
 ## Left to the implementer
 
 - Exact reconnect timings, the fast-merge key list (as above), file layout inside `pkg/kumo`, metric label detail.
-- How `Expecting` is computed from the controller's existing pending state.
+- Names and file layout beyond those given.
