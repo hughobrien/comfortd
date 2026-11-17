@@ -112,7 +112,7 @@ hold **end** (`enabled` false) is not tagged `app` (acceptable). Siri versus Hom
   runs the same path end to end offline. `-no-socket` is for emergencies and for tests of the polling path.
 - Metrics: `comfortd_socket_connected` gauge and `comfortd_socket_events_total{event}`, `comfortd_socket_reconnects_total`.
 - Staleness: `Snapshot.Stale` is `3 × interval` today, and the interval becomes 15 min, which would hide a dead socket for 45 min.
-  Staleness gets its own window function, `window func() time.Duration`, (3 × 60 s while the socket is connected: the capture saw `device_update` for a quiet unit every ~10 to 15 s; 3 × the poll interval
+  Staleness gets its own window function, `window func() time.Duration`, (3 × 2 min while the socket is connected: the capture saw `device_update` for a quiet unit every ~10 to 15 s; 3 × the poll interval
   while it is down or with `-no-socket`; the poller returns to the old interval while the socket is down, so a short window never
   sits against a 15 min backstop). `Snapshot.Stale(now, interval)` keeps its signature; its callers (server.go, metrics.go,
   ui/view.go, ui/card.go, homekit/bridge.go, `Options.Interval`) pass `window()` instead of the poll interval, measured from the last `device_update` of
@@ -124,6 +124,14 @@ hold **end** (`enabled` false) is not tagged `app` (acceptable). Siri versus Hom
   when a pushed device body disagrees with the next poll for `power`, `operationMode`, `spHeat`, `spCool`, `fanSpeed` or
   `airDirection`), then set the backstop to 15 min. Then, with Hugh's OK for one Office change, check that comfortd's own REST
   command echoes on the socket, and only then retire the kicks.
+
+## Built differently from the first draft
+
+- Stale window while connected is 6 min (3 × a 2 min beat): the 2026-11-17 capture showed a quiet unit going 40 s between
+  `device_update`s, so 3 min was too tight.
+- `device_status_v2` (adapter connected/disconnected) is not applied yet; its payload is only known from the decompile. A dead
+  adapter shows through silence (stale after 6 min) until that is added.
+- `-no-socket`, `-socket-url`, `-backstop` (env `COMFORTD_BACKSTOP`) are the new flags.
 
 ## Constraints
 
