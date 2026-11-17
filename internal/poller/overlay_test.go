@@ -55,8 +55,8 @@ func TestOverlayDeviceFullKeepsRESTKeySet(t *testing.T) {
 	if m["operationMode"] != "cool" || m["spCool"] != float64(25) || m["fanSpeed"] != "quiet" {
 		t.Fatalf("values not applied: %v %v %v", m["operationMode"], m["spCool"], m["fanSpeed"])
 	}
-	if dc := m["displayConfig"].(map[string]any); dc["defrost"] != true {
-		t.Fatalf("displayConfig not applied: %v", dc)
+	if !equalJSON(m["displayConfig"], o["displayConfig"]) {
+		t.Fatalf("displayConfig must stay the REST one (push and REST disagree on filter): %v", m["displayConfig"])
 	}
 }
 

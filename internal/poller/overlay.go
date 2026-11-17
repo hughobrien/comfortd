@@ -44,8 +44,8 @@ func OverlayDevice(old, push json.RawMessage) (json.RawMessage, error) {
 		}
 	} else {
 		for k, v := range p {
-			if k == "payloadType" || k == "date" {
-				continue
+			if k == "payloadType" || k == "date" || k == "displayConfig" {
+				continue // displayConfig differs between push and REST (filter); the poll owns it
 			}
 			if _, has := base[k]; has {
 				base[k] = v
