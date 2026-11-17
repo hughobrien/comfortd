@@ -39,6 +39,7 @@ type CardView struct {
 	// them; Pressed marks the current one.
 	Modes, Fans, Vanes []Choice
 	Schedule           ScheduleView
+	Hold               HoldView
 	HoldUntil          string // "hold until today 22:00" while the app's temporary override is on, else empty
 }
 
@@ -143,6 +144,7 @@ func BuildCard(s store.Snapshot, ann *annotate.Set, ctl CardControl, now time.Ti
 		c.Alerts = append(c.Alerts, "thermostat battery "+th.Battery)
 	}
 	c.Schedule = BuildSchedule(s, now)
+	c.Hold = BuildHold(s, ctl.Writable, now)
 	if z := s.Zone; z != nil {
 		c.ScheduleActive, c.HoldEnabled = z.HasActiveSchedule, z.HoldEnabled
 		c.Schedule.Active = z.HasActiveSchedule
