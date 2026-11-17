@@ -180,7 +180,7 @@ func runContext(ctx context.Context, args []string, stdout io.Writer, ready func
 			}
 		},
 	})
-	st.Subscribe(ctl.Observe) // before the hub and HomeKit, so they see a cleared hold
+	st.SubscribeAlways(ctl.Observe) // before the hub and HomeKit, so they see a cleared hold
 	st.Subscribe(func(u store.Update) { hub.Publish(pushEvent{Slug: u.Slug}) })
 	hist.Subscribe(func(r history.Record) { hub.Publish(pushEvent{Record: &r}) })
 	if slugs := splitList(*hkUnits); len(slugs) > 0 {

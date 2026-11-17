@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"maps"
+	"reflect"
 	"slices"
 	"sort"
 	"strings"
@@ -112,7 +113,7 @@ type Update struct {
 type Store struct {
 	mu   sync.Mutex
 	snap map[string]*Snapshot
-	subs []func(Update)
+	subs []subscriber
 }
 
 func New(units []Unit) *Store {
@@ -139,34 +140,77 @@ func (s *Store) Units() []Unit {
 	return out
 }
 
-func (s *Store) Put(slug, endpoint string, raw json.RawMessage, at time.Time) error {
-	var dev *kumo.Device
-	var prof *kumo.Profile
+// parsed holds what a stored body is parsed into, by endpoint.
+type parsed struct {
+	dev  *kumo.Device
+	prof *kumo.Profile
+	zone *kumo.Zone
+}
+
+func parse(endpoint string, raw json.RawMessage) (parsed, error) {
+	var p parsed
 	switch endpoint {
 	case EndpointDevice:
 		d, err := kumo.ParseDevice(raw)
 		if err != nil {
-			return err
+			return p, err
 		}
-		dev = &d
+		p.dev = &d
 	case EndpointProfile:
-		p, err := kumo.ParseProfile(raw)
+		pr, err := kumo.ParseProfile(raw)
 		if err != nil {
-			return err
+			return p, err
 		}
-		prof = &p
-	}
-	var zone *kumo.Zone
-	if endpoint == EndpointZone {
+		p.prof = &pr
+	case EndpointZone:
 		zs, err := kumo.ParseZones(append(append(json.RawMessage("["), raw...), ']'))
 		if err != nil {
-			return err
+			return p, err
 		}
 		if len(zs) == 1 {
-			zone = &zs[0]
+			p.zone = &zs[0]
 		}
 	}
+	return p, nil
+}
 
+// commit stores raw for endpoint; the caller holds s.mu.
+func (sn *Snapshot) commit(endpoint string, raw json.RawMessage, p parsed, at time.Time) {
+	sn.Raw[endpoint] = append(json.RawMessage(nil), raw...)
+	sn.At[endpoint] = at
+	delete(sn.Errors, endpoint)
+	if p.dev != nil {
+		sn.Device = p.dev
+		sn.LastDeviceOK = at
+	}
+	if p.prof != nil {
+		sn.Profile = p.prof
+	}
+	if p.zone != nil {
+		sn.Zone = p.zone
+	}
+}
+
+// notify calls the subscribers; onlyAlways limits it to those that asked to
+// hear about every write.
+func (s *Store) notify(u Update, onlyAlways bool) {
+	s.mu.Lock()
+	subs := slices.Clone(s.subs)
+	s.mu.Unlock()
+	for _, sub := range subs {
+		if onlyAlways && !sub.always {
+			continue
+		}
+		sub.fn(u)
+	}
+}
+
+// Put stores a fetched body and tells every subscriber.
+func (s *Store) Put(slug, endpoint string, raw json.RawMessage, at time.Time) error {
+	p, err := parse(endpoint, raw)
+	if err != nil {
+		return err
+	}
 	s.mu.Lock()
 	sn, ok := s.snap[slug]
 	if !ok {
@@ -174,27 +218,57 @@ func (s *Store) Put(slug, endpoint string, raw json.RawMessage, at time.Time) er
 		return fmt.Errorf("store: unknown unit %q", slug)
 	}
 	old := sn.Raw[endpoint]
-	sn.Raw[endpoint] = append(json.RawMessage(nil), raw...)
-	sn.At[endpoint] = at
-	delete(sn.Errors, endpoint)
-	if dev != nil {
-		sn.Device = dev
-		sn.LastDeviceOK = at
-	}
-	if prof != nil {
-		sn.Profile = prof
-	}
-	if zone != nil {
-		sn.Zone = zone
-	}
-	subs := slices.Clone(s.subs)
+	sn.commit(endpoint, raw, p, at)
 	s.mu.Unlock()
-
-	u := Update{Slug: slug, Endpoint: endpoint, Old: old, New: raw, At: at}
-	for _, fn := range subs {
-		fn(u)
-	}
+	s.notify(Update{Slug: slug, Endpoint: endpoint, Old: old, New: raw, At: at}, false)
 	return nil
+}
+
+// Patch rewrites the stored body of endpoint atomically: fn gets the current
+// body (nil if none) and returns the new one; it runs under the store lock and
+// must not call the store. If fn returns an error nothing changes. If the new
+// body means the same JSON as the old, only the timestamps advance and only
+// SubscribeAlways subscribers are told (changed is false); otherwise it is
+// stored like a Put and everyone is told.
+func (s *Store) Patch(slug, endpoint string, fn func(old json.RawMessage) (json.RawMessage, error), at time.Time) (changed bool, err error) {
+	s.mu.Lock()
+	sn, ok := s.snap[slug]
+	if !ok {
+		s.mu.Unlock()
+		return false, fmt.Errorf("store: unknown unit %q", slug)
+	}
+	old := sn.Raw[endpoint]
+	raw, err := fn(old)
+	if err != nil {
+		s.mu.Unlock()
+		return false, err
+	}
+	p, err := parse(endpoint, raw)
+	if err != nil {
+		s.mu.Unlock()
+		return false, err
+	}
+	changed = !sameJSON(old, raw)
+	if changed {
+		sn.commit(endpoint, raw, p, at)
+	} else {
+		sn.At[endpoint] = at
+		delete(sn.Errors, endpoint)
+		if p.dev != nil {
+			sn.LastDeviceOK = at
+		}
+	}
+	s.mu.Unlock()
+	s.notify(Update{Slug: slug, Endpoint: endpoint, Old: old, New: raw, At: at}, !changed)
+	return changed, nil
+}
+
+func sameJSON(a, b json.RawMessage) bool {
+	var x, y any
+	if json.Unmarshal(a, &x) != nil || json.Unmarshal(b, &y) != nil {
+		return false
+	}
+	return reflect.DeepEqual(x, y)
 }
 
 func (s *Store) PutError(slug, endpoint string, err error, at time.Time) {
@@ -226,10 +300,24 @@ func (s *Store) All() []Snapshot {
 	return out
 }
 
+type subscriber struct {
+	fn     func(Update)
+	always bool
+}
+
+// Subscribe registers fn for every Put and for each Patch that changes the data.
 func (s *Store) Subscribe(fn func(Update)) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.subs = append(s.subs, fn)
+	s.subs = append(s.subs, subscriber{fn: fn})
+}
+
+// SubscribeAlways is Subscribe, but fn also hears Patches that changed nothing
+// (the controller needs them to confirm a sent value that equals the stored one).
+func (s *Store) SubscribeAlways(fn func(Update)) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.subs = append(s.subs, subscriber{fn: fn, always: true})
 }
 
 func clone(sn *Snapshot) Snapshot {

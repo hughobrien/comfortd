@@ -111,3 +111,87 @@ func TestSetpointRangePerMode(t *testing.T) {
 		}
 	}
 }
+
+func patchSetMode(mode string) func(json.RawMessage) (json.RawMessage, error) {
+	return func(old json.RawMessage) (json.RawMessage, error) {
+		var m map[string]any
+		if err := json.Unmarshal(old, &m); err != nil {
+			return nil, err
+		}
+		m["operationMode"] = mode
+		return json.Marshal(m)
+	}
+}
+
+func TestPatchChangedNotifiesEveryone(t *testing.T) {
+	st := New([]Unit{{Slug: "office"}})
+	st.Put("office", EndpointDevice, fixture(t, "device_office.json"), time.Now())
+	var onChange, always int
+	st.Subscribe(func(Update) { onChange++ })
+	st.SubscribeAlways(func(Update) { always++ })
+	changed, err := st.Patch("office", EndpointDevice, patchSetMode("cool"), time.Now())
+	if err != nil || !changed {
+		t.Fatalf("changed=%v err=%v", changed, err)
+	}
+	if onChange != 1 || always != 1 {
+		t.Fatalf("onChange=%d always=%d", onChange, always)
+	}
+	sn, _ := st.Get("office")
+	if sn.Device.OperationMode != "cool" {
+		t.Fatalf("mode = %q", sn.Device.OperationMode)
+	}
+}
+
+func TestPatchUnchangedAdvancesTimeAndNotifiesOnlyAlways(t *testing.T) {
+	st := New([]Unit{{Slug: "office"}})
+	t0 := time.Now()
+	st.Put("office", EndpointDevice, fixture(t, "device_office.json"), t0)
+	var onChange, always int
+	st.Subscribe(func(Update) { onChange++ })
+	st.SubscribeAlways(func(Update) { always++ })
+	same := func(old json.RawMessage) (json.RawMessage, error) {
+		var m map[string]any
+		json.Unmarshal(old, &m)
+		return json.Marshal(m) // same content, different key order
+	}
+	t1 := t0.Add(time.Minute)
+	changed, err := st.Patch("office", EndpointDevice, same, t1)
+	if err != nil || changed {
+		t.Fatalf("changed=%v err=%v", changed, err)
+	}
+	if onChange != 0 || always != 1 {
+		t.Fatalf("onChange=%d always=%d", onChange, always)
+	}
+	sn, _ := st.Get("office")
+	if !sn.At[EndpointDevice].Equal(t1) || !sn.LastDeviceOK.Equal(t1) {
+		t.Fatalf("At=%v LastDeviceOK=%v, want %v", sn.At[EndpointDevice], sn.LastDeviceOK, t1)
+	}
+}
+
+func TestPatchErrorLeavesStoreUntouched(t *testing.T) {
+	st := New([]Unit{{Slug: "office"}})
+	raw := fixture(t, "device_office.json")
+	st.Put("office", EndpointDevice, raw, time.Now())
+	_, err := st.Patch("office", EndpointDevice, func(json.RawMessage) (json.RawMessage, error) {
+		return nil, os.ErrInvalid
+	}, time.Now())
+	if err == nil {
+		t.Fatal("want the fn error")
+	}
+	sn, _ := st.Get("office")
+	if string(sn.Raw[EndpointDevice]) != string(raw) {
+		t.Fatal("store changed on error")
+	}
+}
+
+func TestPatchPassesNilOldWhenNothingStored(t *testing.T) {
+	st := New([]Unit{{Slug: "office"}})
+	var got json.RawMessage = json.RawMessage("x")
+	_, err := st.Patch("office", EndpointZone, func(old json.RawMessage) (json.RawMessage, error) {
+		got = old
+		return nil, os.ErrNotExist // caller declines
+	}, time.Now())
+	if err == nil || got != nil {
+		t.Fatalf("err=%v old=%v", err, got)
+	}
+}
