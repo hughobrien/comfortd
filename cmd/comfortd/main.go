@@ -167,7 +167,7 @@ func runContext(ctx context.Context, args []string, stdout io.Writer, ready func
 	var p *poller.Poller
 	var bridge *homekit.Bridge // set before any goroutine that can call OnChange starts
 	ctl := control.New(control.Options{
-		Sender: client, Schedules: client, Store: st, History: hist, Writable: splitList(*writable),
+		Sender: client, Schedules: client, Holds: client, Store: st, History: hist, Writable: splitList(*writable),
 		AfterSchedule: func(ctx context.Context) { p.PollSchedule(ctx) },
 		LastModePath:  filepath.Join(*stateDir, "lastmode.json"),
 		SetpointsPath: filepath.Join(*stateDir, "setpoints.json"),
