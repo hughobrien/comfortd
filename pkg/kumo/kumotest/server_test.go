@@ -161,3 +161,53 @@ func TestFailNext(t *testing.T) {
 		t.Fatalf("second status = %d, want 200", resp.StatusCode)
 	}
 }
+
+func TestHoldEndpoint(t *testing.T) {
+	s := New()
+	defer s.Close()
+	access, _ := login(t, s)
+	url := s.URL + "/v4/sites/" + SiteID + "/hold"
+	zone := func(enabled bool) []map[string]any {
+		return []map[string]any{{"id": OfficeZoneID, "enabled": enabled, "type": "hold"}}
+	}
+	// a string endTime is the cloud's 400
+	resp, b := do(t, "POST", url, access, true, map[string]any{"siteId": SiteID, "endTime": "2026-11-17T06:22:00.000Z", "zones": zone(true)})
+	if resp.StatusCode != 400 || !bytes.Contains(b, []byte("Expected number, received string")) {
+		t.Fatalf("string endTime: %d %s", resp.StatusCode, b)
+	}
+	resp, b = do(t, "POST", url, access, true, map[string]any{"siteId": SiteID, "endTime": 1794896520, "zones": zone(true)})
+	if resp.StatusCode != 201 || !bytes.Contains(b, []byte(`"holdType":"until_specific_time"`)) {
+		t.Fatalf("timed: %d %s", resp.StatusCode, b)
+	}
+	holdOf := func() map[string]any {
+		_, zb := do(t, "GET", s.URL+"/sites/"+SiteID+"/zones", access, true, nil)
+		var zs []map[string]any
+		json.Unmarshal(zb, &zs)
+		for _, z := range zs {
+			if z["id"] == OfficeZoneID {
+				return z["holdMode"].(map[string]any)
+			}
+		}
+		t.Fatal("no office zone")
+		return nil
+	}
+	if h := holdOf(); h["enabled"] != true || h["holdType"] != "until_specific_time" || h["endTime"] != "2026-11-17T06:22:00.000Z" {
+		t.Fatalf("zone hold %v", h)
+	}
+	if resp, _ = do(t, "POST", url, access, true, map[string]any{"siteId": SiteID, "endTime": nil, "zones": zone(true)}); resp.StatusCode != 201 {
+		t.Fatalf("permanent %d", resp.StatusCode)
+	}
+	if h := holdOf(); h["holdType"] != "permanent" {
+		t.Fatalf("permanent hold %v", h)
+	}
+	if resp, _ = do(t, "POST", url, access, true, map[string]any{"siteId": SiteID, "zones": zone(false)}); resp.StatusCode != 201 {
+		t.Fatalf("end %d", resp.StatusCode)
+	}
+	if h := holdOf(); h["enabled"] != false {
+		t.Fatalf("ended hold %v", h)
+	}
+	w := s.HoldWrites()
+	if len(w) != 3 || w[0].EndTime == nil || *w[0].EndTime != 1794896520 || !w[1].Permanent || w[2].Enabled {
+		t.Fatalf("writes (the rejected one must not be recorded): %+v", w)
+	}
+}

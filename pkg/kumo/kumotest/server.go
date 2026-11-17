@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"sync"
+	"time"
 )
 
 //go:embed fixtures/*.json
@@ -24,6 +25,8 @@ const (
 	OfficeSerial = "TESTSERIAL0001"
 	HouseSerial  = "TESTSERIAL0002"
 	SiteID       = "00000000-0000-4000-8000-000000000001"
+	HouseZoneID  = "00000000-0000-4000-8000-000000000004"
+	OfficeZoneID = "00000000-0000-4000-8000-000000000007"
 )
 
 // Command is a recorded send-command request.
@@ -57,6 +60,8 @@ type Server struct {
 	schedules     []map[string]any // the winter season's per-zone schedules, loaded on first use
 	scheduleSeq   int
 	schedWrites   []ScheduleWrite
+	holds         map[string]map[string]any // zone id -> holdMode set by a hold write
+	holdWrites    []HoldWrite
 }
 
 // ScheduleWrite is a recorded schedule change: "add" with the event's fields,
@@ -89,6 +94,7 @@ func New() *Server {
 			OfficeSerial: fixtureMap("device_office.json"),
 			HouseSerial:  fixtureMap("device_house.json"),
 		},
+		holds:    map[string]map[string]any{},
 		expired:  map[string]bool{},
 		fails:    map[string]*failure{},
 		requests: map[string]int{},
@@ -107,6 +113,7 @@ func New() *Server {
 	mux.HandleFunc("GET /v4/schedule-seasons/{season}/schedules", s.authed(s.handleSeasonSchedules))
 	mux.HandleFunc("POST /v4/schedule-seasons/{season}/schedules", s.authed(s.handleAddEvents))
 	mux.HandleFunc("DELETE /v4/schedules/{schedule}/events", s.authed(s.handleDeleteEvents))
+	mux.HandleFunc("POST /v4/sites/{site}/hold", s.authed(s.handleHold))
 	mux.HandleFunc("POST /devices/send-command", s.authed(s.handleSendCommand))
 	s.srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		s.mu.Lock()
@@ -284,6 +291,9 @@ func (s *Server) handleZones(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for _, z := range zones {
+		if h, ok := s.holds[z["id"].(string)]; ok {
+			z["holdMode"] = h
+		}
 		ad, _ := z["adapter"].(map[string]any)
 		serial, _ := ad["deviceSerial"].(string)
 		dev, ok := s.devices[serial]
@@ -472,4 +482,75 @@ func (s *Server) handleDeleteEvents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, 404, []byte(`{}`))
+}
+
+// HoldWrite is an accepted hold change. EndTime is nil for a permanent hold
+// or an end; Enabled is false for an end.
+type HoldWrite struct {
+	Zone      string
+	Enabled   bool
+	EndTime   *int64
+	Permanent bool
+}
+
+// HoldWrites returns the accepted hold changes so far.
+func (s *Server) HoldWrites() []HoldWrite {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]HoldWrite(nil), s.holdWrites...)
+}
+
+// handleHold mimics POST /v4/sites/{id}/hold: endTime must be a number or
+// null; the reply carries the zone's new holdMode.
+func (s *Server) handleHold(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		SiteID  string          `json:"siteId"`
+		EndTime json.RawMessage `json:"endTime"`
+		Zones   []struct {
+			ID      string `json:"id"`
+			Enabled bool   `json:"enabled"`
+		} `json:"zones"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || r.PathValue("site") != SiteID || len(body.Zones) == 0 {
+		writeJSON(w, 400, []byte(`{}`))
+		return
+	}
+	var end *int64
+	if len(body.EndTime) > 0 && string(body.EndTime) != "null" {
+		var n int64
+		if json.Unmarshal(body.EndTime, &n) != nil {
+			writeJSON(w, 400, []byte(`{"error":{"endTime":"Expected number, received string"}}`))
+			return
+		}
+		end = &n
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	now := time.Now().UTC()
+	var modes []map[string]any
+	for _, z := range body.Zones {
+		hm := map[string]any{"id": "00000000-0000-4000-8000-0000000000a1", "enabled": z.Enabled, "type": "hold", "origin": "adapter",
+			"operationMode": nil, "fanSpeed": nil, "airDirection": nil, "spCool": nil, "spHeat": nil}
+		stamp := func(t time.Time) string { return t.Format("2006-01-02T15:04:05.000Z") }
+		switch {
+		case !z.Enabled:
+			hm["holdType"], hm["endTime"] = "permanent", stamp(now)
+		case end != nil:
+			hm["holdType"], hm["endTime"] = "until_specific_time", stamp(time.Unix(*end, 0).UTC())
+		default:
+			hm["holdType"], hm["endTime"] = "permanent", stamp(now.AddDate(100, 0, 0))
+		}
+		s.holds[z.ID] = hm
+		modes = append(modes, hm)
+		s.holdWrites = append(s.holdWrites, HoldWrite{Zone: z.ID, Enabled: z.Enabled, EndTime: end, Permanent: z.Enabled && end == nil})
+	}
+	out := map[string]any{"holdModes": modes}
+	if z := body.Zones[0]; z.Enabled {
+		if end != nil {
+			out["endTime"] = *end
+		} else {
+			out["endTime"] = nil
+		}
+	}
+	writeValue(w, 201, out)
 }
