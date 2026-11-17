@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"slices"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -152,5 +153,17 @@ func TestSocketRefreshesTokenOnConnectError(t *testing.T) {
 	waitFor(t, "connect after 44", func() bool { return e.srv.SocketClients() == 1 })
 	if e.srv.Refreshes() < 1 {
 		t.Fatalf("refreshes = %d, want a forced refresh", e.srv.Refreshes())
+	}
+}
+
+func TestSocketDialErrorSaysWhy(t *testing.T) {
+	e := newEnv(t, kumotest.Password)
+	s := e.client().NewSocket(SocketOptions{URL: "http://127.0.0.1:1"}) // nothing listens there
+	err := s.session(context.Background())
+	if err == nil || err.Error() == "dial failed" {
+		t.Fatalf("err = %v, want the underlying cause", err)
+	}
+	if strings.Contains(err.Error(), "Bearer") {
+		t.Fatalf("error leaks the header: %v", err)
 	}
 }

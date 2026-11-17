@@ -141,7 +141,9 @@ func (s *Socket) session(ctx context.Context) (err error) {
 		if resp != nil && (resp.StatusCode == 401 || resp.StatusCode == 403) {
 			return errUnauthorised
 		}
-		return errors.New("dial failed") // never include the URL or headers
+		// the library's dial errors carry the request URL (a public host) and the
+		// network cause, never the headers or the token
+		return fmt.Errorf("dial: %w", err)
 	}
 	defer ws.CloseNow()
 	ws.SetReadLimit(4 << 20)
