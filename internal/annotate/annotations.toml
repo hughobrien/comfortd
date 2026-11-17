@@ -114,6 +114,20 @@ note = "until_next_event seen on Office and House (made by the app); until_speci
 values = { '"until_next_event"' = "Until the next event", '"until_specific_time"' = "Until a set time", '"permanent"' = "Permanent" }
 
 [[field]]
+endpoint = "zone"
+path = "holdMode.origin"
+label = "Hold origin"
+confidence = "api-only"
+note = "adapter on every hold seen, whether the Comfort app's change opened it or a comfortd POST did, so it does not tell them apart (comfortd's history records the source)."
+
+[[field]]
+endpoint = "zone"
+path = "holdMode.endTime"
+label = "Hold end time"
+confidence = "app-confirmed"
+note = "When the hold lapses, as the app shows it. A permanent hold's is a hundred years ahead (2126); after an end it is the moment of ending."
+
+[[field]]
 endpoint = "profile"
 path = "[0].minimumSetPoints.heat"
 label = "Minimum heat setpoint (°C)"
