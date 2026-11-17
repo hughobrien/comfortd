@@ -150,7 +150,9 @@ func BuildCard(s store.Snapshot, ann *annotate.Set, ctl CardControl, now time.Ti
 		c.Schedule.Active = z.HasActiveSchedule
 		if z.HoldEnabled {
 			c.HoldUntil = "hold"
-			if !z.HoldEnd.IsZero() {
+			if z.HoldType == "permanent" {
+				c.HoldUntil = "hold, no end" // its end time is a hundred years out
+			} else if !z.HoldEnd.IsZero() {
 				t := z.HoldEnd.In(scheduleLoc(s, now))
 				c.HoldUntil = "hold until " + whenWords(now.In(t.Location()), t)
 			}

@@ -185,6 +185,16 @@ func TestCardHoldAndScheduleActive(t *testing.T) {
 	}
 }
 
+func TestCardPermanentHoldFlag(t *testing.T) {
+	zone := json.RawMessage(`{"id":"z","name":"Office","hasActiveSchedule":true,"holdMode":{"enabled":true,"holdType":"permanent","endTime":"2126-11-17T02:56:41.000Z"},"adapter":{"deviceSerial":"X"}}`)
+	sn := fixtureSnap(t, "office", "device_office.json", map[string]json.RawMessage{"zone": zone})
+	la, _ := time.LoadLocation("America/Los_Angeles")
+	c := BuildCard(sn, mustAnn(t), CardControl{}, time.Date(2026, 11, 7, 20, 40, 0, 0, la), time.Minute)
+	if c.HoldUntil != "hold, no end" {
+		t.Fatalf("flag %q: a permanent hold has no real end time", c.HoldUntil)
+	}
+}
+
 func TestEditOptsFollowTheUnit(t *testing.T) {
 	prof, err := os.ReadFile("../../../pkg/kumo/kumotest/fixtures/profile_house.json")
 	if err != nil {
