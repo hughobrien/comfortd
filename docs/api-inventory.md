@@ -52,7 +52,7 @@ Base `https://app-prod.kumocloud.com/v3`, header `x-app-version: 3.2.4`, bearer 
 | `ledDisabled` | `false` | [untested] | possibly writable (adapter LED) |
 | `scheduleOwner` | `adapter` | [untested] | who runs the schedule |
 | `scheduleHoldEndTime` | `0` | [untested] | |
-| `displayConfig` | `{defrost,filter,hotAdjust,standby}` | read-only | **`filter: true` = unit wants its filter cleaned** (Hugh, 2026-11-07, app agrees). The others are assumed to be true while defrosting / standby / hot-start adjusting; not yet observed. The UI shows a yellow flag for each true one |
+| `displayConfig` | `{defrost,filter,hotAdjust,standby}` | read-only | **`filter: true` = unit wants its filter cleaned** (Hugh, 2026-11-07, app agrees). The others are assumed to be true while defrosting / standby / hot-start adjusting. **`hotAdjust` observed** (2026-11-16/17): on Office in heat it is true, with `statusDisplay` 4, for 2 to 6 minutes about every 30 to 60 minutes while the room hovers around the setpoint; House shows it with `statusDisplay` 5. It sometimes starts within seconds of a fan change (about 3 of 23 fan changes), not usually. Meaning not documented anywhere public; the MSZ-FH service manual's "cold air prevention" (indoor fan stops or runs Very Low while the coil is cold, whatever the fan setting) is the best fit. `statusDisplay` values have no public meaning. The UI shows a yellow flag for each true one |
 | `statusDisplay`, `twoFiguresCode`, `unusualFigures`, `runTest`, `tempSource`, `activeThermistor`, `collectMethod` | various | [untested] | diagnostic; meaning unknown |
 | `updatedAt` | ISO time | read-only | used by comfort_HA to reconcile commands |
 | `model.*` | family MSZ, 12 kBTU | read-only | static model data |
@@ -67,7 +67,14 @@ Base `https://app-prod.kumocloud.com/v3`, header `x-app-version: 3.2.4`, bearer 
 
 ## Office — other
 
-- Zone "Office": `hasActiveSchedule: true`, `holdMode` object (`enabled`, `holdType: until_next_event`, `endTime`, optional overrides for mode, setpoints, fan, vane). This is how the app's temporary override works. [untested] how to set it.
+- Zone "Office": `hasActiveSchedule: true`, `holdMode` object (`enabled`, `holdType: until_next_event`, `endTime`, optional overrides for mode, setpoints, fan, vane). This is how the app's temporary override works. [untested] how to set it over the API; no public project documents a hold write.
+- **Hold behaviour [observed] (history, 2026-11-08 and 2026-11-17):**
+  - A hold opens after ANY change made in the Comfort app while none is active, even a change back to the schedule's own value (Office fan `superPowerful` to `auto`, where every Office event has fan `auto`). It appeared in the zone view within one poll.
+  - A hold has never opened after a comfortd `send-command` (about 25 commands, both body shapes). Commands work with or without a hold.
+  - `endTime` is the next schedule event; the hold lapses about 14 s after it and the event applies in the same poll.
+  - "End hold" in the app (2026-11-17 02:24:54Z): `enabled` true to false, `endTime` set to the moment of the press, `holdType` changed to `permanent`, and the unit reverted to the schedule's current event (fan `low` to `auto`). The next app change put `holdType` back to `until_next_event`.
+  - House once got a hold (2026-11-08 06:39Z) with no recorded field change; cause unknown.
+  - House's zone carries it as `holdMode.*` and `scheduleHoldEndTime`; the mhk2 `holdAdapterEndTime` lags it by hours (slow tick).
 - Notification preferences: filter reminder every 90 days (`filterDirtyReminderInterval`), high/low temp alerts, system/zone error alerts. Filter-dirty state itself not found in dumps yet.
 - Adapter firmware 03.07.02 (from `/status`).
 
@@ -77,7 +84,7 @@ Base `https://app-prod.kumocloud.com/v3`, header `x-app-version: 3.2.4`, bearer 
 
 ## Open questions
 
-1. `send-command` — **observed 2026-11-07 on Office:** `{"deviceSerial":..., "commands":{"spHeat":21}}` returns `200 {"devices":["<serial>"]}` (no state in the response). `GET /devices/{serial}` showed the new value on the first poll, 5 s later, and the app agreed. One sample only: no evidence yet of comfort_HA's "up to a minute" lag. Still open: which other commands/values are accepted, how invalid values are rejected, and whether the 5 s state is the unit's confirmed state or an optimistic cloud copy.
+1. `send-command` — **the cloud echo is not delivery or confirmation.** ventz's v3 doc: commands to an unreachable unit return 200 and reach nothing; the library behind the official HA integration says acceptance does not confirm device state. Our "confirmed" means only that the next poll showed the value (the device record shows it as soon as 0.2 to 3 s). Delivery behind the echo is asynchronous: on 2026-11-08 06:08Z a comfortd `auto` was overwritten about 5 s later by a still-queued `quiet`. Until 2026-11-17 no comfortd command had a recorded physical effect; since then `fanSpeed low` and `superPowerful` from the web UI were heard to work (with and without a hold). One failure: `superPowerful` at 01:32Z in heat mode did nothing audible while `hotAdjust` was on; probably the unit's warm-up (unproven). **Observed 2026-11-07 on Office:** `{"deviceSerial":..., "commands":{"spHeat":21}}` returns `200 {"devices":["<serial>"]}` (no state in the response). `GET /devices/{serial}` showed the new value on the first poll, 5 s later, and the app agreed. One sample only: no evidence yet of comfort_HA's "up to a minute" lag. Still open: which other commands/values are accepted, how invalid values are rejected, and whether the 5 s state is the unit's confirmed state or an optimistic cloud copy.
    - `updatedAt` also changed at t+5s, t+10s and t+57s with no further commands, so it moves on every device report, not only on command confirmation. comfort_HA's `updatedAt`-based command culling needs re-checking against this.
    - The setpoint also changed on its own between our two dumps (`spHeat` 19, then 20 about hours later, before our write). Possibly the schedule or someone using the app. Worth watching.
 2. Is `power` separately writable, or is `operationMode: off` the way to turn off? **Partly observed:** `{"operationMode":"vent"}` on Office returned `200 {"devices":[...]}`, state showed `vent` within 5 s with `power` still 1, and the app showed "fan only". `spHeat` (21) and `spCool` (26) were untouched. Then `{"operationMode":"off"}` set `operationMode: off` and `power: 0` together (app showed off), so off is a mode value. Still untested: `cool`, `dry`, `auto*`, `power` on its own, and what turning back on needs (`power: 1`, or a mode, which mode comes back, and whether the old setpoints/fan survive).

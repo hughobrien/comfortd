@@ -102,14 +102,15 @@ confidence = "assumed"
 endpoint = "zone"
 path = "holdMode.enabled"
 label = "Hold enabled"
-confidence = "assumed"
+confidence = "app-confirmed"
+note = "Turns on after any change made in the Comfort app (even back to the schedule's own value); never after a comfortd command. Ending it in the app reverts the unit to the schedule's current event."
 
 [[field]]
 endpoint = "zone"
 path = "holdMode.holdType"
 label = "Hold type"
 confidence = "assumed"
-note = "until_next_event seen on Office."
+note = "until_next_event seen on Office and House; Office showed permanent after an app 'End hold'."
 
 [[field]]
 endpoint = "profile"
