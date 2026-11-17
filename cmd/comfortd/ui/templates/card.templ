@@ -231,9 +231,9 @@ templ HoldControl(c ui.CardView) {
 			if h.CanNext {
 				<button type="button" data-value="next" aria-pressed={ b2s(h.Mode == "next") } class={ templ.KV("pending", !on) } data-on:click={ pick("next") }>Until next event</button>
 			}
-			<span class="hold-at" data-ignore-morph>
+			<span class="hold-at">
 				<button type="button" data-value="until" aria-pressed={ b2s(h.Mode == "until") } class={ templ.KV("pending", !on) } data-on:click={ pick("until") }>Until</button>
-				<input type="time" name="at" value={ h.Time } data-on:change={ pick("until") }/>
+				<input type="time" name="at" value={ h.Time } data-ignore-morph data-on:change={ pick("until") }/>
 			</span>
 			<button type="button" data-value="permanent" aria-pressed={ b2s(h.Mode == "permanent") } class={ templ.KV("pending", !on) } data-on:click={ pick("permanent") }>Permanent</button>
 		</div>

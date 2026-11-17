@@ -105,3 +105,22 @@ func TestHoldControlRendered(t *testing.T) {
 		}
 	}
 }
+
+// The Until button must be morphed with the rest, or its pressed state goes
+// stale between polls; only the time input is left alone while it is edited.
+func TestHoldUntilButtonIsMorphed(t *testing.T) {
+	var sb strings.Builder
+	card := ui.CardView{Slug: "office", Schedule: ui.ScheduleView{Present: true, Active: true}, Hold: ui.HoldView{Show: true, Mode: "next", CanNext: true}, Control: ui.CardControl{Writable: true}}
+	if err := Card(card).Render(context.Background(), &sb); err != nil {
+		t.Fatal(err)
+	}
+	out := sb.String()
+	i := strings.Index(out, `class="hold-at"`)
+	j := strings.Index(out, `data-value="until"`)
+	if i < 0 || j < i || strings.Contains(out[i:j], "data-ignore-morph") {
+		t.Errorf("Until button is inside an ignore-morph element: %s", out)
+	}
+	if !strings.Contains(out, `type="time" name="at" value="" data-ignore-morph`) {
+		t.Errorf("time input should be ignore-morph: %s", out)
+	}
+}
