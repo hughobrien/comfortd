@@ -68,6 +68,17 @@ in {
       description = "How often to poll each unit.";
     };
 
+    backstop = lib.mkOption {
+      type = lib.types.str;
+      default = "2m";
+      description = ''
+        How often to do a full poll while the Comfort app's push socket is
+        connected (the socket delivers changes; this catches anything missed).
+        Starts at the poll interval's order of size while the socket is proven;
+        the long-run value is 15m.
+      '';
+    };
+
     homekit = {
       enable = lib.mkOption {
         type = lib.types.bool;
@@ -132,6 +143,7 @@ in {
           "--state-dir" "/var/lib/comfortd"
           "--credentials" "%d/credentials"
           "--poll-interval" cfg.pollInterval
+          "--backstop" cfg.backstop
         ] ++ lib.optionals (cfg.writableUnits != [ ]) [
           "--writable-units" (lib.escapeShellArg (lib.concatStringsSep "," cfg.writableUnits))
         ] ++ lib.optionals (cfg.inactiveUnits != [ ]) [
