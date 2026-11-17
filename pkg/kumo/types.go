@@ -15,6 +15,7 @@ type Zone struct {
 	HasActiveSchedule bool
 	HoldEnabled       bool
 	HoldEnd           time.Time // when the hold lapses (the next schedule event); zero if unknown
+	HoldType          string    // until_next_event, until_specific_time, permanent, unset; empty if unknown
 }
 
 type Device struct {
@@ -67,8 +68,9 @@ func ParseZones(raw json.RawMessage) ([]Zone, error) {
 		Name              string `json:"name"`
 		HasActiveSchedule bool   `json:"hasActiveSchedule"`
 		HoldMode          *struct {
-			Enabled bool   `json:"enabled"`
-			EndTime string `json:"endTime"`
+			Enabled  bool   `json:"enabled"`
+			HoldType string `json:"holdType"`
+			EndTime  string `json:"endTime"`
 		} `json:"holdMode"`
 		Adapter struct {
 			DeviceSerial string `json:"deviceSerial"`
@@ -82,6 +84,7 @@ func ParseZones(raw json.RawMessage) ([]Zone, error) {
 		out[i] = Zone{ID: z.ID, Name: z.Name, Serial: z.Adapter.DeviceSerial, HasActiveSchedule: z.HasActiveSchedule}
 		if z.HoldMode != nil {
 			out[i].HoldEnabled = z.HoldMode.Enabled
+			out[i].HoldType = z.HoldMode.HoldType
 			if t, err := time.Parse(time.RFC3339, z.HoldMode.EndTime); err == nil {
 				out[i].HoldEnd = t
 			}
