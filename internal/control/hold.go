@@ -63,7 +63,7 @@ func (c *Controller) SetHold(ctx context.Context, slug string, until *time.Time,
 		next["holdType"], next["endTime"] = "until_specific_time", until.UTC().Format(time.RFC3339)
 	}
 	c.record(slug, "hold", "holdMode", holdState(snap), jsonOf(next), source)
-	c.kickHold(slug)
+	c.afterHold(ctx, slug)
 	return nil
 }
 
@@ -79,12 +79,17 @@ func (c *Controller) EndHold(ctx context.Context, slug, source string) error {
 		return err
 	}
 	c.record(slug, "hold", "holdMode", holdState(snap), jsonOf(map[string]any{"enabled": false}), source)
-	c.kickHold(slug)
+	c.afterHold(ctx, slug)
 	return nil
 }
 
-func (c *Controller) kickHold(slug string) {
+// afterHold has the poller look again: the zone now (that is where the hold
+// shows), the device shortly after (a hold change can move the unit).
+func (c *Controller) afterHold(ctx context.Context, slug string) {
 	if c.o.Kick != nil {
 		c.o.Kick(slug)
+	}
+	if c.o.AfterHold != nil {
+		c.o.AfterHold(ctx)
 	}
 }

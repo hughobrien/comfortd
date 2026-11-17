@@ -134,6 +134,7 @@ type Options struct {
 	Schedules     ScheduleWriter            // nil = schedule edits are off
 	Holds         HoldWriter                // nil = hold changes are off
 	AfterSchedule func(ctx context.Context) // refetch the schedules after an edit
+	AfterHold     func(ctx context.Context) // refetch the zones after a hold change (the hold lives in the zone view)
 	Store         *store.Store
 	History       *history.Log
 	Kick          func(slug string)

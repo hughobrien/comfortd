@@ -77,3 +77,30 @@ func TestCardFanOnlyShowsNA(t *testing.T) {
 		t.Fatalf("N/A ring must have no handles, fill or unit: %s", out)
 	}
 }
+
+func TestHoldControlRendered(t *testing.T) {
+	sched := ui.ScheduleView{Present: true, Active: true, Heading: "Winter season"}
+	for _, c := range []struct {
+		name string
+		hold ui.HoldView
+		want string
+		not  bool
+	}{
+		{"permanent", ui.HoldView{Show: true, Mode: "permanent", CanNext: true}, `value="permanent" checked`, false},
+		{"until", ui.HoldView{Show: true, Mode: "until", Time: "22:30"}, `value="22:30"`, false},
+		{"hidden", ui.HoldView{}, `hold-ctl`, true},
+	} {
+		var sb strings.Builder
+		card := ui.CardView{Slug: "office", Schedule: sched, Hold: c.hold, Control: ui.CardControl{Writable: c.hold.Show}}
+		if err := Card(card).Render(context.Background(), &sb); err != nil {
+			t.Fatal(err)
+		}
+		out := sb.String()
+		if strings.Contains(out, c.want) == c.not {
+			t.Errorf("%s: %q in %s", c.name, c.want, out)
+		}
+		if c.hold.Show && (strings.Count(out, `name="mode"`) != map[bool]int{true: 4, false: 3}[c.hold.CanNext]) {
+			t.Errorf("%s: radios %d", c.name, strings.Count(out, `name="mode"`))
+		}
+	}
+}

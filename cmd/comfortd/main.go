@@ -169,6 +169,7 @@ func runContext(ctx context.Context, args []string, stdout io.Writer, ready func
 	ctl := control.New(control.Options{
 		Sender: client, Schedules: client, Holds: client, Store: st, History: hist, Writable: splitList(*writable),
 		AfterSchedule: func(ctx context.Context) { p.PollSchedule(ctx) },
+		AfterHold:     func(ctx context.Context) { p.PollOnce(ctx) },
 		LastModePath:  filepath.Join(*stateDir, "lastmode.json"),
 		SetpointsPath: filepath.Join(*stateDir, "setpoints.json"),
 		Kick:          func(slug string) { p.Kick(slug) },

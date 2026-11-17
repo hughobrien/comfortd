@@ -39,7 +39,7 @@ func ctlDeps(t *testing.T) (*kumotest.Server, deps) {
 	p.PollSlow(context.Background())
 	p.PollOnce(context.Background())
 	p.PollSchedule(context.Background())
-	ctl := control.New(control.Options{Sender: c, Schedules: c, AfterSchedule: p.PollSchedule, Store: st, Writable: []string{"office"}, Window: 20 * time.Millisecond})
+	ctl := control.New(control.Options{Sender: c, Schedules: c, Holds: c, AfterSchedule: p.PollSchedule, AfterHold: p.PollOnce, Store: st, Writable: []string{"office"}, Window: 20 * time.Millisecond})
 	st.Subscribe(ctl.Observe)
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)

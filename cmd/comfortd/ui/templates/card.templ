@@ -185,6 +185,9 @@ templ scheduleSection(c ui.CardView) {
 					<span class="next-event">next: { sc.Next }</span>
 				}
 			</summary>
+			if c.Hold.Show {
+				@HoldControl(c)
+			}
 			@ScheduleBody(c)
 		</details>
 	} else if sc.Error != "" {
@@ -193,6 +196,29 @@ templ scheduleSection(c ui.CardView) {
 			<p class="season">{ sc.Error }</p>
 		</details>
 	}
+}
+
+// HoldControl is the hold radios. It sits outside the schedule body's
+// data-ignore-morph island so a hold made in the Comfort app shows up; CSS
+// floats it onto the season line. Choosing none, next or permanent posts at
+// once; "until" waits for the time and the Set button.
+templ HoldControl(c ui.CardView) {
+	{{ h := c.Hold }}
+	{{ post := "@post('/ui/units/" + c.Slug + "/hold', {contentType: 'form'})" }}
+	<form class="hold-ctl" id={ "hold-ctl-" + c.Slug } title="Hold: keep these settings instead of the schedule's">
+		<label><input type="radio" name="mode" value="none" checked?={ h.Mode == "none" } data-on:change={ post }/> No hold</label>
+		if h.CanNext {
+			<label><input type="radio" name="mode" value="next" checked?={ h.Mode == "next" } data-on:change={ post }/> Until next event</label>
+		}
+		<label><input type="radio" name="mode" value="until" checked?={ h.Mode == "until" }/> Until</label>
+		<span class="hold-at" data-ignore-morph>
+			<input type="time" name="at" value={ h.Time } data-on:change={ "el.form.elements.mode.value = 'until'; " + post }/>
+			<button type="button" class="btn-inline" data-on:click={ "el.form.elements.mode.value = 'until'; " + post }>Set</button>
+		</span>
+		<label><input type="radio" name="mode" value="permanent" checked?={ h.Mode == "permanent" } data-on:change={ post }/> Permanent</label>
+		<span class="hold-note">No hold applies the schedule's current settings.</span>
+		<p class="hold-msg" id={ "hold-msg-" + c.Slug }></p>
+	</form>
 }
 
 // ScheduleBody is the read-only table, with an edit button when the unit is writable.

@@ -10,8 +10,8 @@ import (
 	"github.com/hughobrien/comfortd/internal/store"
 )
 
-// errBadTime marks a clock time that could not be read.
-var errBadTime = errors.New("bad time")
+// ErrBadTime marks a clock time that could not be read.
+var ErrBadTime = errors.New("bad time")
 
 // HoldView is the card's hold control: which radio is on and what the
 // choices need.
@@ -63,7 +63,7 @@ func BuildHold(s store.Snapshot, writable bool, now time.Time) HoldView {
 func HoldTimeFromClock(s store.Snapshot, now time.Time, hhmm string) (time.Time, error) {
 	c, err := time.Parse("15:04", hhmm)
 	if err != nil || len(hhmm) != 5 {
-		return time.Time{}, fmt.Errorf("%w: %q is not a time (HH:MM)", errBadTime, hhmm)
+		return time.Time{}, fmt.Errorf("%w: %q is not a time (HH:MM)", ErrBadTime, hhmm)
 	}
 	loc := scheduleLoc(s, now)
 	n := now.In(loc)

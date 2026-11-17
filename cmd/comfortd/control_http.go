@@ -15,6 +15,7 @@ import (
 // registerControl adds the command API and the UI control endpoints.
 func (d deps) registerControl(mux *http.ServeMux) {
 	d.registerSchedule(mux)
+	d.registerHold(mux)
 	mux.HandleFunc("POST /v1/units/{slug}/command", d.handleCommand)
 	mux.HandleFunc("POST /ui/units/{slug}/mode", d.handleUIMode)
 	mux.HandleFunc("POST /ui/units/{slug}/spheat", d.handleUISpHeat)

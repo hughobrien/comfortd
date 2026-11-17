@@ -43,8 +43,9 @@ func (f *fakeHolds) EndHold(_ context.Context, site, zone string) error {
 func holdCtl(r *rig, h HoldWriter, writable ...string) *Controller {
 	return New(Options{Store: r.st, History: r.hist, Writable: writable, Holds: h,
 		LastModePath: filepath.Join(r.dir, "lm.json"), SetpointsPath: filepath.Join(r.dir, "sp.json"),
-		Kick: func(slug string) { r.mu.Lock(); r.kicks = append(r.kicks, slug); r.mu.Unlock() },
-		Now:  func() time.Time { return time.Date(2026, 11, 17, 3, 0, 0, 0, time.UTC) }})
+		Kick:      func(slug string) { r.mu.Lock(); r.kicks = append(r.kicks, slug); r.mu.Unlock() },
+		AfterHold: func(context.Context) { r.mu.Lock(); r.kicks = append(r.kicks, "zone"); r.mu.Unlock() },
+		Now:       func() time.Time { return time.Date(2026, 11, 17, 3, 0, 0, 0, time.UTC) }})
 }
 
 func (r *rig) holdRecords() (n int) {
@@ -79,7 +80,7 @@ func TestSetAndEndHold(t *testing.T) {
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if len(r.kicks) != 3 {
+	if len(r.kicks) != 6 { // a device kick and a zone refresh per write
 		t.Fatalf("kicks %v", r.kicks)
 	}
 }
