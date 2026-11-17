@@ -62,6 +62,7 @@ type Server struct {
 	schedWrites   []ScheduleWrite
 	holds         map[string]map[string]any // zone id -> holdMode set by a hold write
 	holdWrites    []HoldWrite
+	sock          sockState
 }
 
 // ScheduleWrite is a recorded schedule change: "add" with the event's fields,
@@ -115,6 +116,7 @@ func New() *Server {
 	mux.HandleFunc("DELETE /v4/schedules/{schedule}/events", s.authed(s.handleDeleteEvents))
 	mux.HandleFunc("POST /v4/sites/{site}/hold", s.authed(s.handleHold))
 	mux.HandleFunc("POST /devices/send-command", s.authed(s.handleSendCommand))
+	mux.HandleFunc("/socket.io/", s.handleSocket)
 	s.srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		s.mu.Lock()
 		s.requests[r.URL.Path]++
@@ -172,8 +174,10 @@ func (s *Server) ExpireAccess() {
 // SetField simulates the app or a schedule changing the unit.
 func (s *Server) SetField(serial, field string, v any) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	s.devices[serial][field] = v
+	s.mu.Unlock()
+	s.PushDevice(serial, false)
+	s.PushDevice(serial, true)
 }
 
 // Device returns a copy of the live device map.
@@ -378,6 +382,8 @@ func (s *Server) handleSendCommand(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	s.mu.Unlock()
+	s.PushDevice(body.DeviceSerial, false)
+	s.PushDevice(body.DeviceSerial, true)
 	writeValue(w, 200, map[string]any{"devices": []string{body.DeviceSerial}})
 }
 
@@ -525,7 +531,6 @@ func (s *Server) handleHold(w http.ResponseWriter, r *http.Request) {
 		end = &n
 	}
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	now := time.Now().UTC()
 	var modes []map[string]any
 	for _, z := range body.Zones {
@@ -551,6 +556,10 @@ func (s *Server) handleHold(w http.ResponseWriter, r *http.Request) {
 		} else {
 			out["endTime"] = nil
 		}
+	}
+	s.mu.Unlock()
+	for _, z := range body.Zones {
+		s.PushHoldUpdate(z.ID)
 	}
 	writeValue(w, 201, out)
 }
