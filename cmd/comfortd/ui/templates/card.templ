@@ -198,25 +198,50 @@ templ scheduleSection(c ui.CardView) {
 	}
 }
 
-// HoldControl is the hold radios. It sits outside the schedule body's
-// data-ignore-morph island so a hold made in the Comfort app shows up; CSS
-// floats it onto the season line. Choosing none, next or permanent posts at
-// once; "until" waits for the time and the Set button.
+// HoldControl is the hold button and, while a hold is on or being chosen, its
+// options. It sits outside the schedule body's data-ignore-morph island so a
+// hold made in the Comfort app shows up; CSS floats it onto the season line.
+// Clicking Hold with no hold on starts "Until next event", as the Comfort app
+// does; with no next event to hold until it only opens the options (the
+// client-side signal $hold_<slug>) and writes nothing until one is chosen.
+// Clicking it with a hold on ends the hold.
 templ HoldControl(c ui.CardView) {
 	{{ h := c.Hold }}
+	{{ on := h.Mode != "none" }}
+	{{ open := "$hold_" + holdSignal(c.Slug) }}
 	{{ post := "@post('/ui/units/" + c.Slug + "/hold', {contentType: 'form'})" }}
-	<form class="hold-ctl" id={ "hold-ctl-" + c.Slug } title="Hold: keep these settings instead of the schedule's">
-		<label><input type="radio" name="mode" value="none" checked?={ h.Mode == "none" } data-on:change={ post }/> No hold</label>
-		if h.CanNext {
-			<label><input type="radio" name="mode" value="next" checked?={ h.Mode == "next" } data-on:change={ post }/> Until next event</label>
+	{{ pick := func(m string) string { return "el.form.elements.mode.value = '" + m + "'; " + post } }}
+	<form
+		class="hold-ctl"
+		id={ "hold-ctl-" + c.Slug }
+		title="Hold: keep these settings instead of the schedule's"
+		{ templ.Attributes{"data-signals:hold_" + holdSignal(c.Slug) + "__ifmissing": "false"}... }
+	>
+		<input type="hidden" name="mode" value=""/>
+		<div class="seg">
+			<button
+				type="button"
+				data-value="hold"
+				aria-pressed={ b2s(on) }
+				data-attr:aria-pressed={ "(" + open + " || " + b2s(on) + ") ? 'true' : 'false'" }
+				data-on:click={ holdClick(on, h.CanNext, open, pick) }
+			>Hold</button>
+		</div>
+		<div class="seg opts" style={ hideUnless(on) } data-show={ open + " || " + b2s(on) }>
+			if h.CanNext {
+				<button type="button" data-value="next" aria-pressed={ b2s(h.Mode == "next") } class={ templ.KV("pending", !on) } data-on:click={ pick("next") }>Until next event</button>
+			}
+			<span class="hold-at" data-ignore-morph>
+				<button type="button" data-value="until" aria-pressed={ b2s(h.Mode == "until") } class={ templ.KV("pending", !on) } data-on:click={ pick("until") }>Until</button>
+				<input type="time" name="at" value={ h.Time } data-on:change={ pick("until") }/>
+			</span>
+			<button type="button" data-value="permanent" aria-pressed={ b2s(h.Mode == "permanent") } class={ templ.KV("pending", !on) } data-on:click={ pick("permanent") }>Permanent</button>
+		</div>
+		if on {
+			<p class="hold-note">Hold off applies the schedule's current settings.</p>
+		} else {
+			<p class="hold-note" data-show={ open }>Choose how long.</p>
 		}
-		<label><input type="radio" name="mode" value="until" checked?={ h.Mode == "until" }/> Until</label>
-		<span class="hold-at" data-ignore-morph>
-			<input type="time" name="at" value={ h.Time } data-on:change={ "el.form.elements.mode.value = 'until'; " + post }/>
-			<button type="button" class="btn-inline" data-on:click={ "el.form.elements.mode.value = 'until'; " + post }>Set</button>
-		</span>
-		<label><input type="radio" name="mode" value="permanent" checked?={ h.Mode == "permanent" } data-on:change={ post }/> Permanent</label>
-		<span class="hold-note">No hold applies the schedule's current settings.</span>
 		<p class="hold-msg" id={ "hold-msg-" + c.Slug }></p>
 	</form>
 }

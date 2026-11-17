@@ -243,3 +243,28 @@ func tvalY(w *TempWheel) string {
 	}
 	return "66"
 }
+
+// holdSignal makes a slug safe inside a datastar signal name.
+func holdSignal(slug string) string { return strings.NewReplacer("-", "_", ".", "_").Replace(slug) }
+
+func b2s(b bool) string { return strconv.FormatBool(b) }
+
+// hideUnless is the initial style of an element datastar shows later.
+func hideUnless(show bool) string {
+	if show {
+		return ""
+	}
+	return "display:none"
+}
+
+// holdClick is the Hold button's handler: end a hold, else start one until
+// the next event, else just open the options.
+func holdClick(on, canNext bool, open string, pick func(string) string) string {
+	switch {
+	case on:
+		return open + " = false; " + pick("none")
+	case canNext:
+		return pick("next")
+	}
+	return open + " = !" + open
+}

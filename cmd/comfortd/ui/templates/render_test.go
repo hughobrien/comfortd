@@ -86,7 +86,11 @@ func TestHoldControlRendered(t *testing.T) {
 		want string
 		not  bool
 	}{
-		{"permanent", ui.HoldView{Show: true, Mode: "permanent", CanNext: true}, `value="permanent" checked`, false},
+		{"permanent pressed", ui.HoldView{Show: true, Mode: "permanent", CanNext: true}, `data-value="permanent" aria-pressed="true"`, false},
+		{"none: next not pressed", ui.HoldView{Show: true, Mode: "none", CanNext: true}, `data-value="next" aria-pressed="true"`, true},
+		{"none: hold starts next", ui.HoldView{Show: true, Mode: "none", CanNext: true}, `mode.value = &#39;next&#39;`, false},
+		{"on: hold ends", ui.HoldView{Show: true, Mode: "next", CanNext: true}, `mode.value = &#39;none&#39;`, false},
+		{"no next event: hold opens options", ui.HoldView{Show: true, Mode: "none"}, `mode.value = &#39;next&#39;`, true},
 		{"until", ui.HoldView{Show: true, Mode: "until", Time: "22:30"}, `value="22:30"`, false},
 		{"hidden", ui.HoldView{}, `hold-ctl`, true},
 	} {
@@ -98,9 +102,6 @@ func TestHoldControlRendered(t *testing.T) {
 		out := sb.String()
 		if strings.Contains(out, c.want) == c.not {
 			t.Errorf("%s: %q in %s", c.name, c.want, out)
-		}
-		if c.hold.Show && (strings.Count(out, `name="mode"`) != map[bool]int{true: 4, false: 3}[c.hold.CanNext]) {
-			t.Errorf("%s: radios %d", c.name, strings.Count(out, `name="mode"`))
 		}
 	}
 }
