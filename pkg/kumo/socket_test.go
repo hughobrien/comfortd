@@ -104,7 +104,7 @@ func TestSocketDeliversPushes(t *testing.T) {
 func TestSocketReconnectsAndResubscribes(t *testing.T) {
 	e := newEnv(t, kumotest.Password)
 	s, rec := startSocket(t, e)
-	waitFor(t, "first connect", func() bool { return e.srv.SocketClients() == 1 })
+	waitFor(t, "first subscribes", func() bool { return len(e.srv.SocketSubscribed()) == 2 })
 	e.srv.DisconnectSockets()
 	waitFor(t, "second connect", func() bool { return e.srv.SocketConnects() == 2 && e.srv.SocketClients() == 1 })
 	waitFor(t, "resubscribed", func() bool { return len(e.srv.SocketSubscribed()) == 4 })
