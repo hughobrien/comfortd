@@ -32,6 +32,7 @@ func TestSourceTracker(t *testing.T) {
 		{"our own hold", 0, -time.Second, time.Second, "zone", "holdMode.enabled", "false", "true", ""},
 		{"our hold, its echo lands later", 0, -30 * time.Second, 20 * time.Second, "device", "spHeat", "20", "21", ""},
 		{"app change long after our send", 0, -3 * time.Minute, time.Second, "device", "fanSpeed", `"auto"`, `"quiet"`, "app"},
+		{"our send after the app's hold", 0, 10 * time.Second, 12 * time.Second, "device", "spHeat", "20", "21", ""},
 		{"hold seen too long ago", 0, -2 * time.Hour, 2 * time.Minute, "device", "spHeat", "20", "21", ""},
 		{"app hold end is not tagged", 0, -2 * time.Hour, 5 * time.Second, "zone", "holdMode.enabled", "true", "false", ""},
 		{"hold fields other than enabled", 0, -2 * time.Hour, 0, "zone", "holdMode.endTime", `"a"`, `"b"`, ""},

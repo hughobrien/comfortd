@@ -69,6 +69,9 @@ func (c *Client) NewSocket(o SocketOptions) *Socket {
 // Reconnects is how many times the socket has had to reconnect.
 func (s *Socket) Reconnects() int { return int(s.reconnects.Load()) }
 
+// Expected is how many subscriptions each session asks for.
+func (s *Socket) Expected() int { return len(s.o.Serials) }
+
 // Subscribed is how many `subscribed` replies the current session has had.
 func (s *Socket) Subscribed() int { return int(s.subscribed.Load()) }
 
@@ -129,7 +132,9 @@ func (s *Socket) session(ctx context.Context) (err error) {
 	if err != nil {
 		return err
 	}
-	ws, resp, err := websocket.Dial(ctx, s.wsURL(), &websocket.DialOptions{
+	dctx, dcancel := context.WithTimeout(ctx, 30*time.Second)
+	defer dcancel()
+	ws, resp, err := websocket.Dial(dctx, s.wsURL(), &websocket.DialOptions{
 		HTTPHeader: http.Header{"Authorization": {"Bearer " + tok}},
 	})
 	if err != nil {
@@ -139,6 +144,11 @@ func (s *Socket) session(ctx context.Context) (err error) {
 		return errors.New("dial failed") // never include the URL or headers
 	}
 	defer ws.CloseNow()
+	defer func() {
+		if n := int(s.subscribed.Load()); n < len(s.o.Serials) {
+			slog.Warn("kumo socket session ended with missing subscriptions", "confirmed", n, "asked", len(s.o.Serials))
+		}
+	}()
 	ws.SetReadLimit(4 << 20)
 	s.subscribed.Store(0)
 	ready := false

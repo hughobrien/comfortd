@@ -32,8 +32,8 @@ type Push struct {
 	echoVerified atomic.Bool // set once our own REST commands are known to echo on the socket
 	holdDebounce time.Duration
 
-	// OnHold is told, after the debounce, that a hold_update for slug was
-	// applied (enabled is the pushed hold's state).
+	// OnHold is told, after the debounce and just before the hold is written to
+	// the store, about a hold_update for slug (enabled is the pushed hold's state).
 	OnHold func(slug string, enabled bool, at time.Time)
 	// OnEventCount, when set, is told about every event applied (for metrics).
 	OnEventCount func(name string)
@@ -192,20 +192,18 @@ func (x *Push) applyHold(slug string) {
 		return
 	}
 	now := time.Now()
-	_, err := x.st.Patch(slug, store.EndpointZone, func(old json.RawMessage) (json.RawMessage, error) {
-		return OverlayHold(old, ph.raw)
-	}, now)
-	if err != nil {
-		if err != errNothingStored {
-			slog.Warn("push hold_update", "unit", slug, "err", err)
-		}
-		return
-	}
+	// Tell the source tracker first: history is written inside Patch and needs
+	// to know an app hold has just arrived.
 	var h struct {
 		Enabled bool `json:"enabled"`
 	}
 	json.Unmarshal(ph.raw, &h)
 	if x.OnHold != nil {
 		x.OnHold(slug, h.Enabled, now)
+	}
+	if _, err := x.st.Patch(slug, store.EndpointZone, func(old json.RawMessage) (json.RawMessage, error) {
+		return OverlayHold(old, ph.raw)
+	}, now); err != nil && err != errNothingStored {
+		slog.Warn("push hold_update", "unit", slug, "err", err)
 	}
 }

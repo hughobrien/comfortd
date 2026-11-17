@@ -238,6 +238,9 @@ func runContext(ctx context.Context, args []string, stdout io.Writer, ready func
 		slog.Info("homekit enabled", "units", slugs, "port", *hapPort)
 	}
 	p = poller.New(client, st, *interval)
+	if *backstop < 10*time.Second {
+		*backstop = 10 * time.Second
+	}
 	if !*noSocket {
 		pw.Store(wirePush(pushOptions{
 			Client: client, Store: st, Poller: p, SocketURL: *socketURL, Backstop: *backstop, PollInterval: *interval,

@@ -90,6 +90,15 @@ func TestSocketConnectsSubscribesAndReceivesSnapshot(t *testing.T) {
 	waitFor(t, "subscribed replies", func() bool { return s.Subscribed() == 2 })
 }
 
+func TestSocketCountsMissingSubscribedReplies(t *testing.T) {
+	e := newEnv(t, kumotest.Password)
+	s, _ := startSocket(t, e)
+	waitFor(t, "subscribed", func() bool { return s.Subscribed() == 2 })
+	if s.Expected() != 2 {
+		t.Fatalf("expected = %d", s.Expected())
+	}
+}
+
 func TestSocketDeliversPushes(t *testing.T) {
 	e := newEnv(t, kumotest.Password)
 	_, rec := startSocket(t, e)

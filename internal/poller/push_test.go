@@ -208,3 +208,28 @@ func TestBackstopIntervalDependsOnSocket(t *testing.T) {
 	cancel()
 	<-done
 }
+
+// history is written inside Patch, so the app-source tracker must hear about
+// the hold before the zone row is stored.
+func TestPushHoldReportedBeforeTheZoneIsPatched(t *testing.T) {
+	_, st, _, x := newPush(t)
+	var mu sync.Mutex
+	reported := false
+	x.OnHold = func(string, bool, time.Time) { mu.Lock(); reported = true; mu.Unlock() }
+	var orderOK bool
+	var got bool
+	st.Subscribe(func(u store.Update) {
+		if u.Endpoint == store.EndpointZone {
+			mu.Lock()
+			orderOK, got = reported, true
+			mu.Unlock()
+		}
+	})
+	x.handle(ev("hold_update", holdBody(kumotest.OfficeSerial, true, "2026-11-18T06:00:00.000Z")))
+	waitUntil(t, func() bool { mu.Lock(); defer mu.Unlock(); return got })
+	mu.Lock()
+	defer mu.Unlock()
+	if !orderOK {
+		t.Fatal("OnHold must run before the zone Patch notifies history")
+	}
+}

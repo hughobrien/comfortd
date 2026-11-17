@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"log/slog"
+	"reflect"
 	"slices"
 	"time"
 
@@ -55,7 +56,7 @@ func wirePush(o pushOptions, ctx context.Context) *pushWiring {
 	sock := o.Client.NewSocket(kumo.SocketOptions{
 		URL: o.SocketURL, Serials: serials, OnEvent: push.OnEvent, OnState: push.OnState,
 	})
-	o.Metrics.RegisterSocket(push.Connected, sock.Reconnects, push.Dropped)
+	o.Metrics.RegisterSocket(push.Connected, sock.Reconnects, push.Dropped, sock.Subscribed)
 
 	// A poll that finds an intent field changed while the socket was up means
 	// the socket missed it (or our own command's echo is not pushed).
@@ -96,7 +97,7 @@ func missedChanges(old, new json.RawMessage) []string {
 	}
 	var out []string
 	for k := range intentFields {
-		if av, bv := a[k], b[k]; av != bv {
+		if !reflect.DeepEqual(a[k], b[k]) {
 			out = append(out, k)
 		}
 	}

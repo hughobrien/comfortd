@@ -42,7 +42,7 @@ func TestSocketMetrics(t *testing.T) {
 	_, d := ctlDeps(t)
 	d.Metrics = NewMetrics()
 	up := true
-	d.Metrics.RegisterSocket(func() bool { return up }, func() int { return 3 }, func() int { return 2 })
+	d.Metrics.RegisterSocket(func() bool { return up }, func() int { return 3 }, func() int { return 2 }, func() int { return 1 })
 	d.Metrics.SocketEvent("hold_update")
 	d.Metrics.SocketEvent("hold_update")
 	d.Metrics.SocketMissed("spHeat")
@@ -54,6 +54,7 @@ func TestSocketMetrics(t *testing.T) {
 		"comfortd_socket_connected 1",
 		"comfortd_socket_reconnects_total 3",
 		"comfortd_socket_dropped_total 2",
+		"comfortd_socket_subscribed 1",
 		`comfortd_socket_events_total{event="hold_update"} 2`,
 		`comfortd_socket_missed_changes_total{field="spHeat"} 1`,
 	} {

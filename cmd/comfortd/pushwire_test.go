@@ -24,6 +24,10 @@ func TestMissedChanges(t *testing.T) {
 	if len(got) != 2 || got[0] != "power" || got[1] != "spHeat" {
 		t.Fatalf("missed = %v, want only the intent fields that changed, sorted", got)
 	}
+	// a schema change (an object where a scalar was) must not crash the daemon
+	if got := missedChanges(json.RawMessage(`{"airDirection":{"a":1}}`), json.RawMessage(`{"airDirection":{"a":2}}`)); len(got) != 1 {
+		t.Fatalf("object-valued field: %v", got)
+	}
 	if len(missedChanges(nil, new)) != 0 {
 		t.Fatal("first sight is not a miss")
 	}

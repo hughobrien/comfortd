@@ -91,8 +91,12 @@ func (t *sourceTracker) source(slug, endpoint, path, old, new string, at time.Ti
 		return ""
 	}
 	if t.lastSent != nil {
-		if sent := t.lastSent(slug); !sent.IsZero() && !sent.After(seen) && seen.Sub(sent) < holdWindow {
+		sent := t.lastSent(slug)
+		if !sent.IsZero() && !sent.After(seen) && seen.Sub(sent) < holdWindow {
 			return "" // our own request opened this hold
+		}
+		if d := at.Sub(sent); !sent.IsZero() && d >= 0 && d < holdWindow {
+			return "" // we sent something just before this change: assume it is ours
 		}
 	}
 	return "app"
