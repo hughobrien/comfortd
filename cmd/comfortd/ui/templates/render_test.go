@@ -124,3 +124,29 @@ func TestHoldUntilButtonIsMorphed(t *testing.T) {
 		t.Errorf("time input should be ignore-morph: %s", out)
 	}
 }
+
+// Issue 18: the middle of the fan and vane wheels is the Auto button and says
+// so whatever is pressed; the lit wedge shows the value. A wheel with no Auto
+// falls back to the pressed choice.
+func TestDialCenterIsAuto(t *testing.T) {
+	center := func(card ui.CardView) string {
+		var sb strings.Builder
+		if err := Card(card).Render(context.Background(), &sb); err != nil {
+			t.Fatal(err)
+		}
+		return sb.String()
+	}
+	fans := []ui.Choice{{Value: "auto", Label: "Auto"}, {Value: "low", Label: "Low"}, {Value: "powerful", Label: "Powerful", Pressed: true}}
+	vanes := []ui.Choice{{Value: "auto", Label: "Auto"}, {Value: "swing", Label: "Swing", Pressed: true}, {Value: "v1", Label: "1"}}
+	out := center(ui.CardView{Slug: "office", Fans: fans, Vanes: vanes})
+	if n := strings.Count(out, `dominant-baseline="central">Auto</text>`); n != 2 {
+		t.Errorf("want Auto in the middle of both wheels, got %d: %s", n, out)
+	}
+	if strings.Contains(out, `dominant-baseline="central">Powerful</text>`) || strings.Contains(out, `dominant-baseline="central">Swing</text>`) {
+		t.Errorf("middle shows the pressed value: %s", out)
+	}
+	noAuto := center(ui.CardView{Slug: "house", Fans: []ui.Choice{{Value: "low", Label: "Low", Pressed: true}, {Value: "high", Label: "High"}}})
+	if !strings.Contains(noAuto, `dominant-baseline="central">Low</text>`) {
+		t.Errorf("no Auto: middle should show the pressed choice: %s", noAuto)
+	}
+}

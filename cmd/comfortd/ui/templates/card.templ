@@ -91,7 +91,7 @@ templ dial(c ui.CardView, opts []ui.Choice, path, param, field, hubValue string,
 					data-on:click={ "@post('/ui/units/" + c.Slug + "/" + path + "?" + param + "=" + hub.Value + "')" }
 				><title>{ hub.Label }</title></circle>
 			}
-			<text class="center" x="90" y="70" text-anchor="middle" dominant-baseline="central">{ dialCenter(opts, path == "mode", hub) }</text>
+			<text class="center" x="90" y="70" text-anchor="middle" dominant-baseline="central">{ dialCenter(opts, path == "mode" || hasHub, hub) }</text>
 		</svg>
 	</div>
 }

@@ -94,7 +94,7 @@ func dialArcs(wedges []ui.Choice, cumulative bool, bottom []ui.Choice) []Arc {
 }
 
 // dialCenter is the text in the middle: the pressed choice's label, or a dash;
-// the mode wheel always says Auto, its hub.
+// a wheel with an Auto hub always says Auto there (the lit wedge shows the value).
 func dialCenter(opts []ui.Choice, fixed bool, hub ui.Choice) string {
 	if fixed {
 		return hub.Label

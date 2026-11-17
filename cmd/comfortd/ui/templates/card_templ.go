@@ -452,9 +452,9 @@ func dial(c ui.CardView, opts []ui.Choice, path, param, field, hubValue string, 
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var25 string
-		templ_7745c5c3_Var25, templ_7745c5c3_Err = templ.JoinStringErrs(dialCenter(opts, path == "mode", hub))
+		templ_7745c5c3_Var25, templ_7745c5c3_Err = templ.JoinStringErrs(dialCenter(opts, path == "mode" || hasHub, hub))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `cmd/comfortd/ui/templates/card.templ`, Line: 94, Col: 126}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `cmd/comfortd/ui/templates/card.templ`, Line: 94, Col: 136}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var25))
 		if templ_7745c5c3_Err != nil {
