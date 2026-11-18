@@ -189,3 +189,4 @@ Dropped for now: a LAN/local API check and capturing Comfort app traffic. Neithe
 - 2026-11-18: Issue 5 closed as explained but unprovable: House hold at 06:39:30Z 2026-11-08 most likely an app/MHK2 action matching the current state (issue 4 shows the cloud holds on any app-style command). 
 - 2026-11-18: Issue 7 closed at Hugh's request (no systematic physical pass; he will report any command that misbehaves).
 - 2026-11-18: Issue 13 closed (hold controls and display already built). Decision: no HomeKit hold switch.
+- 2026-11-18: Issue 16 tested on House (Hugh agreed): our hold request works there, and the MHK2 end-time fields follow it in seconds. A hold made on the wall thermostat does NOT set holdMode.enabled; it shows only in adapter.scheduleHoldEndTime and the MHK2 holdAdapterEndTime/holdMhk2EndTime. comfortd does not show those yet.
