@@ -166,7 +166,7 @@ func TestLimitsControlRenders(t *testing.T) {
 		t.Error("shown when not enabled")
 	}
 	out := render(ui.LimitsView{Show: true, Enabled: true, MinCool: "19", MaxHeat: "24", CoolLo: "19", CoolHi: "30", HeatLo: "10", HeatHi: "28"})
-	for _, want := range []string{"Config", `type="range" name="min" value="19" min="19" max="30" step="0.5"`, `type="range" name="max" value="24" min="10" max="28"`, "/ui/units/house/limits", `name="enabled" checked`, ">Limits</h4>"} {
+	for _, want := range []string{"Config", `type="range" name="min" value="19" min="19" max="30" step="0.5"`, `type="range" name="max" value="24" min="10" max="28"`, "/ui/units/house/limits", "change__debounce.800ms", `name="enabled" checked`, ">Limits</h4>"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("missing %q in %s", want, out)
 		}
