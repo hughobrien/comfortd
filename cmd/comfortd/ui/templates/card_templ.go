@@ -299,9 +299,9 @@ func dial(c ui.CardView, opts []ui.Choice, path, param, field, hubValue string, 
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var13 string
-			templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs(a.Label)
+			templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs(pendingTitle(a.Label, a.Pressed && c.Control.Pending[field] != ""))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `cmd/comfortd/ui/templates/card.templ`, Line: 80, Col: 21}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `cmd/comfortd/ui/templates/card.templ`, Line: 80, Col: 80}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
 			if templ_7745c5c3_Err != nil {
@@ -440,9 +440,9 @@ func dial(c ui.CardView, opts []ui.Choice, path, param, field, hubValue string, 
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var24 string
-			templ_7745c5c3_Var24, templ_7745c5c3_Err = templ.JoinStringErrs(hub.Label)
+			templ_7745c5c3_Var24, templ_7745c5c3_Err = templ.JoinStringErrs(pendingTitle(hub.Label, hub.Pressed && c.Control.Pending[field] != ""))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `cmd/comfortd/ui/templates/card.templ`, Line: 95, Col: 23}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `cmd/comfortd/ui/templates/card.templ`, Line: 95, Col: 84}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var24))
 			if templ_7745c5c3_Err != nil {

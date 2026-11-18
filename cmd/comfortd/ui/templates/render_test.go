@@ -184,3 +184,12 @@ func TestLimitSlidersDisabledUntilEnabled(t *testing.T) {
 		t.Errorf("want two disabled sliders: %s", sb.String())
 	}
 }
+
+func TestPendingControlSaysPending(t *testing.T) {
+	if got := pendingTitle("Heat", true); got != "Heat (pending: waiting for the unit)" {
+		t.Fatal(got)
+	}
+	if got := pendingTitle("Heat", false); got != "Heat" {
+		t.Fatal(got)
+	}
+}

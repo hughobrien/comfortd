@@ -77,7 +77,7 @@ templ dial(c ui.CardView, opts []ui.Choice, path, param, field, hubValue string,
 					data-value={ a.Value }
 					class={ templ.KV("lit", a.Lit), templ.KV("pending", a.Pressed && c.Control.Pending[field] != "") }
 					data-on:click={ "@post('/ui/units/" + c.Slug + "/" + path + "?" + param + "=" + a.Value + "')" }
-				><title>{ a.Label }</title></path>
+				><title>{ pendingTitle(a.Label, a.Pressed && c.Control.Pending[field] != "") }</title></path>
 				<text class="wl" x={ fmt.Sprintf("%.1f", a.LX) } y={ fmt.Sprintf("%.1f", a.LY) } text-anchor={ a.Anchor } dominant-baseline="middle">{ a.Label }</text>
 			}
 			if hasHub {
@@ -92,7 +92,7 @@ templ dial(c ui.CardView, opts []ui.Choice, path, param, field, hubValue string,
 					aria-label={ hub.Label }
 					aria-pressed={ boolStr(hub.Pressed) }
 					data-on:click={ "@post('/ui/units/" + c.Slug + "/" + path + "?" + param + "=" + hub.Value + "')" }
-				><title>{ hub.Label }</title></circle>
+				><title>{ pendingTitle(hub.Label, hub.Pressed && c.Control.Pending[field] != "") }</title></circle>
 			}
 			<text class="center" x="90" y="70" text-anchor="middle" dominant-baseline="central">{ dialCenter(opts, path == "mode" || hasHub, hub) }</text>
 		</svg>
