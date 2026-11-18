@@ -109,6 +109,13 @@ func ParseZones(raw json.RawMessage) ([]Zone, error) {
 			if t, err := time.Parse(time.RFC3339, z.HoldMode.EndTime); err == nil {
 				out[i].HoldEnd = t
 			}
+			// An away has no holdType; "until ended" is an end time a hundred years out.
+			if out[i].HoldType == "" && z.HoldMode.Type == "away" {
+				out[i].HoldType = "until_specific_time"
+				if out[i].HoldEnd.After(time.Now().AddDate(10, 0, 0)) {
+					out[i].HoldType = "permanent"
+				}
+			}
 		}
 	}
 	return out, nil

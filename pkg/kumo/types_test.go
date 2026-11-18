@@ -31,3 +31,14 @@ func TestZoneHoldKind(t *testing.T) {
 		t.Fatalf("%v %+v", err, zs)
 	}
 }
+
+func TestAwayWithoutHoldType(t *testing.T) {
+	far := time.Now().AddDate(100, 0, 0).UTC().Format(time.RFC3339)
+	soon := time.Now().Add(time.Hour).UTC().Format(time.RFC3339)
+	for end, want := range map[string]string{far: "permanent", soon: "until_specific_time"} {
+		zs, err := ParseZones([]byte(`[{"id":"z","adapter":{"deviceSerial":"S"},"holdMode":{"enabled":true,"type":"away","holdType":null,"endTime":"` + end + `"}}]`))
+		if err != nil || zs[0].HoldType != want {
+			t.Fatalf("%v %q want %q", err, zs[0].HoldType, want)
+		}
+	}
+}

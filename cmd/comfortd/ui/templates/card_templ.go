@@ -1186,7 +1186,7 @@ func HoldControl(c ui.CardView) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 95, "\">Hold</button> <button type=\"button\" data-value=\"away\" title=\"Away: run the energy-saving away settings (auto, 17 to 26 °C) until ended\" aria-pressed=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 95, "\">Hold</button> <button type=\"button\" data-value=\"away\" title=\"Away: run energy-saving away settings until ended\" aria-pressed=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
