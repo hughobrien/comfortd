@@ -188,3 +188,4 @@ Dropped for now: a LAN/local API check and capturing Comfort app traffic. Neithe
 - 2026-11-18: Issue 4 answered by an Office test (Hugh agreed): a send-command in the app's {siteId, deviceCommands:{serial:{...}}} shape opens a hold (until_next_event, origin adapter) about 3 s later even when the value is unchanged; the deviceSerial shapes never do. Hold ended again via comfortd. Feeds the decision in issue 14.
 - 2026-11-18: Issue 5 closed as explained but unprovable: House hold at 06:39:30Z 2026-11-08 most likely an app/MHK2 action matching the current state (issue 4 shows the cloud holds on any app-style command). 
 - 2026-11-18: Issue 7 closed at Hugh's request (no systematic physical pass; he will report any command that misbehaves).
+- 2026-11-18: Issue 13 closed (hold controls and display already built). Decision: no HomeKit hold switch.
