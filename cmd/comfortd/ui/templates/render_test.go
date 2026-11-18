@@ -93,6 +93,10 @@ func TestHoldControlRendered(t *testing.T) {
 		{"no next event: hold opens options", ui.HoldView{Show: true, Mode: "none"}, `mode.value = &#39;next&#39;`, true},
 		{"until", ui.HoldView{Show: true, Mode: "until", Time: "22:30"}, `value="22:30"`, false},
 		{"hidden", ui.HoldView{}, `hold-ctl`, true},
+		{"away options closed until Away is clicked", ui.HoldView{Show: true, Mode: "none"}, `class="away-for" style="display:none"`, false},
+		{"away options default to 8 h", ui.HoldView{Show: true, Mode: "none"}, `value="8h" checked`, false},
+		{"away click opens the options, sends nothing", ui.HoldView{Show: true, Mode: "none"}, `data-value="away" title="Away: run energy-saving settings while you are out" aria-pressed="false" data-attr:aria-pressed="($away_`, false},
+		{"away on: Away ends it", ui.HoldView{Show: true, Mode: "away"}, `mode.value = &#39;none&#39;`, false},
 	} {
 		var sb strings.Builder
 		card := ui.CardView{Slug: "office", Schedule: sched, Hold: c.hold, Control: ui.CardControl{Writable: c.hold.Show}}

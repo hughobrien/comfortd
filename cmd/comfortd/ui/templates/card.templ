@@ -216,13 +216,14 @@ templ HoldControl(c ui.CardView) {
 	{{ away := h.Mode == "away" }}
 	{{ on := h.Mode != "none" && !away }}
 	{{ open := "$hold_" + holdSignal(c.Slug) }}
+	{{ awayOpen := "$away_" + holdSignal(c.Slug) }}
 	{{ post := "@post('/ui/units/" + c.Slug + "/hold', {contentType: 'form'})" }}
 	{{ pick := func(m string) string { return "el.form.elements.mode.value = '" + m + "'; " + post } }}
 	<form
 		class="hold-ctl"
 		id={ "hold-ctl-" + c.Slug }
 		title="Hold: keep these settings instead of the schedule's"
-		{ templ.Attributes{"data-signals:hold_" + holdSignal(c.Slug) + "__ifmissing": "false"}... }
+		{ templ.Attributes{"data-signals:hold_" + holdSignal(c.Slug) + "__ifmissing": "false", "data-signals:away_" + holdSignal(c.Slug) + "__ifmissing": "false"}... }
 	>
 		<input type="hidden" name="mode" value=""/>
 		<div class="seg">
@@ -236,15 +237,17 @@ templ HoldControl(c ui.CardView) {
 			<button
 				type="button"
 				data-value="away"
-				title="Away: run energy-saving away settings until ended"
+				title="Away: run energy-saving settings while you are out"
 				aria-pressed={ b2s(away) }
-				data-on:click={ awayClick(away, pick) }
+				data-attr:aria-pressed={ "(" + awayOpen + " || " + b2s(away) + ") ? 'true' : 'false'" }
+				data-on:click={ awayClick(away, awayOpen, pick) }
 			>Away</button>
-			<span class="away-for" title="How long to stay away">
-				<label><input type="radio" name="for" value="24h" checked/> 24 h</label>
-				<label><input type="radio" name="for" value="8h"/> 8 h</label>
+			<span class="away-for" style="display:none" data-show={ awayOpen } title="How long to stay away">
+				<label><input type="radio" name="for" value="8h" checked/> 8 h</label>
+				<label><input type="radio" name="for" value="24h"/> 24 h</label>
 				<label><input type="radio" name="for" value="custom"/> Back at</label>
 				<input type="time" name="back" data-ignore-morph data-on:change="el.form.elements['for'].value = 'custom'"/>
+				<button type="button" class="btn-inline" data-on:click={ awayOpen + " = false; " + pick("away") }>Start</button>
 			</span>
 		</div>
 		<div class="seg opts" style={ hideUnless(on) } data-show={ open + " || " + b2s(on) }>

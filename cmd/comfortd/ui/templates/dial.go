@@ -269,12 +269,13 @@ func holdClick(on, canNext bool, open string, pick func(string) string) string {
 	return open + " = !" + open
 }
 
-// awayClick turns Away on, or off when it is on.
-func awayClick(on bool, pick func(string) string) string {
+// awayClick ends the away when it is on; otherwise it opens or closes the
+// length options (nothing is sent until Start).
+func awayClick(on bool, open string, pick func(string) string) string {
 	if on {
-		return pick("none")
+		return open + " = false; " + pick("none")
 	}
-	return pick("away")
+	return open + " = !" + open
 }
 
 // pendingTitle is a control's tooltip: its label, with "pending" while the
