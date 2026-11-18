@@ -171,5 +171,8 @@ details.events > summary { font-size:1rem; margin:.2rem 0 .5rem; }
 section.unit > h2[draggable] { cursor:grab; }
 section.unit.dragging { opacity:.5; }
 .limits-form { display:flex; flex-wrap:wrap; gap:.5rem .8rem; align-items:center; margin-top:.4rem; font-size:.8rem; }
+.limit-slider { display:flex; align-items:center; gap:.4rem; flex-basis:100%; }
+.limit-slider input[type=range] { flex:1; min-width:6rem; }
+.limit-slider output { min-width:2.4rem; text-align:right; font-variant-numeric:tabular-nums; }
 .limits-form input[type=number] { width:4.5rem; font:inherit; color:inherit; background:transparent; border:1px solid var(--border); border-radius:4px; padding:.15rem .3rem; }
 .limits-form .hold-msg { flex-basis:100%; text-align:left; }
