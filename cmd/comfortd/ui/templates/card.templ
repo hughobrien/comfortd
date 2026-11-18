@@ -340,7 +340,7 @@ templ ScheduleEditRow(slug string, r ui.EditRow, o ui.EditOpts) {
 templ LimitsControl(c ui.CardView) {
 	{{ l := c.Limits }}
 	<details class="kv limits" data-preserve-attr="open">
-		<summary>Config <span class="next-event">{ l.MinCool }–{ l.MaxHeat }</span></summary>
+		<summary>Config</summary>
 		<form
 			class="limits-form"
 			id={ "limits-" + c.Slug }
