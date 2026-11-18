@@ -98,3 +98,23 @@ func TestHoldRefreshesTheZone(t *testing.T) {
 		t.Fatalf("zone not refreshed after the write: %+v", sn.Zone)
 	}
 }
+
+func TestAwayOnAndEnd(t *testing.T) {
+	srv, d := ctlDeps(t)
+	if rec := holdPost(d, "office", "mode=away", dsHdr); rec.Code != 200 || strings.Contains(rec.Body.String(), `class="hold-msg err"`) {
+		t.Fatalf("%d %s", rec.Code, rec.Body)
+	}
+	if rec := holdPost(d, "office", "mode=awayuntil&at=23:15", dsHdr); rec.Code != 200 {
+		t.Fatalf("%d %s", rec.Code, rec.Body)
+	}
+	w := srv.HoldWrites()
+	if len(w) != 2 || w[0].Type != "away" || !w[0].Enabled || w[0].EndTime != nil || w[0].Mode != "auto" ||
+		w[0].SpHeat == nil || w[0].SpCool == nil || w[1].Type != "away" || w[1].EndTime == nil {
+		t.Fatalf("writes %+v", w)
+	}
+	// The away is now in the zone, so the same "none" the Hold button sends ends it as an away.
+	holdPost(d, "office", "mode=none", dsHdr)
+	if w = srv.HoldWrites(); len(w) != 3 || w[2].Enabled || w[2].Type != "away" {
+		t.Fatalf("end writes %+v", w)
+	}
+}

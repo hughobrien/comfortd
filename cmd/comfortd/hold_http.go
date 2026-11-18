@@ -42,6 +42,13 @@ func (d deps) handleHold(w http.ResponseWriter, r *http.Request) {
 		err = fmt.Errorf("%w: malformed form", control.ErrInvalid)
 	case mode == "none":
 		err = d.Ctl.EndHold(r.Context(), slug, "ui")
+	case mode == "away":
+		err = d.Ctl.SetAway(r.Context(), slug, nil, "ui")
+	case mode == "awayuntil":
+		var t time.Time
+		if t, err = ui.HoldTimeFromClock(sn, d.Now(), at); err == nil {
+			err = d.Ctl.SetAway(r.Context(), slug, &t, "ui")
+		}
 	case mode == "permanent":
 		err = d.Ctl.SetHold(r.Context(), slug, nil, "ui")
 	case mode == "next":

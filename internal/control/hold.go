@@ -5,6 +5,7 @@ package control
 import (
 	"context"
 	"fmt"
+	"github.com/hughobrien/comfortd/pkg/kumo"
 	"time"
 
 	"github.com/hughobrien/comfortd/internal/store"
@@ -14,6 +15,8 @@ import (
 type HoldWriter interface {
 	SetHold(ctx context.Context, siteID, zoneID string, until *time.Time) error
 	EndHold(ctx context.Context, siteID, zoneID string) error
+	SetAway(ctx context.Context, siteID, zoneID string, a kumo.AwayHold, until *time.Time) error
+	EndAway(ctx context.Context, siteID, zoneID string, a kumo.AwayHold) error
 }
 
 // holdIDs checks the unit can have its hold changed and returns its snapshot.
@@ -38,6 +41,9 @@ func holdState(s store.Snapshot) string {
 		return "null"
 	}
 	m := map[string]any{"enabled": s.Zone.HoldEnabled, "holdType": s.Zone.HoldType}
+	if s.Zone.HoldKind == "away" {
+		m["type"] = "away"
+	}
 	if !s.Zone.HoldEnd.IsZero() {
 		m["endTime"] = s.Zone.HoldEnd.UTC().Format(time.RFC3339)
 	}
@@ -77,8 +83,14 @@ func (c *Controller) EndHold(ctx context.Context, slug, source string) error {
 	sctx, cancel := context.WithTimeout(ctx, sendTimeout)
 	defer cancel()
 	c.markSent(slug)
-	if err := c.o.Holds.EndHold(sctx, snap.Unit.SiteID, snap.Unit.ZoneID); err != nil {
-		return err
+	var err2 error
+	if z := snap.Zone; z != nil && z.HoldEnabled && z.HoldKind == "away" {
+		err2 = c.o.Holds.EndAway(sctx, snap.Unit.SiteID, snap.Unit.ZoneID, AwaySettings(snap))
+	} else {
+		err2 = c.o.Holds.EndHold(sctx, snap.Unit.SiteID, snap.Unit.ZoneID)
+	}
+	if err2 != nil {
+		return err2
 	}
 	c.record(slug, "hold", "holdMode", holdState(snap), jsonOf(map[string]any{"enabled": false}), source)
 	c.afterHold(ctx, slug)
@@ -94,4 +106,53 @@ func (c *Controller) afterHold(ctx context.Context, slug string) {
 	if c.o.AfterHold != nil {
 		c.o.AfterHold(ctx)
 	}
+}
+
+// SetAway turns Away mode on for the unit's zone, with the unit's away
+// settings (see AwaySettings); until is when it ends, nil for until ended.
+func (c *Controller) SetAway(ctx context.Context, slug string, until *time.Time, source string) error {
+	snap, err := c.holdIDs(slug)
+	if err != nil {
+		return err
+	}
+	if until != nil && !until.After(c.o.Now()) {
+		return fmt.Errorf("%w: the away must end in the future", ErrInvalid)
+	}
+	sctx, cancel := context.WithTimeout(ctx, sendTimeout)
+	defer cancel()
+	c.markSent(slug)
+	if err := c.o.Holds.SetAway(sctx, snap.Unit.SiteID, snap.Unit.ZoneID, AwaySettings(snap), until); err != nil {
+		return err
+	}
+	next := map[string]any{"enabled": true, "type": "away", "holdType": "permanent"}
+	if until != nil {
+		next["holdType"], next["endTime"] = "until_specific_time", until.UTC().Format(time.RFC3339)
+	}
+	c.record(slug, "hold", "holdMode", holdState(snap), jsonOf(next), source)
+	c.afterHold(ctx, slug)
+	return nil
+}
+
+// AwaySettings are what the unit runs while Away is on. They follow the app's
+// defaults (auto, heat 17, cool 26, fan and vane auto), kept inside the unit's
+// own limits: House's auto range starts at 19, so its away heat setpoint is 19.
+// Where the unit has no auto mode, heat is used instead.
+func AwaySettings(s store.Snapshot) kumo.AwayHold {
+	a := kumo.AwayHold{OperationMode: "auto", FanSpeed: "auto", AirDirection: "auto", SpHeat: 17, SpCool: 26}
+	if p := s.Profile; p != nil {
+		key := "auto"
+		if !p.SupportsAuto() {
+			a.OperationMode, key = "heat", "heat"
+		}
+		if lo, ok := p.Min[key]; ok {
+			a.SpHeat = max(a.SpHeat, lo)
+		}
+		if hi, ok := p.Max[key]; ok {
+			a.SpCool = min(a.SpCool, hi)
+		}
+		if lo, hi, ok := s.SetpointRange(key); ok { // include the adapter limits
+			a.SpHeat, a.SpCool = max(a.SpHeat, lo), min(a.SpCool, hi)
+		}
+	}
+	return a
 }

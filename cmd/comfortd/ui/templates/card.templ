@@ -213,7 +213,8 @@ templ scheduleSection(c ui.CardView) {
 // Clicking it with a hold on ends the hold.
 templ HoldControl(c ui.CardView) {
 	{{ h := c.Hold }}
-	{{ on := h.Mode != "none" }}
+	{{ away := h.Mode == "away" }}
+	{{ on := h.Mode != "none" && !away }}
 	{{ open := "$hold_" + holdSignal(c.Slug) }}
 	{{ post := "@post('/ui/units/" + c.Slug + "/hold', {contentType: 'form'})" }}
 	{{ pick := func(m string) string { return "el.form.elements.mode.value = '" + m + "'; " + post } }}
@@ -232,6 +233,13 @@ templ HoldControl(c ui.CardView) {
 				data-attr:aria-pressed={ "(" + open + " || " + b2s(on) + ") ? 'true' : 'false'" }
 				data-on:click={ holdClick(on, h.CanNext, open, pick) }
 			>Hold</button>
+			<button
+				type="button"
+				data-value="away"
+				title="Away: run the energy-saving away settings (auto, 17 to 26 °C) until ended"
+				aria-pressed={ b2s(away) }
+				data-on:click={ awayClick(away, pick) }
+			>Away</button>
 		</div>
 		<div class="seg opts" style={ hideUnless(on) } data-show={ open + " || " + b2s(on) }>
 			if h.CanNext {

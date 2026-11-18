@@ -157,12 +157,16 @@ func BuildCard(s store.Snapshot, ann *annotate.Set, ctl CardControl, now time.Ti
 		c.ScheduleActive, c.HoldEnabled = z.HasActiveSchedule, z.HoldEnabled
 		c.Schedule.Active = z.HasActiveSchedule
 		if z.HoldEnabled {
-			c.HoldUntil = "hold"
+			word := "hold"
+			if z.HoldKind == "away" {
+				word = "away"
+			}
+			c.HoldUntil = word
 			if z.HoldType == "permanent" {
-				c.HoldUntil = "hold, no end" // its end time is a hundred years out
+				c.HoldUntil = word + ", no end" // its end time is a hundred years out
 			} else if !z.HoldEnd.IsZero() {
 				t := z.HoldEnd.In(scheduleLoc(s, now))
-				c.HoldUntil = "hold until " + whenWords(now.In(t.Location()), t)
+				c.HoldUntil = word + " until " + whenWords(now.In(t.Location()), t)
 			}
 			if thermostat {
 				c.HoldUntil += " (thermostat)"

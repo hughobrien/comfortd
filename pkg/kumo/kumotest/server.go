@@ -506,6 +506,17 @@ type HoldWrite struct {
 	Enabled   bool
 	EndTime   *int64
 	Permanent bool
+	Type      string // "hold" or "away"
+	Mode      string // an away's operationMode
+	SpHeat    *float64
+	SpCool    *float64
+}
+
+func holdKind(t string) string {
+	if t == "away" {
+		return "away"
+	}
+	return "hold"
 }
 
 // HoldWrites returns the accepted hold changes so far.
@@ -522,8 +533,12 @@ func (s *Server) handleHold(w http.ResponseWriter, r *http.Request) {
 		SiteID  string          `json:"siteId"`
 		EndTime json.RawMessage `json:"endTime"`
 		Zones   []struct {
-			ID      string `json:"id"`
-			Enabled bool   `json:"enabled"`
+			ID            string   `json:"id"`
+			Enabled       bool     `json:"enabled"`
+			Type          string   `json:"type"`
+			OperationMode string   `json:"operationMode"`
+			SpHeat        *float64 `json:"spHeat"`
+			SpCool        *float64 `json:"spCool"`
 		} `json:"zones"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || r.PathValue("site") != SiteID || len(body.Zones) == 0 {
@@ -543,7 +558,7 @@ func (s *Server) handleHold(w http.ResponseWriter, r *http.Request) {
 	now := time.Now().UTC()
 	var modes []map[string]any
 	for _, z := range body.Zones {
-		hm := map[string]any{"id": "00000000-0000-4000-8000-0000000000a1", "enabled": z.Enabled, "type": "hold", "origin": "adapter",
+		hm := map[string]any{"id": "00000000-0000-4000-8000-0000000000a1", "enabled": z.Enabled, "type": holdKind(z.Type), "origin": "adapter",
 			"operationMode": nil, "fanSpeed": nil, "airDirection": nil, "spCool": nil, "spHeat": nil}
 		stamp := func(t time.Time) string { return t.Format("2006-01-02T15:04:05.000Z") }
 		switch {
@@ -556,7 +571,7 @@ func (s *Server) handleHold(w http.ResponseWriter, r *http.Request) {
 		}
 		s.holds[z.ID] = hm
 		modes = append(modes, hm)
-		s.holdWrites = append(s.holdWrites, HoldWrite{Zone: z.ID, Enabled: z.Enabled, EndTime: end, Permanent: z.Enabled && end == nil})
+		s.holdWrites = append(s.holdWrites, HoldWrite{Zone: z.ID, Enabled: z.Enabled, EndTime: end, Permanent: z.Enabled && end == nil, Type: holdKind(z.Type), Mode: z.OperationMode, SpHeat: z.SpHeat, SpCool: z.SpCool})
 	}
 	out := map[string]any{"holdModes": modes}
 	if z := body.Zones[0]; z.Enabled {
@@ -680,4 +695,13 @@ func clearReal(dev map[string]any, field string) {
 	if rv, ok := dev["realValues"].(map[string]any); ok {
 		delete(rv, field)
 	}
+}
+
+// SetHoldMode sets a zone's hold as if made in the app: kind is "hold" or "away".
+func (s *Server) SetHoldMode(zone string, enabled bool, kind string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.holds[zone] = map[string]any{"id": "00000000-0000-4000-8000-0000000000a1", "enabled": enabled, "type": holdKind(kind),
+		"origin": "adapter", "holdType": "permanent", "endTime": time.Now().UTC().AddDate(100, 0, 0).Format("2006-01-02T15:04:05.000Z"),
+		"operationMode": nil, "fanSpeed": nil, "airDirection": nil, "spCool": nil, "spHeat": nil}
 }

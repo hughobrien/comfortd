@@ -92,3 +92,27 @@ func TestParseZonesHoldType(t *testing.T) {
 		t.Fatalf("%+v %v", zs, err)
 	}
 }
+
+func TestAwayBodies(t *testing.T) {
+	c, tap := holdClient(t, 201)
+	a := AwayHold{OperationMode: "auto", FanSpeed: "auto", AirDirection: "auto", SpHeat: 17, SpCool: 26}
+	if err := c.SetAway(context.Background(), "S", "Z", a, nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.EndAway(context.Background(), "S", "Z", a); err != nil {
+		t.Fatal(err)
+	}
+	on, off := zoneOf(tap.reqs[0]), zoneOf(tap.reqs[1])
+	if on["type"] != "away" || on["enabled"] != true || on["operationMode"] != "auto" || on["spHeat"] != float64(17) || on["spCool"] != float64(26) || on["fanSpeed"] != "auto" || on["airDirection"] != "auto" {
+		t.Fatalf("away on %v", tap.reqs[0])
+	}
+	if v, ok := tap.reqs[0]["endTime"]; !ok || v != nil {
+		t.Fatalf("manual away must carry endTime null: %v", tap.reqs[0])
+	}
+	if off["type"] != "away" || off["enabled"] != false || off["spHeat"] != float64(17) {
+		t.Fatalf("away off %v", tap.reqs[1])
+	}
+	if _, has := tap.reqs[1]["endTime"]; has {
+		t.Fatalf("away end must not carry endTime: %v", tap.reqs[1])
+	}
+}

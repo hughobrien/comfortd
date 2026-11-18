@@ -17,7 +17,7 @@ var ErrBadTime = errors.New("bad time")
 // choices need.
 type HoldView struct {
 	Show    bool      // the unit is writable and has a zone
-	Mode    string    // none, next, until or permanent
+	Mode    string    // none, next, until, permanent or away (Away mode is on)
 	Time    string    // "15:04" in the unit's zone: the end of an "until" hold, else empty
 	CanNext bool      // the schedule has a next event to hold until
 	NextAt  time.Time // that event
@@ -34,6 +34,10 @@ func BuildHold(s store.Snapshot, writable bool, now time.Time) HoldView {
 	zz, _ := s.Zone.WithAdapterHold(now)
 	z := &zz
 	if !z.HoldEnabled {
+		return h
+	}
+	if z.HoldKind == "away" {
+		h.Mode = "away"
 		return h
 	}
 	until := func() {

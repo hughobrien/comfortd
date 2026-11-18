@@ -99,3 +99,15 @@ func TestThermostatHoldShowsAsAHold(t *testing.T) {
 		t.Fatalf("until=%q", c.HoldUntil)
 	}
 }
+
+func TestAwayShowsOnTheCard(t *testing.T) {
+	now := time.Date(2026, 11, 17, 17, 40, 0, 0, time.UTC)
+	s := store.Snapshot{Zone: &kumo.Zone{HoldEnabled: true, HoldKind: "away", HoldType: "permanent"}}
+	if h := BuildHold(s, true, now); h.Mode != "away" {
+		t.Fatalf("mode %q", h.Mode)
+	}
+	c := BuildCard(s, nil, CardControl{Writable: true}, now, time.Minute)
+	if c.HoldUntil != "away, no end" {
+		t.Fatalf("until %q", c.HoldUntil)
+	}
+}

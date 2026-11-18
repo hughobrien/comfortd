@@ -24,3 +24,10 @@ func TestZoneAdapterHoldEnd(t *testing.T) {
 		t.Fatal("past end time counted as a hold")
 	}
 }
+
+func TestZoneHoldKind(t *testing.T) {
+	zs, err := ParseZones([]byte(`[{"id":"z","adapter":{"deviceSerial":"S"},"holdMode":{"enabled":true,"type":"away","holdType":"permanent"}}]`))
+	if err != nil || zs[0].HoldKind != "away" {
+		t.Fatalf("%v %+v", err, zs)
+	}
+}

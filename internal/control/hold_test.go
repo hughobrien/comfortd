@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/hughobrien/comfortd/pkg/kumo"
 	"github.com/hughobrien/comfortd/pkg/kumo/kumotest"
 )
 
@@ -20,6 +21,7 @@ type holdCall struct {
 
 type fakeHolds struct {
 	calls []holdCall
+	away  []kumo.AwayHold
 	err   error
 }
 
@@ -36,6 +38,24 @@ func (f *fakeHolds) EndHold(_ context.Context, site, zone string) error {
 		return f.err
 	}
 	f.calls = append(f.calls, holdCall{"end", site, zone, nil})
+	return nil
+}
+
+func (f *fakeHolds) SetAway(_ context.Context, site, zone string, a kumo.AwayHold, until *time.Time) error {
+	if f.err != nil {
+		return f.err
+	}
+	f.away = append(f.away, a)
+	f.calls = append(f.calls, holdCall{"away", site, zone, until})
+	return nil
+}
+
+func (f *fakeHolds) EndAway(_ context.Context, site, zone string, a kumo.AwayHold) error {
+	if f.err != nil {
+		return f.err
+	}
+	f.away = append(f.away, a)
+	f.calls = append(f.calls, holdCall{"endaway", site, zone, nil})
 	return nil
 }
 
@@ -174,5 +194,55 @@ func TestLastSentIsSetBeforeTheHoldCall(t *testing.T) {
 	}
 	if len(sp.saw) != 2 || !sp.saw[0] || !sp.saw[1] {
 		t.Fatalf("LastSent set before the call: %v", sp.saw)
+	}
+}
+
+func TestSetAndEndAway(t *testing.T) {
+	r := newRig(t)
+	fh := &fakeHolds{}
+	c := holdCtl(r, fh, "office")
+	until := time.Date(2026, 11, 17, 6, 22, 0, 0, time.UTC)
+	if err := c.SetAway(context.Background(), "office", &until, "ui"); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.SetAway(context.Background(), "office", nil, "ui"); err != nil {
+		t.Fatal(err)
+	}
+	past := time.Date(2026, 11, 17, 2, 0, 0, 0, time.UTC)
+	if err := c.SetAway(context.Background(), "office", &past, "ui"); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("past end: %v", err)
+	}
+	if fh.calls[0].op != "away" || fh.calls[0].until == nil || !fh.calls[0].until.Equal(until) || fh.calls[1].until != nil || len(fh.calls) != 2 {
+		t.Fatalf("calls %+v", fh.calls)
+	}
+	a := fh.away[0]
+	if a.OperationMode == "" || a.SpHeat >= a.SpCool || a.SpHeat < 17 || a.SpCool > 26 || a.FanSpeed != "auto" {
+		t.Fatalf("away settings %+v", a)
+	}
+	if n := r.holdRecords(); n != 2 {
+		t.Fatalf("history records for away: %d", n)
+	}
+}
+
+func TestEndHoldOfAwayEndsTheAway(t *testing.T) {
+	r := newRig(t)
+	fh := &fakeHolds{}
+	c := holdCtl(r, fh, "office")
+	r.srv.SetHoldMode(kumotest.OfficeZoneID, true, "away")
+	r.p.PollOnce(context.Background())
+	if err := c.EndHold(context.Background(), "office", "ui"); err != nil {
+		t.Fatal(err)
+	}
+	if len(fh.calls) != 1 || fh.calls[0].op != "endaway" {
+		t.Fatalf("calls %+v", fh.calls)
+	}
+}
+
+func TestAwaySettingsFollowTheUnitsLimits(t *testing.T) {
+	r := newRig(t)
+	s, _ := r.st.Get("house")
+	a := AwaySettings(s)
+	if lo, _, ok := s.SetpointRange(a.OperationMode); ok && a.SpHeat < lo {
+		t.Fatalf("away heat %v below the unit's floor %v", a.SpHeat, lo)
 	}
 }

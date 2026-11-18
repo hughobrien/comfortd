@@ -269,6 +269,14 @@ func holdClick(on, canNext bool, open string, pick func(string) string) string {
 	return open + " = !" + open
 }
 
+// awayClick turns Away on, or off when it is on.
+func awayClick(on bool, pick func(string) string) string {
+	if on {
+		return pick("none")
+	}
+	return pick("away")
+}
+
 // pendingTitle is a control's tooltip: its label, with "pending" while the
 // unit has not yet reported the value (it goes live once the unit does).
 func pendingTitle(label string, pending bool) string {

@@ -27,6 +27,7 @@ type Zone struct {
 	HoldEnabled       bool
 	HoldEnd           time.Time // when the hold lapses (the next schedule event); zero if unknown
 	HoldType          string    // until_next_event, until_specific_time, permanent, unset; empty if unknown
+	HoldKind          string    // holdMode.type: "hold" or "away" (the Comfort app's Away mode); empty if unknown
 	// AdapterHoldEnd is the adapter's scheduleHoldEndTime: a hold made on the wall
 	// thermostat (House's MHK2) sets it without turning holdMode on. Zero if none.
 	AdapterHoldEnd time.Time
@@ -84,6 +85,7 @@ func ParseZones(raw json.RawMessage) ([]Zone, error) {
 		HoldMode          *struct {
 			Enabled  bool   `json:"enabled"`
 			HoldType string `json:"holdType"`
+			Type     string `json:"type"`
 			EndTime  string `json:"endTime"`
 		} `json:"holdMode"`
 		Adapter struct {
@@ -103,6 +105,7 @@ func ParseZones(raw json.RawMessage) ([]Zone, error) {
 		if z.HoldMode != nil {
 			out[i].HoldEnabled = z.HoldMode.Enabled
 			out[i].HoldType = z.HoldMode.HoldType
+			out[i].HoldKind = z.HoldMode.Type
 			if t, err := time.Parse(time.RFC3339, z.HoldMode.EndTime); err == nil {
 				out[i].HoldEnd = t
 			}
