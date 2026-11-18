@@ -36,6 +36,7 @@ type CardView struct {
 	ShowHeat, ShowCool                              bool     // which setpoint sliders apply in this mode
 	Image                                           string   // model picture URL on this server
 	Alerts                                          []string // active displayConfig flags, for the banner
+	FanHint                                         string   // why the fan may not blow at the chosen speed right now, else empty
 	SpMin, SpMax                                    string   // heat setpoint range from the profile
 	// Selectable values, offered only when the unit is writable and supports
 	// them; Pressed marks the current one.
@@ -107,6 +108,7 @@ func BuildCard(s store.Snapshot, ann *annotate.Set, ctl CardControl, now time.Ti
 		if d.Display.HotAdjust {
 			c.Alerts = append(c.Alerts, "hot adjust")
 		}
+		c.FanHint = fanHint(d)
 		if d.FanSpeed != "" {
 			c.Fan = d.FanSpeed
 		}
