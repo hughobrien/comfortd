@@ -347,8 +347,16 @@ templ LimitsControl(c ui.CardView) {
 			data-on:submit__prevent={ "@post('/ui/units/" + c.Slug + "/limits', {contentType: 'form'})" }
 		>
 			<label class="limits-on" title="Min/Max setpoints in the Comfort app. This is one setting for the whole account, so it covers both units."><input type="checkbox" name="enabled" checked?={ l.Enabled }/> Enabled</label>
-			<label class="limit-slider">Lowest cooling <input type="range" name="min" value={ l.MinCool } min={ l.CoolLo } max={ l.CoolHi } step="0.5" data-ignore-morph data-on:input="el.nextElementSibling.value = el.value"/><output data-ignore-morph>{ l.MinCool }</output></label>
-			<label class="limit-slider">Highest heating <input type="range" name="max" value={ l.MaxHeat } min={ l.HeatLo } max={ l.HeatHi } step="0.5" data-ignore-morph data-on:input="el.nextElementSibling.value = el.value"/><output data-ignore-morph>{ l.MaxHeat }</output></label>
+			<div class="limit-pair">
+				<label class="limit-slider">
+					<span class="ls-title">Lowest cooling <output data-ignore-morph>{ l.MinCool }</output></span>
+					<span class="ls-track"><span>{ l.CoolLo }</span><input type="range" name="min" value={ l.MinCool } min={ l.CoolLo } max={ l.CoolHi } step="0.5" data-ignore-morph data-on:input="el.closest('.limit-slider').querySelector('output').value = el.value"/><span>{ l.CoolHi }</span></span>
+				</label>
+				<label class="limit-slider">
+					<span class="ls-title">Highest heating <output data-ignore-morph>{ l.MaxHeat }</output></span>
+					<span class="ls-track"><span>{ l.HeatLo }</span><input type="range" name="max" value={ l.MaxHeat } min={ l.HeatLo } max={ l.HeatHi } step="0.5" data-ignore-morph data-on:input="el.closest('.limit-slider').querySelector('output').value = el.value"/><span>{ l.HeatHi }</span></span>
+				</label>
+			</div>
 			<button type="submit">Set</button>
 			<p class="hold-msg" id={ "limits-msg-" + c.Slug }></p>
 		</form>
