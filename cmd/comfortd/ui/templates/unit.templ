@@ -29,6 +29,9 @@ templ activeUnit(v ui.UnitView) {
 			if v.Card.HoldUntil != "" {
 				<span class="hold-flag">{ v.Card.HoldUntil }</span>
 			}
+			if v.Card.FanHint != "" {
+				<span class="fan-flag" title={ v.Card.FanHintWhy }>{ v.Card.FanHint }</span>
+			}
 			if v.Stale {
 				<span class="badge stale">stale</span>
 			}

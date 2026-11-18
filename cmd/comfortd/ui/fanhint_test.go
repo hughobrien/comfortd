@@ -25,8 +25,11 @@ func TestFanHint(t *testing.T) {
 		{"cool, room above heat setpoint", &kumo.Device{Power: 1, OperationMode: "cool", SpHeat: p(20), RoomTemp: p(25)}, false},
 		{"vent", &kumo.Device{Power: 1, OperationMode: "vent", SpHeat: p(20), RoomTemp: p(25)}, false},
 	} {
-		if got := fanHint(tc.d) != ""; got != tc.want {
-			t.Errorf("%s: hint=%q want hint=%v", tc.name, fanHint(tc.d), tc.want)
+		if l, w := fanHint(tc.d); (l != "") != tc.want || (l == "") != (w == "") {
+			t.Errorf("%s: hint=%q want hint=%v", tc.name, l, tc.want)
 		}
+	}
+	if l, _ := fanHint(&kumo.Device{Power: 1, OperationMode: "heat", SpHeat: p(20), RoomTemp: p(20)}); l != "Setpoint reached, fan low" {
+		t.Errorf("label %q", l)
 	}
 }

@@ -16,15 +16,17 @@ import (
 // the room at the setpoint the compressor is off too. displayConfig.standby is
 // not used: the CN105 protocol reference reads it as another unit with priority
 // requesting a conflicting mode, so it is not an idle signal.
-func fanHint(d *kumo.Device) string {
+// It returns a short label for the card heading and the longer explanation for
+// its tooltip.
+func fanHint(d *kumo.Device) (label, why string) {
 	if d == nil || d.Power != 1 {
-		return ""
+		return "", ""
 	}
 	switch {
 	case d.Display.HotAdjust:
-		return "Warming up: the fan stays off or very low until the coil is warm."
+		return "Warming up, fan low", "Warming up: the fan stays off or very low until the coil is warm."
 	case control.ModeFamily(d.OperationMode) == "heat" && d.SpHeat != nil && d.RoomTemp != nil && *d.RoomTemp >= *d.SpHeat:
-		return "Room is at the setpoint: the fan may stay off or very low until heating restarts."
+		return "Setpoint reached, fan low", "Room is at the setpoint: the fan may stay off or very low until heating restarts."
 	}
-	return ""
+	return "", ""
 }

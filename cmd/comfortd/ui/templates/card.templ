@@ -34,9 +34,6 @@ templ Card(c ui.CardView) {
 				<div class="ctrl">
 					<span class="ctrl-label">FAN</span>
 					@dial(c, c.Fans, "fan", "v", "fanSpeed", "auto", true, "auto")
-					if c.FanHint != "" {
-						<p class="fan-hint">{ c.FanHint }</p>
-					}
 				</div>
 			}
 			if len(c.Vanes) > 0 {

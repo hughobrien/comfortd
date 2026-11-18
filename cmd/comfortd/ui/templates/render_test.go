@@ -197,3 +197,21 @@ func TestPendingControlSaysPending(t *testing.T) {
 		t.Fatal(got)
 	}
 }
+
+// The fan hint sits in the heading, before "as at", with the long text as its tooltip.
+func TestFanHintInHeading(t *testing.T) {
+	v := ui.UnitView{Slug: "office", Name: "Office", LastOK: "12:00:00",
+		Card: ui.CardView{FanHint: "Setpoint reached, fan low", FanHintWhy: "Room is at the setpoint: the fan may stay off."}}
+	var b bytes.Buffer
+	if err := UnitSection(v).Render(context.Background(), &b); err != nil {
+		t.Fatal(err)
+	}
+	s := b.String()
+	i, j := strings.Index(s, ">Setpoint reached, fan low<"), strings.Index(s, "as at 12:00:00")
+	if i < 0 || j < 0 || i > j || !strings.Contains(s, `title="Room is at the setpoint: the fan may stay off."`) {
+		t.Fatalf("%s", s)
+	}
+	if strings.Contains(s, "fan-hint") {
+		t.Fatal("old fan-hint line still rendered")
+	}
+}
