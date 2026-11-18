@@ -43,11 +43,23 @@ func (d deps) handleHold(w http.ResponseWriter, r *http.Request) {
 	case mode == "none":
 		err = d.Ctl.EndHold(r.Context(), slug, "ui")
 	case mode == "away":
-		err = d.Ctl.SetAway(r.Context(), slug, nil, "ui")
-	case mode == "awayuntil":
-		var t time.Time
-		if t, err = ui.HoldTimeFromClock(sn, d.Now(), at); err == nil {
-			err = d.Ctl.SetAway(r.Context(), slug, &t, "ui")
+		// for: 24h, 8h, or custom (a return time of day); none given means until ended.
+		var until *time.Time
+		switch f := r.PostForm.Get("for"); f {
+		case "24h", "8h":
+			t := d.Now().Add(map[string]time.Duration{"24h": 24 * time.Hour, "8h": 8 * time.Hour}[f])
+			until = &t
+		case "custom":
+			var t time.Time
+			if t, err = ui.HoldTimeFromClock(sn, d.Now(), strings.TrimSpace(r.PostForm.Get("back"))); err == nil {
+				until = &t
+			}
+		case "":
+		default:
+			err = fmt.Errorf("%w: unknown away length %q", control.ErrInvalid, f)
+		}
+		if err == nil {
+			err = d.Ctl.SetAway(r.Context(), slug, until, "ui")
 		}
 	case mode == "permanent":
 		err = d.Ctl.SetHold(r.Context(), slug, nil, "ui")

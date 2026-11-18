@@ -240,6 +240,12 @@ templ HoldControl(c ui.CardView) {
 				aria-pressed={ b2s(away) }
 				data-on:click={ awayClick(away, pick) }
 			>Away</button>
+			<span class="away-for" title="How long to stay away">
+				<label><input type="radio" name="for" value="24h" checked/> 24 h</label>
+				<label><input type="radio" name="for" value="8h"/> 8 h</label>
+				<label><input type="radio" name="for" value="custom"/> Back at</label>
+				<input type="time" name="back" data-ignore-morph data-on:change="el.form.elements['for'].value = 'custom'"/>
+			</span>
 		</div>
 		<div class="seg opts" style={ hideUnless(on) } data-show={ open + " || " + b2s(on) }>
 			if h.CanNext {

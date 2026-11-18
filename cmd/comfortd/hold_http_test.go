@@ -104,7 +104,7 @@ func TestAwayOnAndEnd(t *testing.T) {
 	if rec := holdPost(d, "office", "mode=away", dsHdr); rec.Code != 200 || strings.Contains(rec.Body.String(), `class="hold-msg err"`) {
 		t.Fatalf("%d %s", rec.Code, rec.Body)
 	}
-	if rec := holdPost(d, "office", "mode=awayuntil&at=23:15", dsHdr); rec.Code != 200 {
+	if rec := holdPost(d, "office", "mode=away&for=custom&back=23:15", dsHdr); rec.Code != 200 {
 		t.Fatalf("%d %s", rec.Code, rec.Body)
 	}
 	w := srv.HoldWrites()
@@ -112,9 +112,24 @@ func TestAwayOnAndEnd(t *testing.T) {
 		w[0].SpHeat == nil || w[0].SpCool == nil || w[1].Type != "away" || w[1].EndTime == nil {
 		t.Fatalf("writes %+v", w)
 	}
+	for _, f := range []string{"for=24h", "for=8h"} {
+		holdPost(d, "office", "mode=away&"+f, dsHdr)
+	}
+	w = srv.HoldWrites()
+	n := d.Now().Unix()
+	if len(w) != 4 || w[2].EndTime == nil || *w[2].EndTime < n+24*3600-5 || *w[2].EndTime > n+24*3600+5 ||
+		w[3].EndTime == nil || *w[3].EndTime < n+8*3600-5 || *w[3].EndTime > n+8*3600+5 {
+		t.Fatalf("24h/8h writes %+v", w)
+	}
+	if rec := holdPost(d, "office", "mode=away&for=custom&back=", dsHdr); !strings.Contains(rec.Body.String(), `hold-msg err`) {
+		t.Fatalf("custom without a time must be refused: %s", rec.Body)
+	}
+	if len(srv.HoldWrites()) != 4 {
+		t.Fatal("a refused custom away still wrote")
+	}
 	// The away is now in the zone, so the same "none" the Hold button sends ends it as an away.
 	holdPost(d, "office", "mode=none", dsHdr)
-	if w = srv.HoldWrites(); len(w) != 3 || w[2].Enabled || w[2].Type != "away" {
+	if w = srv.HoldWrites(); len(w) != 5 || w[4].Enabled || w[4].Type != "away" {
 		t.Fatalf("end writes %+v", w)
 	}
 }
