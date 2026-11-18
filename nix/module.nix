@@ -97,16 +97,6 @@ in {
       };
     };
 
-    limitUnits = lib.mkOption {
-      type = lib.types.listOf lib.types.str;
-      default = [ ];
-      description = ''
-        Unit slugs (also in writableUnits) whose Min/Max setpoint limits can
-        be changed from the web UI. Not every adapter is known to take the
-        command, so each unit is opted in.
-      '';
-    };
-
     writableUnits = lib.mkOption {
       type = lib.types.listOf lib.types.str;
       default = [ ];
@@ -156,8 +146,6 @@ in {
           "--backstop" cfg.backstop
         ] ++ lib.optionals (cfg.writableUnits != [ ]) [
           "--writable-units" (lib.escapeShellArg (lib.concatStringsSep "," cfg.writableUnits))
-        ] ++ lib.optionals (cfg.limitUnits != [ ]) [
-          "--limit-units" (lib.escapeShellArg (lib.concatStringsSep "," cfg.limitUnits))
         ] ++ lib.optionals (cfg.inactiveUnits != [ ]) [
           "--inactive-units" (lib.escapeShellArg (lib.concatStringsSep "," cfg.inactiveUnits))
         ] ++ lib.optionals cfg.homekit.enable [

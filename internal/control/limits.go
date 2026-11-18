@@ -6,7 +6,6 @@ import (
 	"context"
 	"fmt"
 	"math"
-	"slices"
 	"strconv"
 )
 
@@ -16,10 +15,9 @@ type LimitWriter interface {
 }
 
 // LimitsEnabled reports whether the unit's Min/Max setpoint limits may be
-// changed: it must be writable and listed in Options.LimitUnits (not every
-// adapter is known to take the command).
+// changed: it must be writable and the controller must have a limit writer.
 func (c *Controller) LimitsEnabled(slug string) bool {
-	return c.o.Limits != nil && c.Writable(slug) && slices.Contains(c.o.LimitUnits, slug)
+	return c.o.Limits != nil && c.Writable(slug)
 }
 
 // SetLimits sets the unit's adapter limits: minCool is the lowest cooling

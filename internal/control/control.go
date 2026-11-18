@@ -134,7 +134,6 @@ type Options struct {
 	Schedules     ScheduleWriter            // nil = schedule edits are off
 	Holds         HoldWriter                // nil = hold changes are off
 	Limits        LimitWriter               // nil = limit changes are off
-	LimitUnits    []string                  // units whose adapter is known to take limit changes
 	AfterLimits   func(ctx context.Context) // refetch the status after a limit change
 	AfterSchedule func(ctx context.Context) // refetch the schedules after an edit
 	AfterHold     func(ctx context.Context) // refetch the zones after a hold change (the hold lives in the zone view)

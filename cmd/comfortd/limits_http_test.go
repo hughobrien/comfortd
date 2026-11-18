@@ -29,17 +29,12 @@ func TestLimitsSet(t *testing.T) {
 func TestLimitsRejects(t *testing.T) {
 	srv, d := ctlDepsFor(t, []string{"office", "house"})
 	for name, tc := range map[string]struct{ slug, form string }{
-		"not a number":         {"house", "min=x&max=24"},
-		"below the profile":    {"house", "min=10&max=24"},
-		"floor above ceiling":  {"house", "min=26&max=24"},
-		"unit not in the list": {"office", "min=16&max=31"},
+		"not a number":        {"house", "min=x&max=24"},
+		"below the profile":   {"house", "min=10&max=24"},
+		"floor above ceiling": {"house", "min=26&max=24"},
 	} {
 		code, body := limitsPost(d, tc.slug, tc.form, dsHdr)
-		if tc.slug == "office" {
-			if code != 403 {
-				t.Errorf("%s: %d", name, code)
-			}
-		} else if code != 200 || !strings.Contains(body, `class="hold-msg err"`) {
+		if code != 200 || !strings.Contains(body, `class="hold-msg err"`) {
 			t.Errorf("%s: %d %s", name, code, body)
 		}
 	}
@@ -51,6 +46,13 @@ func TestLimitsRejects(t *testing.T) {
 func TestLimitsNeedDatastarHeader(t *testing.T) {
 	srv, d := ctlDepsFor(t, []string{"office", "house"})
 	if code, _ := limitsPost(d, "house", "min=19&max=24", nil); code != 403 || len(srv.LimitWrites()) != 0 {
+		t.Fatalf("%d %+v", code, srv.LimitWrites())
+	}
+}
+
+func TestLimitsForbiddenOnReadOnlyUnit(t *testing.T) {
+	srv, d := ctlDeps(t) // only office is writable
+	if code, _ := limitsPost(d, "house", "min=19&max=24", dsHdr); code != 403 || len(srv.LimitWrites()) != 0 {
 		t.Fatalf("%d %+v", code, srv.LimitWrites())
 	}
 }

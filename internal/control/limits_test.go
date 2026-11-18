@@ -37,7 +37,7 @@ func TestSetLimits(t *testing.T) {
 	}{
 		{"ok", 19, 24, true, nil, 1, nil},
 		{"half steps", 19.5, 24.5, true, nil, 1, nil},
-		{"not in limit units", 19, 24, false, nil, 0, ErrNotWritable},
+		{"unit not writable", 19, 24, false, nil, 0, ErrNotWritable},
 		{"floor below profile cool min", 18, 24, true, nil, 0, ErrInvalid},
 		{"ceiling above profile heat max", 19, 29, true, nil, 0, ErrInvalid},
 		{"floor not below ceiling", 24, 24, true, nil, 0, ErrInvalid},
@@ -54,8 +54,8 @@ func TestSetLimits(t *testing.T) {
 			}
 			f := &fakeLimits{err: tc.sendErr}
 			o := Options{Store: st, Writable: []string{"house"}, Limits: f}
-			if tc.enabled {
-				o.LimitUnits = []string{"house"}
+			if !tc.enabled {
+				o.Writable = nil
 			}
 			err := New(o).SetLimits(context.Background(), "house", tc.lo, tc.hi, "ui")
 			if (err == nil) != (tc.wantErr == nil) || (tc.wantErr != nil && tc.sendErr == nil && !errors.Is(err, tc.wantErr)) {
