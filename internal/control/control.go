@@ -566,7 +566,7 @@ func (c *Controller) Observe(u store.Update) {
 	c.mu.Lock()
 	if st := c.units[u.Slug]; st != nil {
 		for name, f := range st.fields {
-			if f.sent && matches(name, f.val, d) {
+			if f.sent && matches(name, f.val, d) && unitReported(name, f.val, d) {
 				delete(st.fields, name)
 				confirmed = true
 			}
@@ -663,6 +663,24 @@ func matches(name string, val any, d kumo.Device) bool {
 		return d.AirDirection == val
 	}
 	return false
+}
+
+// unitReported is true when the unit itself has reported the value, not just
+// the cloud. The device record's realValues holds what the unit last reported,
+// present only while it differs from the requested top-level value (observed on
+// spHeat and spCool: the old value shows for a few seconds after a command,
+// then the entry goes). A field is "live" once it matches and has no differing
+// realValues entry; until then it is "pending".
+func unitReported(name string, val any, d kumo.Device) bool {
+	rv, ok := d.RealValues[name]
+	if !ok {
+		return true
+	}
+	if n, isNum := rv.(float64); isNum {
+		v, _ := val.(float64)
+		return n == v
+	}
+	return rv == val
 }
 
 func polledJSON(name string, d *kumo.Device) string {

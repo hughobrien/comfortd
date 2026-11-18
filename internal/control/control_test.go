@@ -579,3 +579,25 @@ func TestLastSentIsSetBeforeTheCommandCall(t *testing.T) {
 		t.Fatalf("LastSent set before the send: %v", sp.seen)
 	}
 }
+
+// A field is live only once the unit has reported it: while realValues still
+// holds a different value for it, the cloud has the request but the unit has
+// not caught up, and the field stays pending.
+func TestFieldStaysPendingUntilTheUnitReportsIt(t *testing.T) {
+	r := newRig(t) // office in heat at 20
+	if err := r.c.Apply("office", Intent{SpHeat: f(21)}, "ui"); err != nil {
+		t.Fatal(err)
+	}
+	eventually(t, time.Second, func() bool { return len(r.srv.Commands()) == 1 }, "sent")
+	obs := func(body string) {
+		r.c.Observe(store.Update{Slug: "office", Endpoint: store.EndpointDevice, New: []byte(body)})
+	}
+	obs(`{"operationMode":"heat","power":1,"spHeat":21,"spCool":26,"realValues":{"spHeat":20}}`)
+	if _, ok := r.c.Pending("office")["spHeat"]; !ok {
+		t.Fatal("went live while the unit still reported 20")
+	}
+	obs(`{"operationMode":"heat","power":1,"spHeat":21,"spCool":26,"realValues":{}}`)
+	if _, ok := r.c.Pending("office")["spHeat"]; ok {
+		t.Fatal("still pending after the unit caught up")
+	}
+}

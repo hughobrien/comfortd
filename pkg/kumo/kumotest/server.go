@@ -182,6 +182,7 @@ func (s *Server) ExpireAccess() {
 func (s *Server) SetField(serial, field string, v any) {
 	s.mu.Lock()
 	s.devices[serial][field] = v
+	clearReal(s.devices[serial], field)
 	s.mu.Unlock()
 	s.PushDevice(serial, false)
 	s.PushDevice(serial, true)
@@ -380,6 +381,7 @@ func (s *Server) handleSendCommand(w http.ResponseWriter, r *http.Request) {
 	s.commands = append(s.commands, Command{Serial: body.DeviceSerial, Commands: body.Commands})
 	for k, v := range body.Commands {
 		dev[k] = v
+		clearReal(dev, k)
 		if k == "operationMode" {
 			if v == "off" {
 				dev["power"] = float64(0)
@@ -670,4 +672,12 @@ func (s *Server) MinMaxEnabled() (on bool, writes int) {
 	defer s.mu.Unlock()
 	on, _ = s.prefs["isMinMaxSetpointsEnabled"].(bool)
 	return on, s.prefWrites
+}
+
+// clearReal models the unit catching up: once a field is set, the unit's own
+// reported value (realValues) for it is gone.
+func clearReal(dev map[string]any, field string) {
+	if rv, ok := dev["realValues"].(map[string]any); ok {
+		delete(rv, field)
+	}
 }
