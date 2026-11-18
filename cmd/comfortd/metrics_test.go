@@ -26,6 +26,8 @@ func TestMetricsScrape(t *testing.T) {
 		`comfortd_mode{mode="`,
 		`comfortd_setpoint_celsius{kind="heat",unit="office"}`,
 		`comfortd_room_temperature_celsius{unit="house"}`,
+		`comfortd_alert{alert="hot_adjust",unit="office"}`,
+		`comfortd_status_display{unit="office"}`,
 		`comfortd_upstream_requests_total{code="200",method="GET",route="/devices/{id}"} 1`,
 		`comfortd_upstream_requests_total{code="0",method="GET",route="/devices/{id}"} 1`,
 	} {

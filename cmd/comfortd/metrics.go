@@ -25,6 +25,7 @@ type Metrics struct {
 	up, lastPoll, connected, power, room, setpoint, humidity, rssi *prometheus.GaugeVec
 	mode, fan                                                      *prometheus.GaugeVec // one-hot
 	hold, scheduleActive, alert, thermostatBattery, endpointError  *prometheus.GaugeVec
+	statusDisplay                                                  *prometheus.GaugeVec
 
 	requests                   *prometheus.CounterVec
 	socketEvents, socketMissed *prometheus.CounterVec
@@ -53,7 +54,8 @@ func NewMetrics() *Metrics {
 	m.rssi = g("comfortd_wifi_rssi_dbm", "Adapter Wi-Fi signal strength.")
 	m.hold = g("comfortd_hold_active", "The Comfort app's temporary hold is on (0/1).")
 	m.scheduleActive = g("comfortd_schedule_active", "The unit follows its schedule (0/1).")
-	m.alert = g("comfortd_alert", "Unit indicator flags (filter, defrost, standby), 0/1.", "alert")
+	m.alert = g("comfortd_alert", "Unit indicator flags (filter, defrost, standby, hot_adjust), 0/1. hot_adjust is the heating warm-up, when the indoor fan stays off or very low.", "alert")
+	m.statusDisplay = g("comfortd_status_display", "The unit's statusDisplay code from the cloud (no published meaning; 4 and 5 were seen during hot adjust).")
 	m.thermostatBattery = g("comfortd_thermostat_battery_ok", "Wall thermostat battery is ok (0/1), for zones with an MHK2.")
 	m.endpointError = g("comfortd_endpoint_error", "1 for each endpoint whose last poll failed.", "endpoint")
 
@@ -147,11 +149,16 @@ func (m *Metrics) Update(st *store.Store, now time.Time, interval time.Duration)
 			m.alert.WithLabelValues(u, "filter").Set(b2f(d.Display.Filter))
 			m.alert.WithLabelValues(u, "defrost").Set(b2f(d.Display.Defrost))
 			m.alert.WithLabelValues(u, "standby").Set(b2f(d.Display.Standby))
+			m.alert.WithLabelValues(u, "hot_adjust").Set(b2f(d.Display.HotAdjust))
 		}
 		var dev struct {
-			Rssi *float64 `json:"rssi"`
+			Rssi          *float64 `json:"rssi"`
+			StatusDisplay *float64 `json:"statusDisplay"`
 		}
-		if json.Unmarshal(s.Raw[store.EndpointDevice], &dev) == nil && dev.Rssi != nil {
+		if json.Unmarshal(s.Raw[store.EndpointDevice], &dev) == nil && dev.StatusDisplay != nil {
+			m.statusDisplay.WithLabelValues(u).Set(*dev.StatusDisplay)
+		}
+		if dev.Rssi != nil {
 			m.rssi.WithLabelValues(u).Set(*dev.Rssi)
 		}
 		if z := s.Zone; z != nil {
