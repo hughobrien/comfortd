@@ -151,7 +151,9 @@ func BuildCard(s store.Snapshot, ann *annotate.Set, ctl CardControl, now time.Ti
 	c.Schedule = BuildSchedule(s, now)
 	c.Hold = BuildHold(s, ctl.Writable, now)
 	c.Limits = BuildLimits(s, ctl)
-	if z := s.Zone; z != nil {
+	if s.Zone != nil {
+		zz, thermostat := s.Zone.WithAdapterHold(now)
+		z := &zz
 		c.ScheduleActive, c.HoldEnabled = z.HasActiveSchedule, z.HoldEnabled
 		c.Schedule.Active = z.HasActiveSchedule
 		if z.HoldEnabled {
@@ -161,6 +163,9 @@ func BuildCard(s store.Snapshot, ann *annotate.Set, ctl CardControl, now time.Ti
 			} else if !z.HoldEnd.IsZero() {
 				t := z.HoldEnd.In(scheduleLoc(s, now))
 				c.HoldUntil = "hold until " + whenWords(now.In(t.Location()), t)
+			}
+			if thermostat {
+				c.HoldUntil += " (thermostat)"
 			}
 		}
 	}

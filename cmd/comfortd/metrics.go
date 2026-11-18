@@ -162,7 +162,8 @@ func (m *Metrics) Update(st *store.Store, now time.Time, interval time.Duration)
 			m.rssi.WithLabelValues(u).Set(*dev.Rssi)
 		}
 		if z := s.Zone; z != nil {
-			m.hold.WithLabelValues(u).Set(b2f(z.HoldEnabled))
+			zz, _ := z.WithAdapterHold(time.Now())
+			m.hold.WithLabelValues(u).Set(b2f(zz.HoldEnabled))
 			m.scheduleActive.WithLabelValues(u).Set(b2f(z.HasActiveSchedule))
 		}
 		var th struct {

@@ -31,7 +31,8 @@ func BuildHold(s store.Snapshot, writable bool, now time.Time) HoldView {
 	}
 	sc := BuildSchedule(s, now)
 	h := HoldView{Show: true, Mode: "none", CanNext: !sc.NextAt.IsZero(), NextAt: sc.NextAt}
-	z := s.Zone
+	zz, _ := s.Zone.WithAdapterHold(now)
+	z := &zz
 	if !z.HoldEnabled {
 		return h
 	}

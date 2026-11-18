@@ -4,9 +4,11 @@ package ui
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/hughobrien/comfortd/internal/store"
 	"github.com/hughobrien/comfortd/pkg/kumo"
 )
 
@@ -68,5 +70,32 @@ func TestHoldTimeFromClock(t *testing.T) {
 		if _, err := HoldTimeFromClock(sn, now, bad); err == nil {
 			t.Errorf("%q should be rejected", bad)
 		}
+	}
+}
+
+// A hold made on the wall thermostat (House's MHK2) leaves holdMode off but
+// sets the adapter's scheduleHoldEndTime; the card shows it, and the Hold button
+// ends it.
+func TestThermostatHoldShowsAsAHold(t *testing.T) {
+	now := time.Date(2026, 11, 17, 17, 40, 0, 0, time.UTC)
+	end := now.Add(65 * time.Minute)
+	s := store.Snapshot{Zone: &kumo.Zone{AdapterHoldEnd: end}}
+	h := BuildHold(s, true, now)
+	if h.Mode == "none" {
+		t.Fatalf("thermostat hold not shown: %+v", h)
+	}
+	c := BuildCard(s, nil, CardControl{Writable: true}, now, time.Minute)
+	if !c.HoldEnabled || !strings.Contains(c.HoldUntil, "(thermostat)") {
+		t.Fatalf("card: enabled=%v until=%q", c.HoldEnabled, c.HoldUntil)
+	}
+	// a stale scheduleHoldEndTime in the past is not a hold
+	s.Zone.AdapterHoldEnd = now.Add(-time.Hour)
+	if h := BuildHold(s, true, now); h.Mode != "none" {
+		t.Fatalf("past end time still a hold: %+v", h)
+	}
+	// holdMode on wins and is not labelled thermostat
+	s.Zone = &kumo.Zone{HoldEnabled: true, HoldType: "permanent", AdapterHoldEnd: end}
+	if c := BuildCard(s, nil, CardControl{Writable: true}, now, time.Minute); strings.Contains(c.HoldUntil, "thermostat") {
+		t.Fatalf("until=%q", c.HoldUntil)
 	}
 }

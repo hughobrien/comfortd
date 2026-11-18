@@ -10,12 +10,26 @@ import (
 
 type Site struct{ ID, Name string }
 
+// WithAdapterHold returns the zone as it should be shown at now: a hold made on
+// the wall thermostat (adapter scheduleHoldEndTime still in the future, holdMode
+// off) counts as an "until a specific time" hold. thermostat is true then.
+func (z Zone) WithAdapterHold(now time.Time) (out Zone, thermostat bool) {
+	if !z.HoldEnabled && z.AdapterHoldEnd.After(now) {
+		z.HoldEnabled, z.HoldType, z.HoldEnd = true, "until_specific_time", z.AdapterHoldEnd
+		return z, true
+	}
+	return z, false
+}
+
 type Zone struct {
 	ID, Name, Serial  string
 	HasActiveSchedule bool
 	HoldEnabled       bool
 	HoldEnd           time.Time // when the hold lapses (the next schedule event); zero if unknown
 	HoldType          string    // until_next_event, until_specific_time, permanent, unset; empty if unknown
+	// AdapterHoldEnd is the adapter's scheduleHoldEndTime: a hold made on the wall
+	// thermostat (House's MHK2) sets it without turning holdMode on. Zero if none.
+	AdapterHoldEnd time.Time
 }
 
 type Device struct {
@@ -73,7 +87,8 @@ func ParseZones(raw json.RawMessage) ([]Zone, error) {
 			EndTime  string `json:"endTime"`
 		} `json:"holdMode"`
 		Adapter struct {
-			DeviceSerial string `json:"deviceSerial"`
+			DeviceSerial        string `json:"deviceSerial"`
+			ScheduleHoldEndTime int64  `json:"scheduleHoldEndTime"`
 		} `json:"adapter"`
 	}
 	if err := json.Unmarshal(raw, &in); err != nil {
@@ -82,6 +97,9 @@ func ParseZones(raw json.RawMessage) ([]Zone, error) {
 	out := make([]Zone, len(in))
 	for i, z := range in {
 		out[i] = Zone{ID: z.ID, Name: z.Name, Serial: z.Adapter.DeviceSerial, HasActiveSchedule: z.HasActiveSchedule}
+		if z.Adapter.ScheduleHoldEndTime > 0 {
+			out[i].AdapterHoldEnd = time.Unix(z.Adapter.ScheduleHoldEndTime, 0).UTC()
+		}
 		if z.HoldMode != nil {
 			out[i].HoldEnabled = z.HoldMode.Enabled
 			out[i].HoldType = z.HoldMode.HoldType
