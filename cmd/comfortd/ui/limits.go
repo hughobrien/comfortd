@@ -12,6 +12,8 @@ import (
 // cooling and highest heating setpoint, with the bounds the profile allows.
 type LimitsView struct {
 	Show           bool
+	Enabled        bool // the account preference that turns the feature on in the app
+	EnabledKnown   bool
 	MinCool        string // current lowest cooling setpoint (empty if unknown)
 	MaxHeat        string // current highest heating setpoint
 	CoolLo, CoolHi string // bounds for MinCool
@@ -26,7 +28,7 @@ func BuildLimits(s store.Snapshot, ctl CardControl) LimitsView {
 		return LimitsView{}
 	}
 	f := func(v float64) string { return strconv.FormatFloat(v, 'f', -1, 64) }
-	v := LimitsView{Show: true,
+	v := LimitsView{Show: true, Enabled: ctl.LimitsOn, EnabledKnown: ctl.LimitsOnKnown,
 		CoolLo: f(p.Min["cool"]), CoolHi: f(p.Max["cool"]), HeatLo: f(p.Min["heat"]), HeatHi: f(p.Max["heat"])}
 	if lo, hi, ok := s.AdapterLimits(); ok {
 		v.MinCool, v.MaxHeat = f(lo), f(hi)

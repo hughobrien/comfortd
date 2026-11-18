@@ -17,10 +17,11 @@ import (
 
 // CardControl carries control state into the card.
 type CardControl struct {
-	Writable  bool
-	Limits    bool              // the unit's Min/Max setpoint limits may be changed
-	Pending   map[string]string // field → display value
-	LastError string
+	Writable                bool
+	Limits                  bool              // the unit's Min/Max setpoint limits may be changed
+	LimitsOn, LimitsOnKnown bool              // the account preference that enables them in the app
+	Pending                 map[string]string // field → display value
+	LastError               string
 }
 
 type CardView struct {

@@ -56,3 +56,25 @@ func TestSetLimitsReportsFailure(t *testing.T) {
 		t.Fatal("want an error from a 500")
 	}
 }
+
+func TestMinMaxPreference(t *testing.T) {
+	e := newEnv(t, kumotest.Password)
+	c := e.client()
+	ctx := context.Background()
+	if on, err := c.MinMaxEnabled(ctx); err != nil || on {
+		t.Fatalf("start: %v %v", on, err)
+	}
+	if err := c.SetMinMaxEnabled(ctx, true); err != nil {
+		t.Fatal(err)
+	}
+	if on, err := c.MinMaxEnabled(ctx); err != nil || !on {
+		t.Fatalf("after: %v %v", on, err)
+	}
+	p, _ := c.Preferences(ctx)
+	if p["celsius"] != true || p["appWalkthroughs"] == nil { // the rest of the object is sent back untouched
+		t.Fatalf("other preferences lost: %v", p)
+	}
+	if _, n := e.srv.MinMaxEnabled(); n != 1 {
+		t.Fatalf("writes %d", n)
+	}
+}

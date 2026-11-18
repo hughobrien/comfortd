@@ -346,6 +346,7 @@ templ LimitsControl(c ui.CardView) {
 			id={ "limits-" + c.Slug }
 			data-on:submit__prevent={ "@post('/ui/units/" + c.Slug + "/limits', {contentType: 'form'})" }
 		>
+			<label class="limits-on" title="Min/Max setpoints in the Comfort app. This is one setting for the whole account, so it covers both units."><input type="checkbox" name="enabled" checked?={ l.Enabled }/> Enabled</label>
 			<label>Lowest cooling <input type="number" name="min" value={ l.MinCool } min={ l.CoolLo } max={ l.CoolHi } step="0.5" data-ignore-morph/></label>
 			<label>Highest heating <input type="number" name="max" value={ l.MaxHeat } min={ l.HeatLo } max={ l.HeatHi } step="0.5" data-ignore-morph/></label>
 			<button type="submit">Set</button>

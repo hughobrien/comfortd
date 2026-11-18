@@ -133,6 +133,7 @@ type Options struct {
 	Sender        Sender
 	Schedules     ScheduleWriter            // nil = schedule edits are off
 	Holds         HoldWriter                // nil = hold changes are off
+	Prefs         PrefsClient               // the account preference behind the limits feature; nil = unknown
 	Limits        LimitWriter               // nil = limit changes are off
 	AfterLimits   func(ctx context.Context) // refetch the status after a limit change
 	AfterSchedule func(ctx context.Context) // refetch the schedules after an edit
@@ -166,12 +167,13 @@ type Controller struct {
 	o    Options
 	wake chan struct{}
 
-	mu       sync.Mutex
-	units    map[string]*unitState
-	lastSent map[string]time.Time // when we last sent this unit a command or hold, for attributing pushes
-	lastMode map[string]string
-	lastFam  map[string]string               // mode family seen on the previous poll
-	mem      map[string]map[string]Setpoints // slug -> mode family -> setpoints last seen in it
+	mu                      sync.Mutex
+	units                   map[string]*unitState
+	limitsOn, limitsOnKnown bool                 // the account's Min/Max setpoints preference, as last read
+	lastSent                map[string]time.Time // when we last sent this unit a command or hold, for attributing pushes
+	lastMode                map[string]string
+	lastFam                 map[string]string               // mode family seen on the previous poll
+	mem                     map[string]map[string]Setpoints // slug -> mode family -> setpoints last seen in it
 }
 
 func New(o Options) *Controller {

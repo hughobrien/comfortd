@@ -248,3 +248,15 @@ func TestLimitsViewOnlyWhenEnabled(t *testing.T) {
 		t.Fatalf("%+v", l)
 	}
 }
+
+func TestLimitsViewCarriesTheAccountPreference(t *testing.T) {
+	prof, err := os.ReadFile("../../../pkg/kumo/kumotest/fixtures/profile_house.json")
+	if err != nil {
+		t.Skip("no house profile fixture")
+	}
+	sn := fixtureSnap(t, "house", "device_house.json", map[string]json.RawMessage{"profile": prof})
+	l := BuildCard(sn, mustAnn(t), CardControl{Writable: true, Limits: true, LimitsOn: true, LimitsOnKnown: true}, time.Now(), time.Minute).Limits
+	if !l.Enabled || !l.EnabledKnown {
+		t.Fatalf("%+v", l)
+	}
+}

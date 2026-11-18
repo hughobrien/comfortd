@@ -65,6 +65,8 @@ type Server struct {
 	sock          sockState
 	limits        map[string][2]float64 // serial -> min, max set by a relay command
 	limitWrites   []LimitWrite
+	prefs         map[string]any // account preferences
+	prefWrites    int
 }
 
 // ScheduleWrite is a recorded schedule change: "add" with the event's fields,
@@ -110,6 +112,8 @@ func New() *Server {
 	mux.HandleFunc("GET /devices/{serial}", s.authed(s.handleDevice))
 	mux.HandleFunc("GET /devices/{serial}/profile", s.authed(s.handleFixtureBySerial("profile_%s.json", 200)))
 	mux.HandleFunc("GET /devices/{serial}/status", s.authed(s.handleStatus))
+	mux.HandleFunc("GET /accounts/me", s.authed(s.handleMe))
+	mux.HandleFunc("PUT /accounts/preferences", s.authed(s.handlePutPrefs))
 	mux.HandleFunc("POST /devices/{serial}/relay-command", s.authed(s.handleRelayCommand))
 	mux.HandleFunc("GET /devices/{serial}/sensor", s.authed(s.handleFixtureBySerial("sensor_%s_404.json", 404)))
 	mux.HandleFunc("GET /devices/{serial}/mhk2", s.authed(s.handleMhk2))
@@ -635,4 +639,35 @@ func (s *Server) handleRelayCommand(w http.ResponseWriter, r *http.Request) {
 	s.mu.Unlock()
 	writeValue(w, 200, map[string]any{"adapter": map[string]any{"status": map[string]any{
 		"userMinCoolSetPoint": min, "userMaxHeatSetPoint": max}}})
+}
+
+func (s *Server) handleMe(w http.ResponseWriter, r *http.Request) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.prefs == nil {
+		s.prefs = map[string]any{"celsius": true, "isMinMaxSetpointsEnabled": false, "appWalkthroughs": map[string]any{}}
+	}
+	writeValue(w, 200, map[string]any{"preferences": s.prefs})
+}
+
+func (s *Server) handlePutPrefs(w http.ResponseWriter, r *http.Request) {
+	var p map[string]any
+	if err := json.NewDecoder(r.Body).Decode(&p); err != nil || p == nil {
+		writeJSON(w, 400, []byte(`{}`))
+		return
+	}
+	s.mu.Lock()
+	s.prefs = p
+	s.prefWrites++
+	s.mu.Unlock()
+	writeValue(w, 200, p)
+}
+
+// MinMaxEnabled reports the fake account's Min/Max setpoints preference, and
+// how many preference writes there have been.
+func (s *Server) MinMaxEnabled() (on bool, writes int) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	on, _ = s.prefs["isMinMaxSetpointsEnabled"].(bool)
+	return on, s.prefWrites
 }

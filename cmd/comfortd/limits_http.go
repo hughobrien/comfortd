@@ -31,6 +31,7 @@ func (d deps) handleLimits(w http.ResponseWriter, r *http.Request) {
 	}
 	// Read the form before the stream starts: the server closes the request body once it writes.
 	perr := r.ParseForm()
+	enabled := r.PostForm.Get("enabled") != ""
 	minS, maxS := strings.TrimSpace(r.PostForm.Get("min")), strings.TrimSpace(r.PostForm.Get("max"))
 	sse := datastar.NewSSE(w, r)
 	say := func(class, msg string) {
@@ -43,7 +44,15 @@ func (d deps) handleLimits(w http.ResponseWriter, r *http.Request) {
 	if perr != nil || e1 != nil || e2 != nil {
 		err = fmt.Errorf("%w: enter both limits as numbers", control.ErrInvalid)
 	} else {
-		err = d.Ctl.SetLimits(r.Context(), slug, lo, hi, "ui")
+		// The account preference first (as the app does), then the limits, each only if it changed.
+		if on, known := d.Ctl.LimitsOn(); known && on != enabled {
+			err = d.Ctl.SetLimitsOn(r.Context(), slug, enabled)
+		}
+		if sn, ok := d.Store.Get(slug); err == nil && ok {
+			if cur, curHi, has := sn.AdapterLimits(); !has || cur != lo || curHi != hi {
+				err = d.Ctl.SetLimits(r.Context(), slug, lo, hi, "ui")
+			}
+		}
 	}
 	if err != nil {
 		msg := strings.TrimPrefix(err.Error(), control.ErrInvalid.Error()+": ")
@@ -53,5 +62,5 @@ func (d deps) handleLimits(w http.ResponseWriter, r *http.Request) {
 		say("hold-msg err", msg)
 		return
 	}
-	say("hold-msg", "Set. The unit's limits update in a moment.")
+	say("hold-msg", "Saved.")
 }

@@ -190,7 +190,7 @@ func runContext(ctx context.Context, args []string, stdout io.Writer, ready func
 	var p *poller.Poller
 	var bridge *homekit.Bridge // set before any goroutine that can call OnChange starts
 	ctl := control.New(control.Options{
-		Sender: client, Schedules: client, Holds: client, Limits: client, Store: st, History: hist, Writable: splitList(*writable),
+		Sender: client, Schedules: client, Holds: client, Limits: client, Prefs: client, Store: st, History: hist, Writable: splitList(*writable),
 		AfterSchedule: func(ctx context.Context) { p.PollSchedule(ctx) },
 		AfterHold:     func(ctx context.Context) { p.PollOnce(ctx) },
 		AfterLimits:   func(ctx context.Context) { p.PollStatus(ctx) },
@@ -239,6 +239,8 @@ func runContext(ctx context.Context, args []string, stdout io.Writer, ready func
 		slog.Info("homekit enabled", "units", slugs, "port", *hapPort)
 	}
 	p = poller.New(client, st, *interval)
+	p.OnStatus = ctl.RefreshPrefs
+	go ctl.RefreshPrefs(ctx)
 	if *backstop < 10*time.Second {
 		*backstop = 10 * time.Second
 	}

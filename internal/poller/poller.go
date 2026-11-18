@@ -18,6 +18,7 @@ import (
 
 type Poller struct {
 	api        API
+	OnStatus   func(ctx context.Context) // called after each PollStatus (the account preferences ride along)
 	st         *store.Store
 	interval   time.Duration
 	slowEvery  time.Duration
@@ -140,6 +141,9 @@ func (p *Poller) PollStatus(ctx context.Context) {
 	for _, u := range p.st.Units() {
 		raw, err := p.api.Get(ctx, "/devices/"+u.Serial+"/"+store.EndpointStatus)
 		p.record(u.Slug, store.EndpointStatus, raw, err)
+	}
+	if p.OnStatus != nil {
+		p.OnStatus(ctx)
 	}
 }
 

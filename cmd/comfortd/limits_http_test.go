@@ -56,3 +56,30 @@ func TestLimitsForbiddenOnReadOnlyUnit(t *testing.T) {
 		t.Fatalf("%d %+v", code, srv.LimitWrites())
 	}
 }
+
+func TestLimitsCheckboxTurnsTheFeatureOn(t *testing.T) {
+	srv, d := ctlDepsFor(t, []string{"office", "house"})
+	if on, _ := d.Ctl.LimitsOn(); on {
+		t.Fatal("starts on")
+	}
+	// ticked: preference written, then limits
+	if code, body := limitsPost(d, "house", "enabled=on&min=19&max=24", dsHdr); code != 200 || strings.Contains(body, "err") {
+		t.Fatalf("%d %s", code, body)
+	}
+	if on, n := srv.MinMaxEnabled(); !on || n != 1 {
+		t.Fatalf("preference on=%v writes=%d", on, n)
+	}
+	if on, known := d.Ctl.LimitsOn(); !on || !known {
+		t.Fatal("controller did not learn the new value")
+	}
+	// same again: nothing more is written
+	limitsPost(d, "house", "enabled=on&min=19&max=24", dsHdr)
+	if _, n := srv.MinMaxEnabled(); n != 1 || len(srv.LimitWrites()) != 1 {
+		t.Fatalf("repeat wrote again: prefs %d limits %d", n, len(srv.LimitWrites()))
+	}
+	// unticked: preference turned off
+	limitsPost(d, "house", "min=19&max=24", dsHdr)
+	if on, n := srv.MinMaxEnabled(); on || n != 2 {
+		t.Fatalf("preference on=%v writes=%d", on, n)
+	}
+}

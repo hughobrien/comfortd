@@ -85,6 +85,7 @@ func (d deps) viewFor(sn store.Snapshot, now time.Time) ui.UnitView {
 		slug := sn.Unit.Slug
 		cc.Writable = d.Ctl.Writable(slug)
 		cc.Limits = d.Ctl.LimitsEnabled(slug)
+		cc.LimitsOn, cc.LimitsOnKnown = d.Ctl.LimitsOn()
 		cc.LastError = d.Ctl.LastError(slug)
 		cc.Pending = map[string]string{}
 		for k, v := range d.Ctl.Pending(slug) {
