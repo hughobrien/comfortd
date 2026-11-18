@@ -83,3 +83,15 @@ func TestLimitsCheckboxTurnsTheFeatureOn(t *testing.T) {
 		t.Fatalf("preference on=%v writes=%d", on, n)
 	}
 }
+
+func TestLimitsDisabledSlidersOnlySaveTheCheckbox(t *testing.T) {
+	srv, d := ctlDepsFor(t, []string{"office", "house"})
+	limitsPost(d, "house", "enabled=on&min=19&max=24", dsHdr)
+	// unticked: the browser sends no slider values
+	if code, body := limitsPost(d, "house", "", dsHdr); code != 200 || strings.Contains(body, "err") {
+		t.Fatalf("%d %s", code, body)
+	}
+	if on, n := srv.MinMaxEnabled(); on || n != 2 || len(srv.LimitWrites()) != 1 {
+		t.Fatalf("on=%v prefWrites=%d limitWrites=%d", on, n, len(srv.LimitWrites()))
+	}
+}

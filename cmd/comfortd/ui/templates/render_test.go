@@ -166,9 +166,21 @@ func TestLimitsControlRenders(t *testing.T) {
 		t.Error("shown when not enabled")
 	}
 	out := render(ui.LimitsView{Show: true, Enabled: true, MinCool: "19", MaxHeat: "24", CoolLo: "19", CoolHi: "30", HeatLo: "10", HeatHi: "28"})
-	for _, want := range []string{"Config", `type="range" name="min" value="19" min="19" max="30" step="0.5"`, `type="range" name="max" value="24" min="10" max="28"`, "/ui/units/house/limits", `name="enabled" checked`} {
+	for _, want := range []string{"Config", `type="range" name="min" value="19" min="19" max="30" step="0.5"`, `type="range" name="max" value="24" min="10" max="28"`, "/ui/units/house/limits", `name="enabled" checked`, ">Limits</h4>"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("missing %q in %s", want, out)
 		}
+	}
+}
+
+func TestLimitSlidersDisabledUntilEnabled(t *testing.T) {
+	var sb strings.Builder
+	l := ui.LimitsView{Show: true, MinCool: "19", MaxHeat: "24", CoolLo: "19", CoolHi: "30", HeatLo: "10", HeatHi: "28"}
+	card := ui.CardView{Slug: "house", Limits: l, Control: ui.CardControl{Writable: true, Limits: true}}
+	if err := Card(card).Render(context.Background(), &sb); err != nil {
+		t.Fatal(err)
+	}
+	if n := strings.Count(sb.String(), `type="range"`); n != 2 || strings.Count(sb.String(), " disabled") != 2 {
+		t.Errorf("want two disabled sliders: %s", sb.String())
 	}
 }

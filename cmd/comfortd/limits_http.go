@@ -38,17 +38,19 @@ func (d deps) handleLimits(w http.ResponseWriter, r *http.Request) {
 		sse.PatchElements(fmt.Sprintf(`<p class="%s" id="limits-msg-%s">%s</p>`, class, slug, html.EscapeString(msg)),
 			datastar.WithSelectorf("#limits-msg-%s", slug), datastar.WithMode(datastar.ElementPatchModeReplace))
 	}
+	// Disabled sliders send nothing: then only the Enabled setting is saved.
+	noLimits := minS == "" && maxS == ""
 	lo, e1 := strconv.ParseFloat(minS, 64)
 	hi, e2 := strconv.ParseFloat(maxS, 64)
 	var err error
-	if perr != nil || e1 != nil || e2 != nil {
+	if perr != nil || (!noLimits && (e1 != nil || e2 != nil)) {
 		err = fmt.Errorf("%w: enter both limits as numbers", control.ErrInvalid)
 	} else {
 		// The account preference first (as the app does), then the limits, each only if it changed.
 		if on, known := d.Ctl.LimitsOn(); known && on != enabled {
 			err = d.Ctl.SetLimitsOn(r.Context(), slug, enabled)
 		}
-		if sn, ok := d.Store.Get(slug); err == nil && ok {
+		if sn, ok := d.Store.Get(slug); err == nil && ok && !noLimits {
 			if cur, curHi, has := sn.AdapterLimits(); !has || cur != lo || curHi != hi {
 				err = d.Ctl.SetLimits(r.Context(), slug, lo, hi, "ui")
 			}
