@@ -150,3 +150,25 @@ func TestDialCenterIsAuto(t *testing.T) {
 		t.Errorf("no Auto: middle should show the pressed choice: %s", noAuto)
 	}
 }
+
+// The Min/Max setpoints form appears only when the view says so, with the
+// profile's bounds on its inputs and the current limits as values.
+func TestLimitsControlRenders(t *testing.T) {
+	render := func(l ui.LimitsView) string {
+		var sb strings.Builder
+		card := ui.CardView{Slug: "house", Limits: l, Control: ui.CardControl{Writable: true, Limits: l.Show}}
+		if err := Card(card).Render(context.Background(), &sb); err != nil {
+			t.Fatal(err)
+		}
+		return sb.String()
+	}
+	if out := render(ui.LimitsView{}); strings.Contains(out, "Min/Max setpoints") {
+		t.Error("shown when not enabled")
+	}
+	out := render(ui.LimitsView{Show: true, MinCool: "19", MaxHeat: "24", CoolLo: "19", CoolHi: "30", HeatLo: "10", HeatHi: "28"})
+	for _, want := range []string{"Min/Max setpoints", `name="min" value="19" min="19" max="30" step="0.5"`, `name="max" value="24" min="10" max="28"`, "/ui/units/house/limits"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("missing %q in %s", want, out)
+		}
+	}
+}

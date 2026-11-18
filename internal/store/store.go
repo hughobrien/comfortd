@@ -67,6 +67,19 @@ type Snapshot struct {
 	LastDeviceOK time.Time
 }
 
+// AdapterLimits is the adapter's Min/Max setpoint limits from the status
+// endpoint (minSetPoint, maxSetPoint), if it has a usable pair.
+func (s Snapshot) AdapterLimits() (lo, hi float64, ok bool) {
+	var st struct {
+		Min *float64 `json:"minSetPoint"`
+		Max *float64 `json:"maxSetPoint"`
+	}
+	if json.Unmarshal(s.Raw[EndpointStatus], &st) != nil || st.Min == nil || st.Max == nil || *st.Min >= *st.Max {
+		return 0, 0, false
+	}
+	return *st.Min, *st.Max, true
+}
+
 // SetpointRange is the setpoint range the unit allows under a profile limit
 // key ("heat", "cool" or "auto"). It is the capability profile's range for the
 // key, with the adapter's limits from the status endpoint (minSetPoint,
@@ -76,14 +89,10 @@ type Snapshot struct {
 // auto is narrowed at both ends. The other ends are the profile's alone. With
 // no profile, the status range alone.
 func (s Snapshot) SetpointRange(key string) (lo, hi float64, ok bool) {
-	var st struct {
-		Min *float64 `json:"minSetPoint"`
-		Max *float64 `json:"maxSetPoint"`
-	}
-	hasStatus := json.Unmarshal(s.Raw[EndpointStatus], &st) == nil && st.Min != nil && st.Max != nil && *st.Min < *st.Max
+	sMin, sMax, hasStatus := s.AdapterLimits()
 	if s.Profile == nil {
 		if hasStatus {
-			return *st.Min, *st.Max, true
+			return sMin, sMax, true
 		}
 		return 0, 0, false
 	}
@@ -95,11 +104,11 @@ func (s Snapshot) SetpointRange(key string) (lo, hi float64, ok bool) {
 	if hasStatus {
 		switch key {
 		case "cool":
-			lo = max(lo, *st.Min)
+			lo = max(lo, sMin)
 		case "heat":
-			hi = min(hi, *st.Max)
+			hi = min(hi, sMax)
 		default:
-			lo, hi = max(lo, *st.Min), min(hi, *st.Max)
+			lo, hi = max(lo, sMin), min(hi, sMax)
 		}
 	}
 	return lo, hi, lo < hi

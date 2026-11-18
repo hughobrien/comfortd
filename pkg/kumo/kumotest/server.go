@@ -63,6 +63,8 @@ type Server struct {
 	holds         map[string]map[string]any // zone id -> holdMode set by a hold write
 	holdWrites    []HoldWrite
 	sock          sockState
+	limits        map[string][2]float64 // serial -> min, max set by a relay command
+	limitWrites   []LimitWrite
 }
 
 // ScheduleWrite is a recorded schedule change: "add" with the event's fields,
@@ -107,7 +109,8 @@ func New() *Server {
 	mux.HandleFunc("GET /sites/{site}/zones", s.authed(s.handleZones))
 	mux.HandleFunc("GET /devices/{serial}", s.authed(s.handleDevice))
 	mux.HandleFunc("GET /devices/{serial}/profile", s.authed(s.handleFixtureBySerial("profile_%s.json", 200)))
-	mux.HandleFunc("GET /devices/{serial}/status", s.authed(s.handleFixtureBySerial("status_%s.json", 200)))
+	mux.HandleFunc("GET /devices/{serial}/status", s.authed(s.handleStatus))
+	mux.HandleFunc("POST /devices/{serial}/relay-command", s.authed(s.handleRelayCommand))
 	mux.HandleFunc("GET /devices/{serial}/sensor", s.authed(s.handleFixtureBySerial("sensor_%s_404.json", 404)))
 	mux.HandleFunc("GET /devices/{serial}/mhk2", s.authed(s.handleMhk2))
 	mux.HandleFunc("GET /v4/sites/{site}/schedule-seasons", s.authed(s.handleFixture("schedule_seasons.json")))
@@ -562,4 +565,74 @@ func (s *Server) handleHold(w http.ResponseWriter, r *http.Request) {
 		s.PushHoldUpdate(z.ID)
 	}
 	writeValue(w, 201, out)
+}
+
+// LimitWrite is a recorded Min/Max setpoint relay command.
+type LimitWrite struct {
+	Serial  string
+	MinCool float64
+	MaxHeat float64
+}
+
+// LimitWrites returns the relay commands received so far.
+func (s *Server) LimitWrites() []LimitWrite {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]LimitWrite(nil), s.limitWrites...)
+}
+
+func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
+	serial := r.PathValue("serial")
+	var which string
+	switch serial {
+	case OfficeSerial:
+		which = "office"
+	case HouseSerial:
+		which = "house"
+	default:
+		writeJSON(w, 404, []byte(`{}`))
+		return
+	}
+	var m map[string]any
+	json.Unmarshal(fixture(fmt.Sprintf("status_%s.json", which)), &m)
+	s.mu.Lock()
+	if l, ok := s.limits[serial]; ok {
+		m["minSetPoint"], m["maxSetPoint"] = l[0], l[1]
+		m["lastUpdated"] = time.Now().UTC().Format("2006-01-02T15:04:05.000Z")
+	}
+	s.mu.Unlock()
+	writeValue(w, 200, m)
+}
+
+func (s *Server) handleRelayCommand(w http.ResponseWriter, r *http.Request) {
+	serial := r.PathValue("serial")
+	var body struct {
+		Serial  string `json:"serial"`
+		Adapter struct {
+			Status struct {
+				Min *float64 `json:"userMinCoolSetPoint"`
+				Max *float64 `json:"userMaxHeatSetPoint"`
+			} `json:"status"`
+		} `json:"adapter"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Serial != serial ||
+		body.Adapter.Status.Min == nil || body.Adapter.Status.Max == nil {
+		writeJSON(w, 400, []byte(`{}`))
+		return
+	}
+	s.mu.Lock()
+	if _, ok := s.devices[serial]; !ok {
+		s.mu.Unlock()
+		writeJSON(w, 404, []byte(`{}`))
+		return
+	}
+	if s.limits == nil {
+		s.limits = map[string][2]float64{}
+	}
+	min, max := *body.Adapter.Status.Min, *body.Adapter.Status.Max
+	s.limits[serial] = [2]float64{min, max}
+	s.limitWrites = append(s.limitWrites, LimitWrite{Serial: serial, MinCool: min, MaxHeat: max})
+	s.mu.Unlock()
+	writeValue(w, 200, map[string]any{"adapter": map[string]any{"status": map[string]any{
+		"userMinCoolSetPoint": min, "userMaxHeatSetPoint": max}}})
 }

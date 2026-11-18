@@ -20,6 +20,11 @@ Units are read-only unless you list them as writable. Commands are checked
 against the unit's own limits (modes, fan speeds, setpoint range) before they
 are sent.
 
+A writable unit can also have its adapter's Min/Max setpoints (the lowest
+cooling and highest heating setpoint, as in the Comfort app) set from its card.
+That is opt-in per unit with `-limit-units` (`limitUnits` in the module),
+because not every adapter is known to take the command.
+
 The Kumo Cloud API is unofficial. What is known about it is in
 [docs/api-inventory.md](docs/api-inventory.md).
 

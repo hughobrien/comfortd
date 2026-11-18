@@ -18,6 +18,7 @@ import (
 // CardControl carries control state into the card.
 type CardControl struct {
 	Writable  bool
+	Limits    bool              // the unit's Min/Max setpoint limits may be changed
 	Pending   map[string]string // field → display value
 	LastError string
 }
@@ -40,6 +41,7 @@ type CardView struct {
 	Modes, Fans, Vanes []Choice
 	Schedule           ScheduleView
 	Hold               HoldView
+	Limits             LimitsView
 	HoldUntil          string // "hold until today 22:00" while the app's temporary override is on, else empty
 }
 
@@ -145,6 +147,7 @@ func BuildCard(s store.Snapshot, ann *annotate.Set, ctl CardControl, now time.Ti
 	}
 	c.Schedule = BuildSchedule(s, now)
 	c.Hold = BuildHold(s, ctl.Writable, now)
+	c.Limits = BuildLimits(s, ctl)
 	if z := s.Zone; z != nil {
 		c.ScheduleActive, c.HoldEnabled = z.HasActiveSchedule, z.HoldEnabled
 		c.Schedule.Active = z.HasActiveSchedule

@@ -89,6 +89,7 @@ func runContext(ctx context.Context, args []string, stdout io.Writer, ready func
 	fake := fs.Bool("fake", false, "run against an in-process fake Kumo server")
 	hapPort := fs.Int("hap-port", 0, "HomeKit (HAP) TCP port; 0 = ephemeral")
 	hkUnits := fs.String("homekit-units", envOr("homekit-units", ""), "comma-separated unit slugs to expose to HomeKit; empty = HomeKit off")
+	limitUnits := fs.String("limit-units", envOr("limit-units", ""), "comma-separated unit slugs (also in writable-units) whose Min/Max setpoint limits may be changed from the UI")
 	inactive := fs.String("inactive-units", envOr("inactive-units", ""), "comma-separated unit slugs shown as a blank placeholder in the web UI (the API still lists them)")
 	writable := fs.String("writable-units", envOr("writable-units", ""), "comma-separated unit slugs that may receive commands; empty = read-only")
 	bridgeName := fs.String("bridge-name", "comfortd", "HomeKit bridge name")
@@ -190,9 +191,10 @@ func runContext(ctx context.Context, args []string, stdout io.Writer, ready func
 	var p *poller.Poller
 	var bridge *homekit.Bridge // set before any goroutine that can call OnChange starts
 	ctl := control.New(control.Options{
-		Sender: client, Schedules: client, Holds: client, Store: st, History: hist, Writable: splitList(*writable),
+		Sender: client, Schedules: client, Holds: client, Limits: client, LimitUnits: splitList(*limitUnits), Store: st, History: hist, Writable: splitList(*writable),
 		AfterSchedule: func(ctx context.Context) { p.PollSchedule(ctx) },
 		AfterHold:     func(ctx context.Context) { p.PollOnce(ctx) },
+		AfterLimits:   func(ctx context.Context) { p.PollStatus(ctx) },
 		LastModePath:  filepath.Join(*stateDir, "lastmode.json"),
 		SetpointsPath: filepath.Join(*stateDir, "setpoints.json"),
 		Kick:          func(slug string) { p.Kick(slug) },

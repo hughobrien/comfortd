@@ -54,6 +54,9 @@ templ Card(c ui.CardView) {
 			}
 		</div>
 		@scheduleSection(c)
+		if c.Limits.Show {
+			@LimitsControl(c)
+		}
 	</div>
 }
 
@@ -328,4 +331,25 @@ templ ScheduleEditRow(slug string, r ui.EditRow, o ui.EditOpts) {
 		</td>
 		<td><button type="button" class="del" aria-label="delete row" data-on:click="el.closest('tr').remove()">×</button></td>
 	</tr>
+}
+
+// LimitsControl sets the adapter's Min/Max setpoints, as the Comfort app's
+// screen of that name does: the lowest cooling and the highest heating
+// setpoint. It answers by patching the message line; the values refresh from
+// the status poll the write triggers.
+templ LimitsControl(c ui.CardView) {
+	{{ l := c.Limits }}
+	<details class="kv limits" data-preserve-attr="open">
+		<summary>Min/Max setpoints <span class="next-event">{ l.MinCool }–{ l.MaxHeat }</span></summary>
+		<form
+			class="limits-form"
+			id={ "limits-" + c.Slug }
+			data-on:submit__prevent={ "@post('/ui/units/" + c.Slug + "/limits', {contentType: 'form'})" }
+		>
+			<label>Lowest cooling <input type="number" name="min" value={ l.MinCool } min={ l.CoolLo } max={ l.CoolHi } step="0.5" data-ignore-morph/></label>
+			<label>Highest heating <input type="number" name="max" value={ l.MaxHeat } min={ l.HeatLo } max={ l.HeatHi } step="0.5" data-ignore-morph/></label>
+			<button type="submit">Set</button>
+			<p class="hold-msg" id={ "limits-msg-" + c.Slug }></p>
+		</form>
+	</details>
 }

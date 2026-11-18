@@ -232,3 +232,19 @@ func TestThermostatBatteryAlertOnlyWhenNotOk(t *testing.T) {
 		}
 	}
 }
+
+func TestLimitsViewOnlyWhenEnabled(t *testing.T) {
+	prof, err := os.ReadFile("../../../pkg/kumo/kumotest/fixtures/profile_house.json")
+	if err != nil {
+		t.Skip("no house profile fixture")
+	}
+	status := json.RawMessage(`{"minSetPoint":19,"maxSetPoint":24}`)
+	sn := fixtureSnap(t, "house", "device_house.json", map[string]json.RawMessage{"profile": prof, "status": status})
+	if BuildCard(sn, mustAnn(t), CardControl{Writable: true}, time.Now(), time.Minute).Limits.Show {
+		t.Fatal("shown for a unit that is not opted in")
+	}
+	l := BuildCard(sn, mustAnn(t), CardControl{Writable: true, Limits: true}, time.Now(), time.Minute).Limits
+	if !l.Show || l.MinCool != "19" || l.MaxHeat != "24" || l.CoolLo != "19" || l.CoolHi != "30" || l.HeatLo != "10" || l.HeatHi != "28" {
+		t.Fatalf("%+v", l)
+	}
+}

@@ -24,6 +24,12 @@ import (
 // ctlDeps returns deps with a running controller (office writable) against the fake.
 func ctlDeps(t *testing.T) (*kumotest.Server, deps) {
 	t.Helper()
+	return ctlDepsFor(t, []string{"office"})
+}
+
+// ctlDepsFor is ctlDeps with the given writable units.
+func ctlDepsFor(t *testing.T, writable []string) (*kumotest.Server, deps) {
+	t.Helper()
 	srv := kumotest.New()
 	t.Cleanup(srv.Close)
 	dir := t.TempDir()
@@ -39,7 +45,7 @@ func ctlDeps(t *testing.T) (*kumotest.Server, deps) {
 	p.PollSlow(context.Background())
 	p.PollOnce(context.Background())
 	p.PollSchedule(context.Background())
-	ctl := control.New(control.Options{Sender: c, Schedules: c, Holds: c, AfterSchedule: p.PollSchedule, AfterHold: p.PollOnce, Store: st, Writable: []string{"office"}, Window: 20 * time.Millisecond})
+	ctl := control.New(control.Options{Sender: c, Schedules: c, Holds: c, Limits: c, LimitUnits: []string{"house"}, AfterLimits: p.PollStatus, AfterSchedule: p.PollSchedule, AfterHold: p.PollOnce, Store: st, Writable: writable, Window: 20 * time.Millisecond})
 	st.Subscribe(ctl.Observe)
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
