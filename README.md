@@ -14,7 +14,7 @@ commands back.
   switches.
 - **API**: `GET /v1/units`, `GET /v1/units/{slug}/raw/{endpoint}`,
   `GET /v1/history`, `POST /v1/units/{slug}/command`.
-- **Metrics**: Prometheus at `/metrics`, with an importable Grafana dashboard in `grafana/comfortd.json` (unit names replaced):
+- **Metrics**: each unit's state is pushed to Prometheus with remote write the moment it changes (from the push socket or a poll), so changes keep their real time and none fall between scrapes; a fresh unit whose state has not changed is resent each minute, a stale one shows as a gap. `/metrics` keeps the health (`comfortd_up`, last poll, endpoint errors, request and socket counters, `comfortd_push_*`). Without `--prometheus-url` everything is on `/metrics`. With an importable Grafana dashboard in `grafana/comfortd.json` (unit names replaced):
 
   ![Grafana dashboard: attention strip, then per unit room temperature, target, mode, fan, humidity, temperature against target and a timeline of what it was doing](docs/img/grafana.png)
 
@@ -88,8 +88,10 @@ Then configure it, for example in `configuration.nix`:
     credentialsFile = "/etc/comfortd/credentials";
     homekit = { enable = true; units = [ "office" "house" ]; port = 51830; };
     openFirewall = true;      # HomeKit port and mDNS (UDP 5353)
-    prometheus.enable = true; # adds a scrape job if services.prometheus is on
+    prometheus.enable = true; # pushes unit state, and a scrape job for health
   };
+  # Once, even if several exporters push: Prometheus refuses the flag twice.
+  services.prometheus.extraFlags = [ "--web.enable-remote-write-receiver" ];
 }
 ```
 
@@ -114,7 +116,9 @@ pairing code is shown at `/homekit`.
 | `pollInterval`, `backstop` | `"60s"`, `"2m"` | Go durations |
 | `homekit.enable`, `.units`, `.port` | `false`, `[ ]`, `0` | units to expose to HomeKit; port 0 picks one |
 | `inactiveUnits` | `[ ]` | units shown as a blank placeholder in the web UI |
-| `prometheus.enable`, `.jobName`, `.scrapeInterval` | `false`, `"comfortd"`, `"60s"` | auto-registered scrape job |
+| `prometheus.enable` | `false` | push unit state, and a scrape job for `/metrics`; asserts the receiver flag is on |
+| `prometheus.url` | from `services.prometheus` | where to push |
+| `prometheus.jobName`, `.scrapeInterval` | `"comfortd"`, `"60s"` | the `job` label (scraped and pushed), scrape interval |
 | `openFirewall` | `false` | open the HomeKit port and mDNS (UDP 5353); the web UI stays on `listen` |
 | `extraArgs` | `[ ]` | extra command-line flags |
 

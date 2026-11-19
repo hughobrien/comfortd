@@ -11,7 +11,7 @@ import (
 
 func TestMetricsScrape(t *testing.T) {
 	_, d := ctlDeps(t)
-	d.Metrics = NewMetrics()
+	d.Metrics = NewMetrics(false)
 	d.Metrics.ObserveRequest("GET", "/devices/{id}", 200, 120*time.Millisecond)
 	d.Metrics.ObserveRequest("GET", "/devices/{id}", 0, time.Second)
 	mux := newMux(d)
@@ -42,7 +42,7 @@ func TestMetricsScrape(t *testing.T) {
 
 func TestSocketMetrics(t *testing.T) {
 	_, d := ctlDeps(t)
-	d.Metrics = NewMetrics()
+	d.Metrics = NewMetrics(false)
 	up := true
 	d.Metrics.RegisterSocket(func() bool { return up }, func() int { return 3 }, func() int { return 2 })
 	d.Metrics.SocketEvent("hold_update")

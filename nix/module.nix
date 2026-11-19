@@ -14,6 +14,7 @@
 
 let
   cfg = config.services.comfortd;
+  pushing = cfg.prometheus.enable && config.services.prometheus.enable;
 
   # Generic systemd sandboxing, nothing specific to comfortd.
   sandbox = {
@@ -102,9 +103,21 @@ in {
         type = lib.types.bool;
         default = false;
         description = ''
-          When true and `services.prometheus.enable` is also true, register
-          a scrape job for comfortd's `/metrics` endpoint automatically.
+          When true and `services.prometheus.enable` is also true, push each
+          unit's state to Prometheus with remote write whenever it changes
+          (and each minute while fresh), and register a scrape job for
+          comfortd's `/metrics` endpoint (health and request counters).
+          Prometheus needs `--web.enable-remote-write-receiver` in its
+          `extraFlags`.
         '';
+      };
+      url = lib.mkOption {
+        type = lib.types.str;
+        default =
+          let p = config.services.prometheus;
+          in "http://${if p.listenAddress == "0.0.0.0" || p.listenAddress == "" then "127.0.0.1" else p.listenAddress}:${toString p.port}";
+        defaultText = lib.literalExpression ''"http://''${services.prometheus.listenAddress}:''${toString services.prometheus.port}"'';
+        description = "Prometheus base URL; unit state goes to `<url>/api/v1/write`.";
       };
       jobName = lib.mkOption {
         type = lib.types.str;
@@ -114,7 +127,7 @@ in {
       scrapeInterval = lib.mkOption {
         type = lib.types.str;
         default = "60s";
-        description = "Scrape interval. Match or exceed `pollInterval`.";
+        description = "Scrape interval for /metrics. With push on it only carries health.";
       };
     };
 
@@ -148,7 +161,7 @@ in {
     systemd.services.comfortd = {
       description = "Mitsubishi Comfort (Kumo Cloud) bridge";
       wants = [ "network-online.target" ];
-      after = [ "network-online.target" ];
+      after = [ "network-online.target" ] ++ lib.optional pushing "prometheus.service";
       wantedBy = [ "multi-user.target" ];
 
       serviceConfig = sandbox // {
@@ -159,6 +172,9 @@ in {
           "--credentials" "%d/credentials"
           "--poll-interval" cfg.pollInterval
           "--backstop" cfg.backstop
+        ] ++ lib.optionals pushing [
+          "--prometheus-url" (lib.escapeShellArg cfg.prometheus.url)
+          "--job" (lib.escapeShellArg cfg.prometheus.jobName)
         ] ++ lib.optionals (cfg.inactiveUnits != [ ]) [
           "--inactive-units" (lib.escapeShellArg (lib.concatStringsSep "," cfg.inactiveUnits))
         ] ++ lib.optionals cfg.homekit.enable [
@@ -180,6 +196,14 @@ in {
         SystemCallFilter = [ "@system-service" "~@privileged" ];
       };
     };
+
+    # comfortd pushes unit state with remote write. The receiver flag is set
+    # once by the host (Prometheus refuses a repeated flag, and several
+    # exporters push), so only check it is there.
+    assertions = [{
+      assertion = !pushing || lib.elem "--web.enable-remote-write-receiver" config.services.prometheus.extraFlags;
+      message = "services.comfortd.prometheus.enable pushes unit state: add \"--web.enable-remote-write-receiver\" to services.prometheus.extraFlags.";
+    }];
 
     # Auto-wire a Prometheus scrape job when both services are enabled.
     services.prometheus.scrapeConfigs = lib.mkIf

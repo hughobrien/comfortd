@@ -8,7 +8,9 @@ require (
 	github.com/brutella/hap v0.0.35
 	github.com/coder/websocket v1.8.15
 	github.com/prometheus/client_golang v1.25.0
+	github.com/prometheus/client_model v0.6.3
 	github.com/starfederation/datastar-go v1.2.2
+	google.golang.org/protobuf v1.36.12
 )
 
 require (
@@ -21,7 +23,6 @@ require (
 	github.com/klauspost/compress v1.20.1 // indirect
 	github.com/miekg/dns v1.1.61 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
-	github.com/prometheus/client_model v0.6.3 // indirect
 	github.com/prometheus/common v0.72.0 // indirect
 	github.com/prometheus/procfs v0.22.0 // indirect
 	github.com/tadglines/go-pkgs v0.0.0-20210623144937-b983b20f54f9 // indirect
@@ -36,6 +37,5 @@ require (
 	golang.org/x/sys v0.50.0 // indirect
 	golang.org/x/text v0.43.0 // indirect
 	golang.org/x/tools v0.52.0 // indirect
-	google.golang.org/protobuf v1.36.12 // indirect
 	gopkg.in/Regis24GmbH/go-diacritics.v2 v2.0.3 // indirect
 )

@@ -1,26 +1,34 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 // Prometheus metrics, in the style of breezyd: a private registry (no Go
-// runtime or library collectors), per-unit gauges rebuilt from the store
-// before every scrape, and counters for what we ask the cloud. Gauges that
-// have no value right now are left out rather than held at an old number;
-// comfortd_up and comfortd_last_poll_timestamp_seconds say how fresh the rest is.
+// runtime or library collectors), per-unit gauges rebuilt from the store, and
+// counters for what we ask the cloud. Gauges that have no value right now are
+// left out rather than held at an old number; comfortd_up and
+// comfortd_last_poll_timestamp_seconds say how fresh the rest is.
+//
+// With push on, the unit-state gauges live in a second registry (data) that
+// the pusher gathers each time the store changes and sends with that time;
+// /metrics keeps the health and the request counters.
 package main
 
 import (
 	"encoding/json"
 	"net/http"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/hughobrien/comfortd/internal/store"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	dto "github.com/prometheus/client_model/go"
 )
 
-// Metrics owns every collector exposed at /metrics.
+// Metrics owns every collector, scraped at /metrics or pushed.
 type Metrics struct {
-	reg *prometheus.Registry
+	reg  *prometheus.Registry // scraped
+	data *prometheus.Registry // pushed; the same as reg when push is off
+	mu   sync.Mutex           // one Update (and its Gather) at a time
 
 	up, lastPoll, connected, power, room, setpoint, humidity, rssi *prometheus.GaugeVec
 	mode, fan                                                      *prometheus.GaugeVec // one-hot
@@ -34,29 +42,38 @@ type Metrics struct {
 	perUnit []*prometheus.GaugeVec
 }
 
-func NewMetrics() *Metrics {
+// NewMetrics builds the collectors. With push, the unit-state gauges go in
+// their own registry for the pusher instead of /metrics.
+func NewMetrics(push bool) *Metrics {
 	m := &Metrics{reg: prometheus.NewRegistry()}
-	g := func(name, help string, labels ...string) *prometheus.GaugeVec {
-		v := prometheus.NewGaugeVec(prometheus.GaugeOpts{Name: name, Help: help}, append([]string{"unit"}, labels...))
-		m.reg.MustRegister(v)
-		m.perUnit = append(m.perUnit, v)
-		return v
+	m.data = m.reg
+	if push {
+		m.data = prometheus.NewRegistry()
 	}
+	in := func(reg *prometheus.Registry) func(name, help string, labels ...string) *prometheus.GaugeVec {
+		return func(name, help string, labels ...string) *prometheus.GaugeVec {
+			v := prometheus.NewGaugeVec(prometheus.GaugeOpts{Name: name, Help: help}, append([]string{"unit"}, labels...))
+			reg.MustRegister(v)
+			m.perUnit = append(m.perUnit, v)
+			return v
+		}
+	}
+	g, d := in(m.reg), in(m.data)
 	m.up = g("comfortd_up", "1 if the unit's last device poll is fresh and the unit is online, else 0.")
 	m.lastPoll = g("comfortd_last_poll_timestamp_seconds", "Unix time of the last successful device poll.")
-	m.connected = g("comfortd_connected", "The cloud says the unit's adapter is connected (0/1).")
-	m.power = g("comfortd_power", "Unit power (0/1).")
-	m.mode = g("comfortd_mode", "Operation mode, one series per mode with value 1 for the current one.", "mode")
-	m.fan = g("comfortd_fan_speed", "Fan speed, one series per speed name with value 1 for the current one.", "speed")
-	m.room = g("comfortd_room_temperature_celsius", "Room temperature the unit reports.")
-	m.setpoint = g("comfortd_setpoint_celsius", "Heat and cool setpoints.", "kind")
-	m.humidity = g("comfortd_humidity_percent", "Relative humidity, for units that report it.")
-	m.rssi = g("comfortd_wifi_rssi_dbm", "Adapter Wi-Fi signal strength.")
-	m.hold = g("comfortd_hold_active", "The Comfort app's temporary hold is on (0/1).")
-	m.scheduleActive = g("comfortd_schedule_active", "The unit follows its schedule (0/1).")
-	m.alert = g("comfortd_alert", "Unit indicator flags (filter, defrost, standby, hot_adjust), 0/1. hot_adjust is the heating warm-up, when the indoor fan stays off or very low.", "alert")
-	m.statusDisplay = g("comfortd_status_display", "The unit's statusDisplay code from the cloud (no published meaning; 4 and 5 were seen during hot adjust).")
-	m.thermostatBattery = g("comfortd_thermostat_battery_ok", "Wall thermostat battery is ok (0/1), for zones with an MHK2.")
+	m.connected = d("comfortd_connected", "The cloud says the unit's adapter is connected (0/1).")
+	m.power = d("comfortd_power", "Unit power (0/1).")
+	m.mode = d("comfortd_mode", "Operation mode, one series per mode with value 1 for the current one.", "mode")
+	m.fan = d("comfortd_fan_speed", "Fan speed, one series per speed name with value 1 for the current one.", "speed")
+	m.room = d("comfortd_room_temperature_celsius", "Room temperature the unit reports.")
+	m.setpoint = d("comfortd_setpoint_celsius", "Heat and cool setpoints.", "kind")
+	m.humidity = d("comfortd_humidity_percent", "Relative humidity, for units that report it.")
+	m.rssi = d("comfortd_wifi_rssi_dbm", "Adapter Wi-Fi signal strength.")
+	m.hold = d("comfortd_hold_active", "The Comfort app's temporary hold is on (0/1).")
+	m.scheduleActive = d("comfortd_schedule_active", "The unit follows its schedule (0/1).")
+	m.alert = d("comfortd_alert", "Unit indicator flags (filter, defrost, standby, hot_adjust), 0/1. hot_adjust is the heating warm-up, when the indoor fan stays off or very low.", "alert")
+	m.statusDisplay = d("comfortd_status_display", "The unit's statusDisplay code from the cloud (no published meaning; 4 and 5 were seen during hot adjust).")
+	m.thermostatBattery = d("comfortd_thermostat_battery_ok", "Wall thermostat battery is ok (0/1), for zones with an MHK2.")
 	m.endpointError = g("comfortd_endpoint_error", "1 for each endpoint whose last poll failed.", "endpoint")
 
 	m.requests = prometheus.NewCounterVec(prometheus.CounterOpts{
@@ -179,7 +196,27 @@ func (m *Metrics) Update(st *store.Store, now time.Time, interval time.Duration)
 func (m *Metrics) Handler(st *store.Store, now func() time.Time, interval func() time.Duration) http.Handler {
 	h := promhttp.HandlerFor(m.reg, promhttp.HandlerOpts{})
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		m.mu.Lock()
+		defer m.mu.Unlock()
 		m.Update(st, now(), interval())
 		h.ServeHTTP(w, r)
 	})
+}
+
+// Pushed rebuilds the gauges and gathers the pushed ones.
+func (m *Metrics) Pushed(st *store.Store, now time.Time, interval time.Duration) ([]*dto.MetricFamily, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.Update(st, now, interval)
+	return m.data.Gather()
+}
+
+// RegisterPush exposes the pusher's queue on /metrics.
+func (m *Metrics) RegisterPush(queued func() int, errs func() uint64) {
+	m.reg.MustRegister(
+		prometheus.NewGaugeFunc(prometheus.GaugeOpts{Name: "comfortd_push_queued_samples", Help: "Samples waiting to be pushed to Prometheus."},
+			func() float64 { return float64(queued()) }),
+		prometheus.NewCounterFunc(prometheus.CounterOpts{Name: "comfortd_push_errors_total", Help: "Failed writes to Prometheus."},
+			func() float64 { return float64(errs()) }),
+	)
 }

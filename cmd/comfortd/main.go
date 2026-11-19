@@ -28,6 +28,7 @@ import (
 	"github.com/hughobrien/comfortd/internal/history"
 	"github.com/hughobrien/comfortd/internal/homekit"
 	"github.com/hughobrien/comfortd/internal/poller"
+	"github.com/hughobrien/comfortd/internal/promwrite"
 	"github.com/hughobrien/comfortd/internal/store"
 	"github.com/hughobrien/comfortd/pkg/kumo"
 	"github.com/hughobrien/comfortd/pkg/kumo/kumotest"
@@ -91,6 +92,8 @@ func runContext(ctx context.Context, args []string, stdout io.Writer, ready func
 	hkUnits := fs.String("homekit-units", envOr("homekit-units", ""), "comma-separated unit slugs to expose to HomeKit; empty = HomeKit off")
 	inactive := fs.String("inactive-units", envOr("inactive-units", ""), "comma-separated unit slugs shown as a blank placeholder in the web UI (the API still lists them)")
 	bridgeName := fs.String("bridge-name", "comfortd", "HomeKit bridge name")
+	promURL := fs.String("prometheus-url", envOr("prometheus-url", ""), "Prometheus to push unit state to (remote write receiver enabled); empty serves it on /metrics instead")
+	job := fs.String("job", envOr("job", "comfortd"), "job label on pushed series")
 	forceStale := fs.String("force-stale", "", "debug: comma-separated unit slugs HomeKit treats as stale (to check \"No Response\")")
 	if v := os.Getenv("COMFORTD_POLL_INTERVAL"); v != "" {
 		if d, err := time.ParseDuration(v); err == nil {
@@ -126,7 +129,7 @@ func runContext(ctx context.Context, args []string, stdout io.Writer, ready func
 		}
 	}
 
-	metrics := NewMetrics()
+	metrics := NewMetrics(*promURL != "")
 	client := kumo.New(kumo.Options{
 		OnRequest:       metrics.ObserveRequest,
 		BaseURL:         *apiBase,
@@ -252,6 +255,11 @@ func runContext(ctx context.Context, args []string, stdout io.Writer, ready func
 	}
 	workers.Go(func() { ctl.Run(ctx) })
 	workers.Go(func() { p.Run(ctx) })
+	if *promURL != "" {
+		mp := newMetricPusher(metrics, st, &promwrite.Client{Base: *promURL}, *job, beat)
+		workers.Go(func() { mp.Run(ctx) })
+		slog.Info("pushing unit state", "prometheus", *promURL)
+	}
 
 	ln, err := net.Listen("tcp", *listen)
 	if err != nil {
