@@ -86,20 +86,43 @@
       formatter = pkgs.nixpkgs-fmt;
     });
 
-    moduleCheck = (nixpkgs.lib.nixosSystem {
+    moduleSystem = extra: nixpkgs.lib.nixosSystem {
       system = "x86_64-linux";
       modules = [
         self.nixosModules.default
         {
           boot.isContainer = true;
           system.stateVersion = "26.05";
+          networking.hostName = "my-host";
           services.comfortd = {
             enable = true;
             credentialsFile = "/run/keys/comfortd";
+            prometheus.enable = true;
+            push.offsite.url = "http://offsite:8428";
           };
         }
+        extra
       ];
-    }).config.systemd.units."comfortd.service".unit;
+    };
+    # Evaluation fails (so the check does) if the options stop doing their job.
+    moduleCheck =
+      let
+        vm = (moduleSystem { services.victoriametrics.enable = true; }).config;
+        prom = (moduleSystem {
+          services.prometheus.enable = true;
+          services.prometheus.extraFlags = [ "--web.enable-remote-write-receiver" ];
+        }).config;
+        lib = nixpkgs.lib;
+        job = jobs: lib.findFirst (j: j.job_name == "comfortd") null jobs;
+        drops = j: lib.any (r: r.source_labels == [ "pushed_my_host" ] && r.regex == "true" && r.action == "drop") j.metric_relabel_configs;
+      in
+      assert lib.hasInfix "my_host=http://127.0.0.1:8428" (vm.systemd.services.comfortd.serviceConfig.ExecStart);
+      assert lib.hasInfix "offsite=http://offsite:8428" (vm.systemd.services.comfortd.serviceConfig.ExecStart);
+      assert drops (job vm.services.victoriametrics.prometheusConfig.scrape_configs);
+      assert vm.services.prometheus.scrapeConfigs == [ ];
+      assert lib.hasInfix "my_host=http://127.0.0.1:9090" (prom.systemd.services.comfortd.serviceConfig.ExecStart);
+      assert drops (job prom.services.prometheus.scrapeConfigs);
+      vm.systemd.units."comfortd.service".unit;
     defaultModule = { pkgs, lib, ... }: {
       imports = [ ./nix/module.nix ];
       services.comfortd.package = lib.mkDefault

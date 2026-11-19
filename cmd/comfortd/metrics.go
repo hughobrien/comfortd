@@ -6,9 +6,10 @@
 // left out rather than held at an old number; comfortd_up and
 // comfortd_last_poll_timestamp_seconds say how fresh the rest is.
 //
-// With push on, the unit-state gauges live in a second registry (data) that
-// the pusher gathers each time the store changes and sends with that time;
-// /metrics keeps the health and the request counters.
+// The unit-state gauges live in a second registry (data) that the pusher, if
+// any, gathers each time the store changes and sends with that time. /metrics
+// serves both registries; with push targets the unit-state gauges carry
+// pushed_<target>="true", so a target's own scrape can drop its copies.
 package main
 
 import (
@@ -26,8 +27,8 @@ import (
 
 // Metrics owns every collector, scraped at /metrics or pushed.
 type Metrics struct {
-	reg  *prometheus.Registry // scraped
-	data *prometheus.Registry // pushed; the same as reg when push is off
+	reg  *prometheus.Registry // health and request counters
+	data *prometheus.Registry // unit state: scraped too, and pushed
 	mu   sync.Mutex           // one Update (and its Gather) at a time
 
 	up, lastPoll, connected, power, room, setpoint, humidity, rssi *prometheus.GaugeVec
@@ -42,23 +43,19 @@ type Metrics struct {
 	perUnit []*prometheus.GaugeVec
 }
 
-// NewMetrics builds the collectors. With push, the unit-state gauges go in
-// their own registry for the pusher instead of /metrics.
-func NewMetrics(push bool) *Metrics {
-	m := &Metrics{reg: prometheus.NewRegistry()}
-	m.data = m.reg
-	if push {
-		m.data = prometheus.NewRegistry()
-	}
-	in := func(reg *prometheus.Registry) func(name, help string, labels ...string) *prometheus.GaugeVec {
+// NewMetrics builds the collectors. pushed (from promwrite.Targets.Labels)
+// goes on every unit-state gauge.
+func NewMetrics(pushed map[string]string) *Metrics {
+	m := &Metrics{reg: prometheus.NewRegistry(), data: prometheus.NewRegistry()}
+	in := func(reg *prometheus.Registry, constLabels map[string]string) func(name, help string, labels ...string) *prometheus.GaugeVec {
 		return func(name, help string, labels ...string) *prometheus.GaugeVec {
-			v := prometheus.NewGaugeVec(prometheus.GaugeOpts{Name: name, Help: help}, append([]string{"unit"}, labels...))
+			v := prometheus.NewGaugeVec(prometheus.GaugeOpts{Name: name, Help: help, ConstLabels: constLabels}, append([]string{"unit"}, labels...))
 			reg.MustRegister(v)
 			m.perUnit = append(m.perUnit, v)
 			return v
 		}
 	}
-	g, d := in(m.reg), in(m.data)
+	g, d := in(m.reg, nil), in(m.data, pushed)
 	m.up = g("comfortd_up", "1 if the unit's last device poll is fresh and the unit is online, else 0.")
 	m.lastPoll = g("comfortd_last_poll_timestamp_seconds", "Unix time of the last successful device poll.")
 	m.connected = d("comfortd_connected", "The cloud says the unit's adapter is connected (0/1).")
@@ -194,7 +191,7 @@ func (m *Metrics) Update(st *store.Store, now time.Time, interval time.Duration)
 
 // Handler serves /metrics, refreshing the gauges first.
 func (m *Metrics) Handler(st *store.Store, now func() time.Time, interval func() time.Duration) http.Handler {
-	h := promhttp.HandlerFor(m.reg, promhttp.HandlerOpts{})
+	h := promhttp.HandlerFor(prometheus.Gatherers{m.reg, m.data}, promhttp.HandlerOpts{})
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		m.mu.Lock()
 		defer m.mu.Unlock()
@@ -211,12 +208,5 @@ func (m *Metrics) Pushed(st *store.Store, now time.Time, interval time.Duration)
 	return m.data.Gather()
 }
 
-// RegisterPush exposes the pusher's queue on /metrics.
-func (m *Metrics) RegisterPush(queued func() int, errs func() uint64) {
-	m.reg.MustRegister(
-		prometheus.NewGaugeFunc(prometheus.GaugeOpts{Name: "comfortd_push_queued_samples", Help: "Samples waiting to be pushed to Prometheus."},
-			func() float64 { return float64(queued()) }),
-		prometheus.NewCounterFunc(prometheus.CounterOpts{Name: "comfortd_push_errors_total", Help: "Failed writes to Prometheus."},
-			func() float64 { return float64(errs()) }),
-	)
-}
+// RegisterPush exposes each target's queue on /metrics.
+func (m *Metrics) RegisterPush(cs ...prometheus.Collector) { m.reg.MustRegister(cs...) }

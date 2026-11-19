@@ -21,9 +21,12 @@ func (w *fakeWriter) Write(_ context.Context, s []promwrite.Series) error {
 
 func TestPushUnitState(t *testing.T) {
 	_, d := ctlDeps(t)
-	d.Metrics = NewMetrics(true)
+	targets := promwrite.Targets{{Name: "vm", URL: "http://vm"}}
+	d.Metrics = NewMetrics(targets.Labels())
 	w := &fakeWriter{}
-	p := newMetricPusher(d.Metrics, d.Store, w, "comfortd", func() time.Duration { return time.Minute })
+	push := promwrite.NewPushers(targets, nil)
+	push[0].Queue.W = w
+	p := newMetricPusher(d.Metrics, d.Store, push, "comfortd", func() time.Duration { return time.Minute })
 	now := time.Now()
 	p.now = func() time.Time { return now }
 	ctx := context.Background()
@@ -34,8 +37,8 @@ func TestPushUnitState(t *testing.T) {
 	}
 	names := map[string]bool{}
 	for _, s := range w.got[0] {
-		if s.Labels["unit"] != "office" || s.Labels["job"] != "comfortd" || len(s.Samples) != 1 || !s.Samples[0].T.Equal(now) {
-			t.Fatalf("series %v: want office only, job comfortd, one sample at the push time", s)
+		if s.Labels["unit"] != "office" || s.Labels["job"] != "comfortd" || s.Labels["pushed_vm"] != "" || len(s.Samples) != 1 || !s.Samples[0].T.Equal(now) {
+			t.Fatalf("series %v: want office only, job comfortd, no pushed_ mark, one sample at the push time", s)
 		}
 		names[s.Labels["__name__"]] = true
 	}
@@ -66,12 +69,17 @@ func TestPushUnitState(t *testing.T) {
 	rec := httptest.NewRecorder()
 	newMux(d).ServeHTTP(rec, httptest.NewRequest("GET", "/metrics", nil))
 	body := rec.Body.String()
-	if strings.Contains(body, "comfortd_mode{") || strings.Contains(body, "comfortd_room_temperature_celsius{") {
-		t.Errorf("pushed gauges should not be on /metrics:\n%s", body)
-	}
-	for _, want := range []string{`comfortd_up{unit="office"}`, "comfortd_push_errors_total 0", "comfortd_push_queued_samples 0"} {
+	// Unit state stays on /metrics for any scraper, marked so vm's own scrape
+	// can drop it; health is not marked.
+	for _, want := range []string{
+		`comfortd_mode{mode="heat",pushed_vm="true",unit="office"} 1`,
+		`comfortd_room_temperature_celsius{pushed_vm="true",unit="office"}`,
+		`comfortd_up{unit="office"}`,
+		`comfortd_push_errors_total{target="vm"} 0`,
+		`comfortd_push_queued_samples{target="vm"} 0`,
+	} {
 		if !strings.Contains(body, want) {
-			t.Errorf("missing %s on /metrics", want)
+			t.Errorf("missing %s on /metrics:\n%s", want, body)
 		}
 	}
 }

@@ -14,7 +14,7 @@ commands back.
   switches.
 - **API**: `GET /v1/units`, `GET /v1/units/{slug}/raw/{endpoint}`,
   `GET /v1/history`, `POST /v1/units/{slug}/command`.
-- **Metrics**: each unit's state is pushed to Prometheus with remote write the moment it changes (from the push socket or a poll), so changes keep their real time and none fall between scrapes; a fresh unit whose state has not changed is resent each minute, a stale one shows as a gap. `/metrics` keeps the health (`comfortd_up`, last poll, endpoint errors, request and socket counters, `comfortd_push_*`). Without `--prometheus-url` everything is on `/metrics`. With an importable Grafana dashboard in `grafana/comfortd.json` (unit names replaced):
+- **Metrics**: `/metrics` serves each unit's state and the health (`comfortd_up`, last poll, endpoint errors, request and socket counters). With `--push name=url` (repeatable; VictoriaMetrics, or Prometheus with its receiver on) each unit's state is also pushed with remote write the moment it changes (from the push socket or a poll), so changes keep their real time and none fall between scrapes; a fresh unit whose state has not changed is resent each minute, a stale one shows as a gap. The pushed gauges on `/metrics` then carry `pushed_<name>="true"`, so the target's own scrape can drop its copies (`metric_relabel_configs: [{source_labels: [pushed_<name>], regex: "true", action: drop}]`); other scrapers keep them. Each target has its own queue (`comfortd_push_queued_samples{target}`, `comfortd_push_errors_total{target}`). With an importable Grafana dashboard in `grafana/comfortd.json` (unit names replaced):
 
   ![Grafana dashboard: attention strip, then per unit room temperature, target, mode, fan, humidity, temperature against target and a timeline of what it was doing](docs/img/grafana.png)
 
@@ -88,10 +88,12 @@ Then configure it, for example in `configuration.nix`:
     credentialsFile = "/etc/comfortd/credentials";
     homekit = { enable = true; units = [ "office" "house" ]; port = 51830; };
     openFirewall = true;      # HomeKit port and mDNS (UDP 5353)
-    prometheus.enable = true; # pushes unit state, and a scrape job for health
+    prometheus.enable = true; # push to and be scraped by the local store
   };
-  # Once, even if several exporters push: Prometheus refuses the flag twice.
-  services.prometheus.extraFlags = [ "--web.enable-remote-write-receiver" ];
+  services.victoriametrics.enable = true;
+  # Or Prometheus with the receiver on; set the flag once, even if several
+  # exporters push: Prometheus refuses it twice.
+  # services.prometheus.extraFlags = [ "--web.enable-remote-write-receiver" ];
 }
 ```
 
@@ -116,8 +118,10 @@ pairing code is shown at `/homekit`.
 | `pollInterval`, `backstop` | `"60s"`, `"2m"` | Go durations |
 | `homekit.enable`, `.units`, `.port` | `false`, `[ ]`, `0` | units to expose to HomeKit; port 0 picks one |
 | `inactiveUnits` | `[ ]` | units shown as a blank placeholder in the web UI |
-| `prometheus.enable` | `false` | push unit state, and a scrape job for `/metrics`; asserts the receiver flag is on |
-| `prometheus.url` | from `services.prometheus` | where to push |
+| `push.<name>.url` | `{ }` | more remote write targets; their hosts' scrapes should drop `pushed_<name>` |
+| `prometheus.enable` | `false` | push to the local `services.victoriametrics` (else `services.prometheus`) and register a scrape job that drops what it was pushed; for Prometheus, asserts the receiver flag |
+| `prometheus.pushName` | host name, `-` and `.` as `_` | the local target's name |
+| `prometheus.url` | from the local store | where to push |
 | `prometheus.jobName`, `.scrapeInterval` | `"comfortd"`, `"60s"` | the `job` label (scraped and pushed), scrape interval |
 | `openFirewall` | `false` | open the HomeKit port and mDNS (UDP 5353); the web UI stays on `listen` |
 | `extraArgs` | `[ ]` | extra command-line flags |

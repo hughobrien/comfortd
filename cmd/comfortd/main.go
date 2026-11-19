@@ -92,7 +92,8 @@ func runContext(ctx context.Context, args []string, stdout io.Writer, ready func
 	hkUnits := fs.String("homekit-units", envOr("homekit-units", ""), "comma-separated unit slugs to expose to HomeKit; empty = HomeKit off")
 	inactive := fs.String("inactive-units", envOr("inactive-units", ""), "comma-separated unit slugs shown as a blank placeholder in the web UI (the API still lists them)")
 	bridgeName := fs.String("bridge-name", "comfortd", "HomeKit bridge name")
-	promURL := fs.String("prometheus-url", envOr("prometheus-url", ""), "Prometheus to push unit state to (remote write receiver enabled); empty serves it on /metrics instead")
+	var targets promwrite.Targets
+	fs.Var(&targets, "push", "name=url of a remote write receiver (VictoriaMetrics, or Prometheus with its receiver on) to push unit state to; repeat for more. /metrics serves it either way, labelled pushed_<name>=\"true\" for the receiver's own scrape to drop")
 	job := fs.String("job", envOr("job", "comfortd"), "job label on pushed series")
 	forceStale := fs.String("force-stale", "", "debug: comma-separated unit slugs HomeKit treats as stale (to check \"No Response\")")
 	if v := os.Getenv("COMFORTD_POLL_INTERVAL"); v != "" {
@@ -129,7 +130,7 @@ func runContext(ctx context.Context, args []string, stdout io.Writer, ready func
 		}
 	}
 
-	metrics := NewMetrics(*promURL != "")
+	metrics := NewMetrics(targets.Labels())
 	client := kumo.New(kumo.Options{
 		OnRequest:       metrics.ObserveRequest,
 		BaseURL:         *apiBase,
@@ -255,10 +256,10 @@ func runContext(ctx context.Context, args []string, stdout io.Writer, ready func
 	}
 	workers.Go(func() { ctl.Run(ctx) })
 	workers.Go(func() { p.Run(ctx) })
-	if *promURL != "" {
-		mp := newMetricPusher(metrics, st, &promwrite.Client{Base: *promURL}, *job, beat)
+	if len(targets) > 0 {
+		mp := newMetricPusher(metrics, st, promwrite.NewPushers(targets, nil), *job, beat)
 		workers.Go(func() { mp.Run(ctx) })
-		slog.Info("pushing unit state", "prometheus", *promURL)
+		slog.Info("pushing unit state", "targets", targets.String())
 	}
 
 	ln, err := net.Listen("tcp", *listen)

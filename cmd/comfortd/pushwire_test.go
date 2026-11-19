@@ -51,7 +51,7 @@ func TestPushWiringEndToEnd(t *testing.T) {
 	p := poller.New(client, st, time.Hour)
 	p.PollOnce(ctx)
 	var wg sync.WaitGroup
-	m := NewMetrics(false)
+	m := NewMetrics(nil)
 	pw := wirePush(pushOptions{
 		Client: client, Store: st, Poller: p, SocketURL: srv.URL, Backstop: time.Hour, PollInterval: time.Hour,
 		Metrics: m, LastSent: func(string) time.Time { return time.Time{} },
