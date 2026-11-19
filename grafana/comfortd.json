@@ -1,0 +1,1643 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "graphTooltip": 1,
+  "links": [],
+  "panels": [
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "Anything that wants a human: offline or stale units, cloud disconnects, filter, thermostat battery, failing endpoints, push socket down.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "fixedColor": "orange",
+            "mode": "fixed"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "All clear"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "green",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "name",
+        "wideLayout": true
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "label_replace(max by (unit) (comfortd_up{unit=~\"$unit\"}) == 0, \"issue\", \"offline or stale\", \"\", \"\")\nor label_replace(max by (unit) (comfortd_connected{unit=~\"$unit\"}) == 0, \"issue\", \"indoor unit not connected to cloud\", \"\", \"\")\nor label_replace(max by (unit) (comfortd_alert{unit=~\"$unit\",alert=\"filter\"}) == 1, \"issue\", \"clean the filter\", \"\", \"\")\nor label_replace(max by (unit) (comfortd_thermostat_battery_ok{unit=~\"$unit\"}) == 0, \"issue\", \"thermostat battery low\", \"\", \"\")\nor label_replace(max by (unit) (time() - comfortd_last_poll_timestamp_seconds{unit=~\"$unit\"}) > 600, \"issue\", \"no successful poll for 10m+\", \"\", \"\")\nor label_replace(max by (unit, endpoint) (comfortd_endpoint_error{unit=~\"$unit\"}) == 1, \"issue\", \"$1 endpoint failing\", \"endpoint\", \"(.*)\")\nor label_replace(label_replace(max(comfortd_socket_connected) == 0, \"issue\", \"push socket down\", \"\", \"\"), \"unit\", \"comfortd\", \"\", \"\")",
+          "instant": true,
+          "legendFormat": "{{unit}}: {{issue}}",
+          "range": false,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "absent(\nlabel_replace(max by (unit) (comfortd_up{unit=~\"$unit\"}) == 0, \"issue\", \"offline or stale\", \"\", \"\")\nor label_replace(max by (unit) (comfortd_connected{unit=~\"$unit\"}) == 0, \"issue\", \"indoor unit not connected to cloud\", \"\", \"\")\nor label_replace(max by (unit) (comfortd_alert{unit=~\"$unit\",alert=\"filter\"}) == 1, \"issue\", \"clean the filter\", \"\", \"\")\nor label_replace(max by (unit) (comfortd_thermostat_battery_ok{unit=~\"$unit\"}) == 0, \"issue\", \"thermostat battery low\", \"\", \"\")\nor label_replace(max by (unit) (time() - comfortd_last_poll_timestamp_seconds{unit=~\"$unit\"}) > 600, \"issue\", \"no successful poll for 10m+\", \"\", \"\")\nor label_replace(max by (unit, endpoint) (comfortd_endpoint_error{unit=~\"$unit\"}) == 1, \"issue\", \"$1 endpoint failing\", \"endpoint\", \"(.*)\")\nor label_replace(label_replace(max(comfortd_socket_connected) == 0, \"issue\", \"push socket down\", \"\", \"\"), \"unit\", \"comfortd\", \"\", \"\")\n)",
+          "instant": true,
+          "legendFormat": "All clear",
+          "range": false,
+          "refId": "B"
+        }
+      ],
+      "title": "Needs attention",
+      "type": "stat"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 3
+      },
+      "id": 2,
+      "panels": [],
+      "repeat": "unit",
+      "title": "$unit",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "fixedColor": "purple",
+            "mode": "fixed"
+          },
+          "decimals": 1,
+          "unit": "celsius"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 0,
+        "y": 4
+      },
+      "id": 3,
+      "options": {
+        "colorMode": "none",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "max by (unit) (comfortd_room_temperature_celsius{unit=~\"${unit:regex}\"})",
+          "instant": false,
+          "legendFormat": "room",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Room",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "The setpoint the current mode is working to (heat, cool, or both in auto).",
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 1,
+          "noValue": "—",
+          "unit": "celsius"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "heat"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "orange",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "cool"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "blue",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 4,
+        "y": 4
+      },
+      "id": 4,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "value_and_name",
+        "wideLayout": true
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "max by (unit) (comfortd_setpoint_celsius{unit=~\"${unit:regex}\",kind=\"heat\"}) and on (unit) max by (unit) (comfortd_mode{unit=~\"${unit:regex}\",mode=~\"heat|auto|autoHeat|autoCool\"})",
+          "instant": true,
+          "legendFormat": "heat",
+          "range": false,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "max by (unit) (comfortd_setpoint_celsius{unit=~\"${unit:regex}\",kind=\"cool\"}) and on (unit) max by (unit) (comfortd_mode{unit=~\"${unit:regex}\",mode=~\"cool|dry|auto|autoHeat|autoCool\"})",
+          "instant": true,
+          "legendFormat": "cool",
+          "range": false,
+          "refId": "B"
+        }
+      ],
+      "title": "Target",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "Room temperature minus the active setpoint. Negative in heat mode means still below target.",
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 1,
+          "noValue": "—",
+          "unit": "celsius"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 8,
+        "y": 4
+      },
+      "id": 5,
+      "options": {
+        "colorMode": "none",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "max by (unit) (comfortd_room_temperature_celsius{unit=~\"${unit:regex}\"}) - on (unit) (max by (unit) (comfortd_setpoint_celsius{unit=~\"${unit:regex}\",kind=\"heat\"}) and on (unit) max by (unit) (comfortd_mode{unit=~\"${unit:regex}\",mode=~\"heat|auto|autoHeat|autoCool\"}))\nor\nmax by (unit) (comfortd_room_temperature_celsius{unit=~\"${unit:regex}\"}) - on (unit) (max by (unit) (comfortd_setpoint_celsius{unit=~\"${unit:regex}\",kind=\"cool\"}) and on (unit) max by (unit) (comfortd_mode{unit=~\"${unit:regex}\",mode=~\"cool|dry|auto|autoHeat|autoCool\"}))",
+          "instant": true,
+          "legendFormat": "room − target",
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "title": "Off target",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "Mode, overridden by what the unit reports it is doing: warm-up (hot adjust, the fan is held off or very low until the coil is warm), defrost or standby. Sampled per poll, so short phases can be missed.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [
+            {
+              "options": {
+                "0": {
+                  "color": "#808080",
+                  "index": 0,
+                  "text": "Off"
+                },
+                "1": {
+                  "color": "orange",
+                  "index": 0,
+                  "text": "Heat"
+                },
+                "10": {
+                  "color": "light-orange",
+                  "index": 0,
+                  "text": "Warm-up (fan held)"
+                },
+                "11": {
+                  "color": "super-light-blue",
+                  "index": 0,
+                  "text": "Defrost"
+                },
+                "12": {
+                  "color": "yellow",
+                  "index": 0,
+                  "text": "Standby"
+                },
+                "2": {
+                  "color": "blue",
+                  "index": 0,
+                  "text": "Cool"
+                },
+                "20": {
+                  "color": "#808080",
+                  "index": 0,
+                  "text": "Auto"
+                },
+                "21": {
+                  "color": "super-light-blue",
+                  "index": 0,
+                  "text": "Super quiet"
+                },
+                "22": {
+                  "color": "light-blue",
+                  "index": 0,
+                  "text": "Quiet"
+                },
+                "23": {
+                  "color": "blue",
+                  "index": 0,
+                  "text": "Low"
+                },
+                "24": {
+                  "color": "semi-dark-blue",
+                  "index": 0,
+                  "text": "Powerful"
+                },
+                "25": {
+                  "color": "dark-blue",
+                  "index": 0,
+                  "text": "Super powerful"
+                },
+                "3": {
+                  "color": "purple",
+                  "index": 0,
+                  "text": "Auto"
+                },
+                "30": {
+                  "color": "#808080",
+                  "index": 0,
+                  "text": "Manual"
+                },
+                "31": {
+                  "color": "semi-dark-green",
+                  "index": 0,
+                  "text": "Schedule"
+                },
+                "32": {
+                  "color": "yellow",
+                  "index": 0,
+                  "text": "Hold"
+                },
+                "4": {
+                  "color": "semi-dark-yellow",
+                  "index": 0,
+                  "text": "Dry"
+                },
+                "5": {
+                  "color": "super-light-purple",
+                  "index": 0,
+                  "text": "Fan only"
+                }
+              },
+              "type": "value"
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#808080",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 12,
+        "y": 4
+      },
+      "id": 6,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "max by (unit) (\n    (max by (unit) (comfortd_power{unit=~\"${unit:regex}\"}) == 0) * 0\n  or (max by (unit) (comfortd_mode{unit=~\"${unit:regex}\",mode=\"off\"}) == 1) * 0\n  or (max by (unit) (comfortd_alert{unit=~\"${unit:regex}\",alert=\"defrost\"}) == 1) * 11\n  or (max by (unit) (comfortd_alert{unit=~\"${unit:regex}\",alert=\"hot_adjust\"}) == 1) * 10\n  or (max by (unit) (comfortd_alert{unit=~\"${unit:regex}\",alert=\"standby\"}) == 1) * 12\n  or max by (unit) (comfortd_mode{unit=~\"${unit:regex}\",mode=\"heat\"}) * 1\n  or max by (unit) (comfortd_mode{unit=~\"${unit:regex}\",mode=\"cool\"}) * 2\n  or max by (unit) (comfortd_mode{unit=~\"${unit:regex}\",mode=~\"auto|autoHeat|autoCool\"}) * 3\n  or max by (unit) (comfortd_mode{unit=~\"${unit:regex}\",mode=\"dry\"}) * 4\n  or max by (unit) (comfortd_mode{unit=~\"${unit:regex}\",mode=\"vent\"}) * 5\n)",
+          "instant": true,
+          "legendFormat": "state",
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "title": "Doing now",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "",
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {
+              "options": {
+                "0": {
+                  "color": "#808080",
+                  "index": 0,
+                  "text": "Off"
+                },
+                "1": {
+                  "color": "orange",
+                  "index": 0,
+                  "text": "Heat"
+                },
+                "10": {
+                  "color": "light-orange",
+                  "index": 0,
+                  "text": "Warm-up (fan held)"
+                },
+                "11": {
+                  "color": "super-light-blue",
+                  "index": 0,
+                  "text": "Defrost"
+                },
+                "12": {
+                  "color": "yellow",
+                  "index": 0,
+                  "text": "Standby"
+                },
+                "2": {
+                  "color": "blue",
+                  "index": 0,
+                  "text": "Cool"
+                },
+                "20": {
+                  "color": "#808080",
+                  "index": 0,
+                  "text": "Auto"
+                },
+                "21": {
+                  "color": "super-light-blue",
+                  "index": 0,
+                  "text": "Super quiet"
+                },
+                "22": {
+                  "color": "light-blue",
+                  "index": 0,
+                  "text": "Quiet"
+                },
+                "23": {
+                  "color": "blue",
+                  "index": 0,
+                  "text": "Low"
+                },
+                "24": {
+                  "color": "semi-dark-blue",
+                  "index": 0,
+                  "text": "Powerful"
+                },
+                "25": {
+                  "color": "dark-blue",
+                  "index": 0,
+                  "text": "Super powerful"
+                },
+                "3": {
+                  "color": "purple",
+                  "index": 0,
+                  "text": "Auto"
+                },
+                "30": {
+                  "color": "#808080",
+                  "index": 0,
+                  "text": "Manual"
+                },
+                "31": {
+                  "color": "semi-dark-green",
+                  "index": 0,
+                  "text": "Schedule"
+                },
+                "32": {
+                  "color": "yellow",
+                  "index": 0,
+                  "text": "Hold"
+                },
+                "4": {
+                  "color": "semi-dark-yellow",
+                  "index": 0,
+                  "text": "Dry"
+                },
+                "5": {
+                  "color": "super-light-purple",
+                  "index": 0,
+                  "text": "Fan only"
+                }
+              },
+              "type": "value"
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 16,
+        "y": 4
+      },
+      "id": 7,
+      "options": {
+        "colorMode": "none",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "value_and_name",
+        "wideLayout": true
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "max by (unit) (\n    (max by (unit) (comfortd_hold_active{unit=~\"${unit:regex}\"}) == 1) * 0 + 32\n  or (max by (unit) (comfortd_schedule_active{unit=~\"${unit:regex}\"}) == 1) * 0 + 31\n  or max by (unit) (comfortd_schedule_active{unit=~\"${unit:regex}\"}) * 0 + 30\n)",
+          "instant": true,
+          "legendFormat": "control",
+          "range": false,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "max by (unit) (\nmax by (unit) (comfortd_fan_speed{unit=~\"${unit:regex}\",speed=\"auto\"}) * 20\n  or max by (unit) (comfortd_fan_speed{unit=~\"${unit:regex}\",speed=\"superQuiet\"}) * 21\n  or max by (unit) (comfortd_fan_speed{unit=~\"${unit:regex}\",speed=\"quiet\"}) * 22\n  or max by (unit) (comfortd_fan_speed{unit=~\"${unit:regex}\",speed=\"low\"}) * 23\n  or max by (unit) (comfortd_fan_speed{unit=~\"${unit:regex}\",speed=\"powerful\"}) * 24\n  or max by (unit) (comfortd_fan_speed{unit=~\"${unit:regex}\",speed=\"superPowerful\"}) * 25\n)",
+          "instant": true,
+          "legendFormat": "fan",
+          "range": false,
+          "refId": "B"
+        }
+      ],
+      "title": "Control / fan",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "fixedColor": "text",
+            "mode": "fixed"
+          },
+          "decimals": 0,
+          "noValue": "not reported",
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 20,
+        "y": 4
+      },
+      "id": 8,
+      "options": {
+        "colorMode": "none",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "max by (unit) (comfortd_humidity_percent{unit=~\"${unit:regex}\"})",
+          "instant": false,
+          "legendFormat": "humidity",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Humidity",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "axisSoftMin": null,
+            "fillOpacity": 0,
+            "lineWidth": 2,
+            "showPoints": "never",
+            "spanNulls": 600000
+          },
+          "decimals": 1,
+          "unit": "celsius"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "room"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "purple",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "heat target"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "orange",
+                  "mode": "fixed"
+                }
+              },
+              {
+                "id": "custom.lineStyle",
+                "value": {
+                  "dash": [
+                    8,
+                    6
+                  ],
+                  "fill": "dash"
+                }
+              },
+              {
+                "id": "custom.lineInterpolation",
+                "value": "stepAfter"
+              },
+              {
+                "id": "custom.lineWidth",
+                "value": 1
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "cool target"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "blue",
+                  "mode": "fixed"
+                }
+              },
+              {
+                "id": "custom.lineStyle",
+                "value": {
+                  "dash": [
+                    8,
+                    6
+                  ],
+                  "fill": "dash"
+                }
+              },
+              {
+                "id": "custom.lineInterpolation",
+                "value": "stepAfter"
+              },
+              {
+                "id": "custom.lineWidth",
+                "value": 1
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 24,
+        "x": 0,
+        "y": 8
+      },
+      "id": 9,
+      "options": {
+        "legend": {
+          "calcs": [
+            "mean",
+            "min",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "max by (unit) (comfortd_room_temperature_celsius{unit=~\"${unit:regex}\"})",
+          "instant": false,
+          "legendFormat": "room",
+          "range": true,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "max by (unit) (comfortd_setpoint_celsius{unit=~\"${unit:regex}\",kind=\"heat\"}) and on (unit) max by (unit) (comfortd_mode{unit=~\"${unit:regex}\",mode=~\"heat|auto|autoHeat|autoCool\"})",
+          "instant": false,
+          "legendFormat": "heat target",
+          "range": true,
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "max by (unit) (comfortd_setpoint_celsius{unit=~\"${unit:regex}\",kind=\"cool\"}) and on (unit) max by (unit) (comfortd_mode{unit=~\"${unit:regex}\",mode=~\"cool|dry|auto|autoHeat|autoCool\"})",
+          "instant": false,
+          "legendFormat": "cool target",
+          "range": true,
+          "refId": "C"
+        }
+      ],
+      "title": "Temperature vs target",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "fixedColor": "#808080",
+            "mode": "fixed"
+          },
+          "custom": {
+            "fillOpacity": 80,
+            "lineWidth": 0
+          },
+          "mappings": [
+            {
+              "options": {
+                "0": {
+                  "color": "#808080",
+                  "index": 0,
+                  "text": "Off"
+                },
+                "1": {
+                  "color": "orange",
+                  "index": 0,
+                  "text": "Heat"
+                },
+                "10": {
+                  "color": "light-orange",
+                  "index": 0,
+                  "text": "Warm-up (fan held)"
+                },
+                "11": {
+                  "color": "super-light-blue",
+                  "index": 0,
+                  "text": "Defrost"
+                },
+                "12": {
+                  "color": "yellow",
+                  "index": 0,
+                  "text": "Standby"
+                },
+                "2": {
+                  "color": "blue",
+                  "index": 0,
+                  "text": "Cool"
+                },
+                "20": {
+                  "color": "#808080",
+                  "index": 0,
+                  "text": "Auto"
+                },
+                "21": {
+                  "color": "super-light-blue",
+                  "index": 0,
+                  "text": "Super quiet"
+                },
+                "22": {
+                  "color": "light-blue",
+                  "index": 0,
+                  "text": "Quiet"
+                },
+                "23": {
+                  "color": "blue",
+                  "index": 0,
+                  "text": "Low"
+                },
+                "24": {
+                  "color": "semi-dark-blue",
+                  "index": 0,
+                  "text": "Powerful"
+                },
+                "25": {
+                  "color": "dark-blue",
+                  "index": 0,
+                  "text": "Super powerful"
+                },
+                "3": {
+                  "color": "purple",
+                  "index": 0,
+                  "text": "Auto"
+                },
+                "30": {
+                  "color": "#808080",
+                  "index": 0,
+                  "text": "Manual"
+                },
+                "31": {
+                  "color": "semi-dark-green",
+                  "index": 0,
+                  "text": "Schedule"
+                },
+                "32": {
+                  "color": "yellow",
+                  "index": 0,
+                  "text": "Hold"
+                },
+                "4": {
+                  "color": "semi-dark-yellow",
+                  "index": 0,
+                  "text": "Dry"
+                },
+                "5": {
+                  "color": "super-light-purple",
+                  "index": 0,
+                  "text": "Fan only"
+                }
+              },
+              "type": "value"
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 24,
+        "x": 0,
+        "y": 17
+      },
+      "id": 10,
+      "options": {
+        "alignValue": "left",
+        "legend": {
+          "showLegend": false
+        },
+        "mergeValues": true,
+        "rowHeight": 0.8,
+        "showValue": "auto",
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "max by (unit) (\n    (max by (unit) (comfortd_power{unit=~\"${unit:regex}\"}) == 0) * 0\n  or (max by (unit) (comfortd_mode{unit=~\"${unit:regex}\",mode=\"off\"}) == 1) * 0\n  or (max by (unit) (comfortd_alert{unit=~\"${unit:regex}\",alert=\"defrost\"}) == 1) * 11\n  or (max by (unit) (comfortd_alert{unit=~\"${unit:regex}\",alert=\"hot_adjust\"}) == 1) * 10\n  or (max by (unit) (comfortd_alert{unit=~\"${unit:regex}\",alert=\"standby\"}) == 1) * 12\n  or max by (unit) (comfortd_mode{unit=~\"${unit:regex}\",mode=\"heat\"}) * 1\n  or max by (unit) (comfortd_mode{unit=~\"${unit:regex}\",mode=\"cool\"}) * 2\n  or max by (unit) (comfortd_mode{unit=~\"${unit:regex}\",mode=~\"auto|autoHeat|autoCool\"}) * 3\n  or max by (unit) (comfortd_mode{unit=~\"${unit:regex}\",mode=\"dry\"}) * 4\n  or max by (unit) (comfortd_mode{unit=~\"${unit:regex}\",mode=\"vent\"}) * 5\n)",
+          "instant": false,
+          "legendFormat": "Mode / activity",
+          "range": true,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "max by (unit) (\nmax by (unit) (comfortd_fan_speed{unit=~\"${unit:regex}\",speed=\"auto\"}) * 20\n  or max by (unit) (comfortd_fan_speed{unit=~\"${unit:regex}\",speed=\"superQuiet\"}) * 21\n  or max by (unit) (comfortd_fan_speed{unit=~\"${unit:regex}\",speed=\"quiet\"}) * 22\n  or max by (unit) (comfortd_fan_speed{unit=~\"${unit:regex}\",speed=\"low\"}) * 23\n  or max by (unit) (comfortd_fan_speed{unit=~\"${unit:regex}\",speed=\"powerful\"}) * 24\n  or max by (unit) (comfortd_fan_speed{unit=~\"${unit:regex}\",speed=\"superPowerful\"}) * 25\n)",
+          "instant": false,
+          "legendFormat": "Fan",
+          "range": true,
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "max by (unit) (\n    (max by (unit) (comfortd_hold_active{unit=~\"${unit:regex}\"}) == 1) * 0 + 32\n  or (max by (unit) (comfortd_schedule_active{unit=~\"${unit:regex}\"}) == 1) * 0 + 31\n  or max by (unit) (comfortd_schedule_active{unit=~\"${unit:regex}\"}) * 0 + 30\n)",
+          "instant": false,
+          "legendFormat": "Control",
+          "range": true,
+          "refId": "C"
+        }
+      ],
+      "title": "What it was doing",
+      "type": "state-timeline"
+    },
+    {
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 22
+      },
+      "id": 17,
+      "panels": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "description": "Dashed lines at −67 dBm (fine above) and −75 dBm (poor below).",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "fillOpacity": 0,
+                "lineWidth": 2,
+                "showPoints": "never",
+                "thresholdsStyle": {
+                  "mode": "dashed"
+                }
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "red",
+                    "value": null
+                  },
+                  {
+                    "color": "orange",
+                    "value": -75
+                  },
+                  {
+                    "color": "green",
+                    "value": -67
+                  }
+                ]
+              },
+              "unit": "dBm"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 8,
+            "x": 0,
+            "y": 23
+          },
+          "id": 11,
+          "options": {
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${DS_PROMETHEUS}"
+              },
+              "expr": "max by (unit) (comfortd_wifi_rssi_dbm{unit=~\"$unit\"})",
+              "instant": false,
+              "legendFormat": "{{unit}}",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "Wi-Fi signal",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "description": "Requests to the Kumo cloud per interval, by outcome. 'no response' = failed before an HTTP status.",
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "barAlignment": 0,
+                "drawStyle": "bars",
+                "fillOpacity": 80,
+                "lineWidth": 0,
+                "stacking": {
+                  "mode": "normal"
+                }
+              },
+              "decimals": 0,
+              "unit": "short"
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "2xx"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "fixedColor": "green",
+                      "mode": "fixed"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "4xx"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "fixedColor": "orange",
+                      "mode": "fixed"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "5xx"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "fixedColor": "red",
+                      "mode": "fixed"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "no response"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "fixedColor": "dark-red",
+                      "mode": "fixed"
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 8,
+            "x": 8,
+            "y": 23
+          },
+          "id": 12,
+          "interval": "10m",
+          "options": {
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${DS_PROMETHEUS}"
+              },
+              "expr": "sum by (class) (label_replace(label_replace(increase(comfortd_upstream_requests_total[$__interval]), \"class\", \"${1}xx\", \"code\", \"([1-9])[0-9][0-9]\"), \"class\", \"no response\", \"code\", \"0\"))",
+              "instant": false,
+              "legendFormat": "{{class}}",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "Kumo cloud calls",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "fillOpacity": 0,
+                "lineWidth": 2,
+                "showPoints": "never"
+              },
+              "min": 0,
+              "unit": "s"
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "p50"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "fixedColor": "blue",
+                      "mode": "fixed"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "p95"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "fixedColor": "semi-dark-purple",
+                      "mode": "fixed"
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 8,
+            "x": 16,
+            "y": 23
+          },
+          "id": 13,
+          "interval": "10m",
+          "options": {
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${DS_PROMETHEUS}"
+              },
+              "expr": "histogram_quantile(0.5, sum by (le) (rate(comfortd_upstream_request_duration_seconds_bucket[$__rate_interval])))",
+              "instant": false,
+              "legendFormat": "p50",
+              "range": true,
+              "refId": "A"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${DS_PROMETHEUS}"
+              },
+              "expr": "histogram_quantile(0.95, sum by (le) (rate(comfortd_upstream_request_duration_seconds_bucket[$__rate_interval])))",
+              "instant": false,
+              "legendFormat": "p95",
+              "range": true,
+              "refId": "B"
+            }
+          ],
+          "title": "Kumo cloud latency",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "fixedColor": "blue",
+                "mode": "fixed"
+              },
+              "min": 0,
+              "unit": "s"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 9,
+            "w": 8,
+            "x": 0,
+            "y": 31
+          },
+          "id": 14,
+          "options": {
+            "displayMode": "basic",
+            "namePlacement": "left",
+            "orientation": "horizontal",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": true
+            },
+            "showUnfilled": true,
+            "sizing": "auto",
+            "valueMode": "text"
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${DS_PROMETHEUS}"
+              },
+              "expr": "sum by (route) (increase(comfortd_upstream_request_duration_seconds_sum[$__range])) / sum by (route) (increase(comfortd_upstream_request_duration_seconds_count[$__range])) > 0 < +Inf",
+              "instant": true,
+              "legendFormat": "{{route}}",
+              "range": false,
+              "refId": "A"
+            }
+          ],
+          "title": "Mean latency by route (time range)",
+          "transformations": [
+            {
+              "id": "reduce",
+              "options": {
+                "reducers": [
+                  "lastNotNull"
+                ]
+              }
+            },
+            {
+              "id": "sortBy",
+              "options": {
+                "sort": [
+                  {
+                    "desc": true,
+                    "field": "Last *"
+                  }
+                ]
+              }
+            }
+          ],
+          "type": "bargauge"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "drawStyle": "bars",
+                "fillOpacity": 80,
+                "lineWidth": 0,
+                "stacking": {
+                  "mode": "normal"
+                }
+              },
+              "decimals": 0,
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 9,
+            "w": 8,
+            "x": 8,
+            "y": 31
+          },
+          "id": 15,
+          "interval": "10m",
+          "options": {
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${DS_PROMETHEUS}"
+              },
+              "expr": "sum by (event) (increase(comfortd_socket_events_total[$__interval]))",
+              "instant": false,
+              "legendFormat": "{{event}}",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "Push socket events",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "description": "'missed by push' = changes a poll found that the connected socket had not pushed.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "thresholds"
+              },
+              "decimals": 0,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "text",
+                    "value": null
+                  },
+                  {
+                    "color": "orange",
+                    "value": 1
+                  }
+                ]
+              }
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "connected"
+                },
+                "properties": [
+                  {
+                    "id": "mappings",
+                    "value": [
+                      {
+                        "options": {
+                          "0": {
+                            "color": "red",
+                            "text": "down"
+                          },
+                          "1": {
+                            "color": "green",
+                            "text": "up"
+                          }
+                        },
+                        "type": "value"
+                      }
+                    ]
+                  },
+                  {
+                    "id": "thresholds",
+                    "value": {
+                      "mode": "absolute",
+                      "steps": [
+                        {
+                          "color": "red",
+                          "value": null
+                        },
+                        {
+                          "color": "green",
+                          "value": 1
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          "gridPos": {
+            "h": 9,
+            "w": 8,
+            "x": 16,
+            "y": 31
+          },
+          "id": 16,
+          "options": {
+            "colorMode": "value",
+            "graphMode": "none",
+            "justifyMode": "auto",
+            "orientation": "vertical",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "showPercentChange": false,
+            "textMode": "value_and_name",
+            "wideLayout": true
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${DS_PROMETHEUS}"
+              },
+              "expr": "max(comfortd_socket_connected)",
+              "instant": true,
+              "legendFormat": "connected",
+              "range": false,
+              "refId": "A"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${DS_PROMETHEUS}"
+              },
+              "expr": "sum(increase(comfortd_socket_reconnects_total[$__range])) or vector(0)",
+              "instant": true,
+              "legendFormat": "reconnects",
+              "range": false,
+              "refId": "B"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${DS_PROMETHEUS}"
+              },
+              "expr": "sum(increase(comfortd_socket_dropped_total[$__range])) or vector(0)",
+              "instant": true,
+              "legendFormat": "dropped",
+              "range": false,
+              "refId": "C"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${DS_PROMETHEUS}"
+              },
+              "expr": "sum(increase(comfortd_socket_missed_changes_total[$__range])) or vector(0)",
+              "instant": true,
+              "legendFormat": "missed by push",
+              "range": false,
+              "refId": "D"
+            }
+          ],
+          "title": "Push socket (time range)",
+          "type": "stat"
+        }
+      ],
+      "title": "Cloud, push socket, Wi-Fi",
+      "type": "row"
+    }
+  ],
+  "refresh": "1m",
+  "schemaVersion": 39,
+  "tags": [
+    "comfortd",
+    "hvac"
+  ],
+  "templating": {
+    "list": [
+      {
+        "current": {},
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${DS_PROMETHEUS}"
+        },
+        "includeAll": true,
+        "label": "Unit",
+        "multi": true,
+        "name": "unit",
+        "options": [],
+        "query": {
+          "query": "label_values(comfortd_up, unit)",
+          "refId": "u"
+        },
+        "refresh": 2,
+        "sort": 1,
+        "type": "query"
+      }
+    ]
+  },
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "timezone": "browser",
+  "title": "comfortd",
+  "__inputs": [
+    {
+      "name": "DS_PROMETHEUS",
+      "label": "Prometheus",
+      "type": "datasource",
+      "pluginId": "prometheus",
+      "pluginName": "Prometheus"
+    }
+  ]
+}
