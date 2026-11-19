@@ -85,7 +85,7 @@ func (c *Client) Write(ctx context.Context, series []Series) error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	msg, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
 	switch {
 	case resp.StatusCode/100 == 2:
@@ -162,7 +162,7 @@ func (c *Client) Newest(ctx context.Context, selector string, lookback time.Dura
 	if err != nil {
 		return time.Time{}, false, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		msg, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
 		return time.Time{}, false, fmt.Errorf("prometheus query: HTTP %d: %s", resp.StatusCode, strings.TrimSpace(string(msg)))

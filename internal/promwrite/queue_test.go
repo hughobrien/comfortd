@@ -60,7 +60,7 @@ func TestQueueMergesAndRetries(t *testing.T) {
 
 	w.err = &RefusedError{Status: 400}
 	q.Add(one("a", 4, 4))
-	q.Flush(ctx)
+	_ = q.Flush(ctx)
 	if q.Len() != 0 {
 		t.Error("a refused write should be dropped")
 	}
@@ -68,7 +68,7 @@ func TestQueueMergesAndRetries(t *testing.T) {
 	w.err = nil
 	q.Add(one("a", 5, 5))
 	now = at(5 + 3600)
-	q.Flush(ctx)
+	_ = q.Flush(ctx)
 	if len(w.got) != 1 {
 		t.Error("samples older than MaxAge should be dropped, not sent")
 	}
