@@ -9,6 +9,9 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+
+	"github.com/hughobrien/comfortd/internal/promwrite"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 // The Grafana dashboard in grafana/comfortd.json queries these metrics. If a metric
@@ -43,6 +46,18 @@ func TestDashboardMatchesMetrics(t *testing.T) {
 	}
 	if len(have) == 0 {
 		t.Fatal("found no metric declarations; the pattern is stale")
+	}
+	// The push metrics are named by promwrite from a prefix.
+	descs := make(chan *prometheus.Desc, 8)
+	for _, c := range promwrite.NewPushers(promwrite.Targets{{Name: "t", URL: "http://t"}}, nil).Collectors("comfortd") {
+		c.Describe(descs)
+	}
+	close(descs)
+	fq := regexp.MustCompile(`fqName: "([a-z0-9_]+)"`)
+	for d := range descs {
+		if m := fq.FindStringSubmatch(d.String()); m != nil {
+			have[m[1]] = true
+		}
 	}
 
 	used := map[string]bool{}
