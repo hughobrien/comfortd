@@ -97,6 +97,27 @@ in {
       };
     };
 
+    prometheus = {
+      enable = lib.mkOption {
+        type = lib.types.bool;
+        default = false;
+        description = ''
+          When true and `services.prometheus.enable` is also true, register
+          a scrape job for comfortd's `/metrics` endpoint automatically.
+        '';
+      };
+      jobName = lib.mkOption {
+        type = lib.types.str;
+        default = "comfortd";
+        description = "Prometheus job_name for the auto-registered scrape.";
+      };
+      scrapeInterval = lib.mkOption {
+        type = lib.types.str;
+        default = "60s";
+        description = "Scrape interval. Match or exceed `pollInterval`.";
+      };
+    };
+
     writableUnits = lib.mkOption {
       type = lib.types.listOf lib.types.str;
       default = [ ];
@@ -167,6 +188,14 @@ in {
         SystemCallFilter = [ "@system-service" "~@privileged" ];
       };
     };
+
+    # Auto-wire a Prometheus scrape job when both services are enabled.
+    services.prometheus.scrapeConfigs = lib.mkIf
+      (cfg.prometheus.enable && config.services.prometheus.enable) [{
+        job_name = cfg.prometheus.jobName;
+        scrape_interval = cfg.prometheus.scrapeInterval;
+        static_configs = [{ targets = [ cfg.listen ]; }];
+      }];
 
     networking.firewall = lib.mkIf cfg.openFirewall {
       allowedUDPPorts = [ 5353 ];
