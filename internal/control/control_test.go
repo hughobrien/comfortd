@@ -74,7 +74,7 @@ func newRigWindow(t *testing.T, window time.Duration) *rig {
 
 func (r *rig) newController(s Sender) *Controller {
 	return New(Options{
-		Sender: s, Store: r.st, History: r.hist, Writable: []string{"office"},
+		Sender: s, Store: r.st, History: r.hist,
 		Window: r.window, HoldTimeout: 300 * time.Millisecond,
 		LastModePath: filepath.Join(r.dir, "lastmode.json"), SetpointsPath: filepath.Join(r.dir, "setpoints.json"),
 		Kick:     func(slug string) { r.mu.Lock(); r.kicks = append(r.kicks, slug); r.mu.Unlock() },
@@ -95,17 +95,6 @@ func eventually(t *testing.T, d time.Duration, cond func() bool, msg string) {
 		time.Sleep(5 * time.Millisecond)
 	}
 	t.Fatal("timed out: " + msg)
-}
-
-func TestNotWritable(t *testing.T) {
-	r := newRig(t)
-	if err := r.c.Apply("house", Intent{SpHeat: f(21)}, "ui"); err != ErrNotWritable {
-		t.Fatalf("got %v", err)
-	}
-	time.Sleep(150 * time.Millisecond)
-	if n := len(r.srv.Commands()); n != 0 {
-		t.Fatalf("%d commands", n)
-	}
 }
 
 func TestInvalid(t *testing.T) {
@@ -492,7 +481,7 @@ func TestSpCoolWithoutProfile(t *testing.T) {
 	if err := st.Put("office", store.EndpointStatus, []byte(`{"minSetPoint":16,"maxSetPoint":31}`), time.Now()); err != nil {
 		t.Fatal(err)
 	}
-	c := New(Options{Store: st, Writable: []string{"office"}})
+	c := New(Options{Store: st})
 	if err := c.Apply("office", Intent{SpCool: f(24)}, "ui"); !errors.Is(err, ErrInvalid) {
 		t.Fatalf("got %v, want ErrInvalid", err)
 	}
@@ -542,7 +531,7 @@ func TestApplyPerModeRanges(t *testing.T) {
 			if err := st.Put("house", store.EndpointDevice, []byte(dev), now); err != nil {
 				t.Fatal(err)
 			}
-			c := New(Options{Store: st, Writable: []string{"house"}})
+			c := New(Options{Store: st})
 			err := c.Apply("house", tc.in, "ui")
 			if (err == nil) != tc.ok {
 				t.Fatalf("err %v, want ok=%v", err, tc.ok)

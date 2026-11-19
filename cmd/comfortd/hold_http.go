@@ -23,7 +23,7 @@ func (d deps) registerHold(mux *http.ServeMux) {
 }
 
 func (d deps) handleHold(w http.ResponseWriter, r *http.Request) {
-	sn, ok := d.scheduleGuard(w, r) // same checks: datastar header, known, writable
+	sn, ok := d.scheduleGuard(w, r) // same checks: datastar header, known
 	if !ok {
 		return
 	}
@@ -64,7 +64,7 @@ func (d deps) handleHold(w http.ResponseWriter, r *http.Request) {
 	case mode == "permanent":
 		err = d.Ctl.SetHold(r.Context(), slug, nil, "ui")
 	case mode == "next":
-		h := ui.BuildHold(sn, true, d.Now())
+		h := ui.BuildHold(sn, d.Now())
 		if !h.CanNext {
 			err = fmt.Errorf("%w: the schedule has no next event", control.ErrInvalid)
 			break

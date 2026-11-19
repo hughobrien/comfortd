@@ -27,7 +27,7 @@ func (d deps) registerControl(mux *http.ServeMux) {
 
 func (d deps) ctlError(w http.ResponseWriter, err error) {
 	switch {
-	case errors.Is(err, control.ErrNotWritable):
+	case errors.Is(err, control.ErrUnavailable):
 		writeJSON(w, http.StatusForbidden, map[string]string{"error": err.Error()})
 	case errors.Is(err, control.ErrInvalid):
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
@@ -44,7 +44,7 @@ func (d deps) known(w http.ResponseWriter, slug string) bool {
 		return false
 	}
 	if d.Ctl == nil {
-		d.ctlError(w, control.ErrNotWritable)
+		d.ctlError(w, control.ErrUnavailable)
 		return false
 	}
 	return true

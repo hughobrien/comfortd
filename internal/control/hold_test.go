@@ -59,9 +59,9 @@ func (f *fakeHolds) EndAway(_ context.Context, site, zone string, a kumo.AwayHol
 	return nil
 }
 
-// holdCtl is a controller on the rig's store with fake hold writes. Office is writable.
-func holdCtl(r *rig, h HoldWriter, writable ...string) *Controller {
-	return New(Options{Store: r.st, History: r.hist, Writable: writable, Holds: h,
+// holdCtl is a controller on the rig's store with fake hold writes.
+func holdCtl(r *rig, h HoldWriter) *Controller {
+	return New(Options{Store: r.st, History: r.hist, Holds: h,
 		LastModePath: filepath.Join(r.dir, "lm.json"), SetpointsPath: filepath.Join(r.dir, "sp.json"),
 		Kick:      func(slug string) { r.mu.Lock(); r.kicks = append(r.kicks, slug); r.mu.Unlock() },
 		AfterHold: func(context.Context) { r.mu.Lock(); r.kicks = append(r.kicks, "zone"); r.mu.Unlock() },
@@ -80,7 +80,7 @@ func (r *rig) holdRecords() (n int) {
 func TestSetAndEndHold(t *testing.T) {
 	r := newRig(t)
 	fh := &fakeHolds{}
-	c := holdCtl(r, fh, "office")
+	c := holdCtl(r, fh)
 	until := time.Date(2026, 11, 17, 6, 22, 0, 0, time.UTC)
 	if err := c.SetHold(context.Background(), "office", &until, "ui"); err != nil {
 		t.Fatal(err)
@@ -105,36 +105,30 @@ func TestSetAndEndHold(t *testing.T) {
 	}
 }
 
-func TestHoldNotWritable(t *testing.T) {
+func TestHoldUnavailableWithoutWriter(t *testing.T) {
 	r := newRig(t)
-	fh := &fakeHolds{}
+	c := holdCtl(r, nil)
 	until := time.Date(2026, 11, 17, 6, 22, 0, 0, time.UTC)
-	for _, c := range []*Controller{holdCtl(r, fh, "office"), holdCtl(r, nil, "house"), holdCtl(r, nil, "office", "house")} {
-		slug := "house"
-		if c.o.Holds == nil {
-			slug = "office"
-		}
-		if err := c.SetHold(context.Background(), slug, &until, "ui"); !errors.Is(err, ErrNotWritable) {
-			t.Fatalf("%s: %v", slug, err)
-		}
-		if err := c.EndHold(context.Background(), slug, "ui"); !errors.Is(err, ErrNotWritable) {
-			t.Fatalf("%s end: %v", slug, err)
-		}
+	if err := c.SetHold(context.Background(), "office", &until, "ui"); !errors.Is(err, ErrUnavailable) {
+		t.Fatalf("set: %v", err)
 	}
-	if len(fh.calls) != 0 || r.holdRecords() != 0 {
-		t.Fatal("something was sent or recorded")
+	if err := c.EndHold(context.Background(), "office", "ui"); !errors.Is(err, ErrUnavailable) {
+		t.Fatalf("end: %v", err)
+	}
+	if r.holdRecords() != 0 {
+		t.Fatal("something was recorded")
 	}
 }
 
 func TestHoldPastTime(t *testing.T) {
 	r := newRig(t)
 	fh := &fakeHolds{}
-	c := holdCtl(r, fh, "office")
+	c := holdCtl(r, fh)
 	past := time.Date(2026, 11, 17, 2, 0, 0, 0, time.UTC)
 	if err := c.SetHold(context.Background(), "office", &past, "ui"); !errors.Is(err, ErrInvalid) {
 		t.Fatalf("%v", err)
 	}
-	if err := c.SetHold(context.Background(), "nope", &past, "ui"); !errors.Is(err, ErrNotWritable) && !errors.Is(err, ErrInvalid) {
+	if err := c.SetHold(context.Background(), "nope", &past, "ui"); !errors.Is(err, ErrInvalid) {
 		t.Fatalf("unknown unit: %v", err)
 	}
 	if len(fh.calls) != 0 {
@@ -145,7 +139,7 @@ func TestHoldPastTime(t *testing.T) {
 func TestHoldWriteFails(t *testing.T) {
 	r := newRig(t)
 	fh := &fakeHolds{err: errors.New("boom")}
-	c := holdCtl(r, fh, "office")
+	c := holdCtl(r, fh)
 	if err := c.EndHold(context.Background(), "office", "ui"); err == nil {
 		t.Fatal("want the error")
 	}
@@ -180,7 +174,7 @@ func (s *spyHolds) EndHold(ctx context.Context, site, zone string) error {
 func TestLastSentIsSetBeforeTheHoldCall(t *testing.T) {
 	r := newRig(t)
 	sp := &spyHolds{}
-	c := holdCtl(r, sp, "office")
+	c := holdCtl(r, sp)
 	sp.sawSet = func() bool { return !c.LastSent("office").IsZero() }
 	if !c.LastSent("office").IsZero() {
 		t.Fatal("LastSent should start zero")
@@ -200,7 +194,7 @@ func TestLastSentIsSetBeforeTheHoldCall(t *testing.T) {
 func TestSetAndEndAway(t *testing.T) {
 	r := newRig(t)
 	fh := &fakeHolds{}
-	c := holdCtl(r, fh, "office")
+	c := holdCtl(r, fh)
 	until := time.Date(2026, 11, 17, 6, 22, 0, 0, time.UTC)
 	if err := c.SetAway(context.Background(), "office", &until, "ui"); err != nil {
 		t.Fatal(err)
@@ -227,7 +221,7 @@ func TestSetAndEndAway(t *testing.T) {
 func TestEndHoldOfAwayEndsTheAway(t *testing.T) {
 	r := newRig(t)
 	fh := &fakeHolds{}
-	c := holdCtl(r, fh, "office")
+	c := holdCtl(r, fh)
 	r.srv.SetHoldMode(kumotest.OfficeZoneID, true, "away")
 	r.p.PollOnce(context.Background())
 	if err := c.EndHold(context.Background(), "office", "ui"); err != nil {

@@ -266,7 +266,7 @@ templ HoldControl(c ui.CardView) {
 	</form>
 }
 
-// ScheduleBody is the read-only table, with an edit button when the unit is writable.
+// ScheduleBody is the read-only table, with an edit button.
 templ ScheduleBody(c ui.CardView) {
 	<div id={ "sched-body-" + c.Slug } class="sched-body" data-ignore-morph>
 		<p class="season">{ c.Schedule.Heading }</p>
@@ -284,11 +284,9 @@ templ ScheduleBody(c ui.CardView) {
 				}
 			</tbody>
 		</table>
-		if c.Control.Writable {
-			<div class="sched-actions">
-				<button type="button" class="btn-inline" data-on:click={ "@get('/ui/units/" + c.Slug + "/schedule/edit')" }>Edit schedule</button>
-			</div>
-		}
+		<div class="sched-actions">
+			<button type="button" class="btn-inline" data-on:click={ "@get('/ui/units/" + c.Slug + "/schedule/edit')" }>Edit schedule</button>
+		</div>
 	</div>
 }
 

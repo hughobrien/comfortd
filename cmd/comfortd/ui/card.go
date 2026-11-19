@@ -17,7 +17,6 @@ import (
 
 // CardControl carries control state into the card.
 type CardControl struct {
-	Writable                bool
 	Limits                  bool              // the unit's Min/Max setpoint limits may be changed
 	LimitsOn, LimitsOnKnown bool              // the account preference that enables them in the app
 	Pending                 map[string]string // field → display value
@@ -39,7 +38,7 @@ type CardView struct {
 	FanHintWhy                                      string   // the longer explanation, for the tooltip
 	FanHint                                         string   // why the fan may not blow at the chosen speed right now, else empty
 	SpMin, SpMax                                    string   // heat setpoint range from the profile
-	// Selectable values, offered only when the unit is writable and supports
+	// Selectable values, offered only when the unit supports
 	// them; Pressed marks the current one.
 	Modes, Fans, Vanes []Choice
 	Schedule           ScheduleView
@@ -122,7 +121,7 @@ func BuildCard(s store.Snapshot, ann *annotate.Set, ctl CardControl, now time.Ti
 			c.Power = "Off"
 		}
 	}
-	if ctl.Writable && s.Device != nil {
+	if s.Device != nil {
 		d := s.Device
 		c.On = d.Power == 1
 		c.Family = control.ModeFamily(d.OperationMode)
@@ -150,7 +149,7 @@ func BuildCard(s store.Snapshot, ann *annotate.Set, ctl CardControl, now time.Ti
 		c.Alerts = append(c.Alerts, "thermostat battery "+th.Battery)
 	}
 	c.Schedule = BuildSchedule(s, now)
-	c.Hold = BuildHold(s, ctl.Writable, now)
+	c.Hold = BuildHold(s, now)
 	c.Limits = BuildLimits(s, ctl)
 	if s.Zone != nil {
 		zz, thermostat := s.Zone.WithAdapterHold(now)

@@ -118,12 +118,6 @@ in {
       };
     };
 
-    writableUnits = lib.mkOption {
-      type = lib.types.listOf lib.types.str;
-      default = [ ];
-      description = "Unit slugs allowed to receive commands (web UI and API). Empty = read-only.";
-    };
-
     inactiveUnits = lib.mkOption {
       type = lib.types.listOf lib.types.str;
       default = [ ];
@@ -165,8 +159,6 @@ in {
           "--credentials" "%d/credentials"
           "--poll-interval" cfg.pollInterval
           "--backstop" cfg.backstop
-        ] ++ lib.optionals (cfg.writableUnits != [ ]) [
-          "--writable-units" (lib.escapeShellArg (lib.concatStringsSep "," cfg.writableUnits))
         ] ++ lib.optionals (cfg.inactiveUnits != [ ]) [
           "--inactive-units" (lib.escapeShellArg (lib.concatStringsSep "," cfg.inactiveUnits))
         ] ++ lib.optionals cfg.homekit.enable [

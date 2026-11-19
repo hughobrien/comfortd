@@ -90,7 +90,6 @@ func runContext(ctx context.Context, args []string, stdout io.Writer, ready func
 	hapPort := fs.Int("hap-port", 0, "HomeKit (HAP) TCP port; 0 = ephemeral")
 	hkUnits := fs.String("homekit-units", envOr("homekit-units", ""), "comma-separated unit slugs to expose to HomeKit; empty = HomeKit off")
 	inactive := fs.String("inactive-units", envOr("inactive-units", ""), "comma-separated unit slugs shown as a blank placeholder in the web UI (the API still lists them)")
-	writable := fs.String("writable-units", envOr("writable-units", ""), "comma-separated unit slugs that may receive commands; empty = read-only")
 	bridgeName := fs.String("bridge-name", "comfortd", "HomeKit bridge name")
 	forceStale := fs.String("force-stale", "", "debug: comma-separated unit slugs HomeKit treats as stale (to check \"No Response\")")
 	if v := os.Getenv("COMFORTD_POLL_INTERVAL"); v != "" {
@@ -190,7 +189,7 @@ func runContext(ctx context.Context, args []string, stdout io.Writer, ready func
 	var p *poller.Poller
 	var bridge *homekit.Bridge // set before any goroutine that can call OnChange starts
 	ctl := control.New(control.Options{
-		Sender: client, Schedules: client, Holds: client, Limits: client, Prefs: client, Store: st, History: hist, Writable: splitList(*writable),
+		Sender: client, Schedules: client, Holds: client, Limits: client, Prefs: client, Store: st, History: hist,
 		AfterSchedule: func(ctx context.Context) { p.PollSchedule(ctx) },
 		AfterHold:     func(ctx context.Context) { p.PollOnce(ctx) },
 		AfterLimits:   func(ctx context.Context) { p.PollStatus(ctx) },

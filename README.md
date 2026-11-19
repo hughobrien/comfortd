@@ -16,13 +16,11 @@ commands back.
   `GET /v1/history`, `POST /v1/units/{slug}/command`.
 - **Metrics**: Prometheus at `/metrics`.
 
-Units are read-only unless you list them as writable. Commands are checked
-against the unit's own limits (modes, fan speeds, setpoint range) before they
-are sent.
+Commands are checked against the unit's own limits (modes, fan speeds,
+setpoint range) before they are sent.
 
-A writable unit can also have its adapter's Min/Max setpoints (the lowest
-cooling and highest heating setpoint, as in the Comfort app) set from its card.
-Both units take it.
+Each unit's adapter Min/Max setpoints (the lowest cooling and highest heating
+setpoint, as in the Comfort app) can also be set from its card.
 
 The Kumo Cloud API is unofficial. What is known about it is in
 [docs/api-inventory.md](docs/api-inventory.md).
@@ -32,7 +30,7 @@ The Kumo Cloud API is unofficial. What is known about it is in
 With Go installed, run it against the built-in fake cloud:
 
 ```sh
-go run ./cmd/comfortd -fake -state-dir /tmp/comfortd-dev -writable-units office,house
+go run ./cmd/comfortd -fake -state-dir /tmp/comfortd-dev
 ```
 
 Then open http://127.0.0.1:9879/.
@@ -44,7 +42,7 @@ second. Then:
 
 ```sh
 comfortd -credentials /path/to/credentials -state-dir /var/lib/comfortd \
-  -writable-units office -homekit-units office,house
+  -homekit-units office,house
 ```
 
 `comfortd -h` lists every flag. The main ones (listen address, state dir,
@@ -65,7 +63,6 @@ The flake provides a package and a module:
     enable = true;
     package = inputs.comfortd.packages.${pkgs.system}.default;
     credentialsFile = "/persist/comfortd/credentials";
-    writableUnits = [ "office" ];
     homekit = { enable = true; units = [ "office" "house" ]; port = 51830; };
     openFirewall = true;
   };

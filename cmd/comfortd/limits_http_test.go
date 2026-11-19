@@ -15,7 +15,7 @@ func limitsPost(d deps, slug, form string, hdr map[string]string) (code int, bod
 }
 
 func TestLimitsSet(t *testing.T) {
-	srv, d := ctlDepsFor(t, []string{"office", "house"})
+	srv, d := ctlDeps(t)
 	code, body := limitsPost(d, "house", "min=19&max=24", dsHdr)
 	if code != 200 || strings.Contains(body, "err") {
 		t.Fatalf("%d %s", code, body)
@@ -27,7 +27,7 @@ func TestLimitsSet(t *testing.T) {
 }
 
 func TestLimitsRejects(t *testing.T) {
-	srv, d := ctlDepsFor(t, []string{"office", "house"})
+	srv, d := ctlDeps(t)
 	for name, tc := range map[string]struct{ slug, form string }{
 		"not a number":        {"house", "min=x&max=24"},
 		"below the profile":   {"house", "min=10&max=24"},
@@ -44,21 +44,14 @@ func TestLimitsRejects(t *testing.T) {
 }
 
 func TestLimitsNeedDatastarHeader(t *testing.T) {
-	srv, d := ctlDepsFor(t, []string{"office", "house"})
+	srv, d := ctlDeps(t)
 	if code, _ := limitsPost(d, "house", "min=19&max=24", nil); code != 403 || len(srv.LimitWrites()) != 0 {
 		t.Fatalf("%d %+v", code, srv.LimitWrites())
 	}
 }
 
-func TestLimitsForbiddenOnReadOnlyUnit(t *testing.T) {
-	srv, d := ctlDeps(t) // only office is writable
-	if code, _ := limitsPost(d, "house", "min=19&max=24", dsHdr); code != 403 || len(srv.LimitWrites()) != 0 {
-		t.Fatalf("%d %+v", code, srv.LimitWrites())
-	}
-}
-
 func TestLimitsCheckboxTurnsTheFeatureOn(t *testing.T) {
-	srv, d := ctlDepsFor(t, []string{"office", "house"})
+	srv, d := ctlDeps(t)
 	if on, _ := d.Ctl.LimitsOn(); on {
 		t.Fatal("starts on")
 	}
@@ -85,7 +78,7 @@ func TestLimitsCheckboxTurnsTheFeatureOn(t *testing.T) {
 }
 
 func TestLimitsDisabledSlidersOnlySaveTheCheckbox(t *testing.T) {
-	srv, d := ctlDepsFor(t, []string{"office", "house"})
+	srv, d := ctlDeps(t)
 	limitsPost(d, "house", "enabled=on&min=19&max=24", dsHdr)
 	// unticked: the browser sends no slider values
 	if code, body := limitsPost(d, "house", "", dsHdr); code != 200 || strings.Contains(body, "err") {

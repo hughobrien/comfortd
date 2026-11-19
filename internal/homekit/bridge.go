@@ -25,7 +25,6 @@ import (
 type Controller interface {
 	Apply(slug string, in control.Intent, source string) error
 	Overlay(s store.Snapshot) store.Snapshot
-	Writable(slug string) bool
 	LastMode(slug string) string
 	PendingMode(slug string) (string, bool)
 }
@@ -207,13 +206,8 @@ func (b *Bridge) fanSpeeds(slug string) int {
 	return 5
 }
 
-// writable reports whether Home may write to slug.
-func (b *Bridge) writable(slug string) bool {
-	return b.o.Control != nil && b.o.Control.Writable(slug)
-}
-
 func (b *Bridge) onSetActive(slug string, v int) error {
-	if !b.writable(slug) {
+	if b.o.Control == nil {
 		return ErrReadOnly
 	}
 	ctl := b.o.Control
@@ -237,7 +231,7 @@ func (b *Bridge) onSetActive(slug string, v int) error {
 // onSetModeSwitch: on selects mode (dry or vent); off turns the unit off, but
 // only if it is in that mode (a stale "off" must not stop another mode).
 func (b *Bridge) onSetModeSwitch(slug, mode string, on bool) error {
-	if !b.writable(slug) {
+	if b.o.Control == nil {
 		return ErrReadOnly
 	}
 	ctl := b.o.Control
@@ -255,7 +249,7 @@ func (b *Bridge) onSetModeSwitch(slug, mode string, on bool) error {
 }
 
 func (b *Bridge) onSetTarget(slug string, v int) error {
-	if !b.writable(slug) {
+	if b.o.Control == nil {
 		return ErrReadOnly
 	}
 	mode, ok := map[int]string{TargetAuto: "auto", TargetHeat: "heat", TargetCool: "cool"}[v]
@@ -266,21 +260,21 @@ func (b *Bridge) onSetTarget(slug string, v int) error {
 }
 
 func (b *Bridge) onSetHeatThresh(slug string, v float64) error {
-	if !b.writable(slug) {
+	if b.o.Control == nil {
 		return ErrReadOnly
 	}
 	return b.o.Control.Apply(slug, control.Intent{SpHeat: &v}, "homekit")
 }
 
 func (b *Bridge) onSetCoolThresh(slug string, v float64) error {
-	if !b.writable(slug) {
+	if b.o.Control == nil {
 		return ErrReadOnly
 	}
 	return b.o.Control.Apply(slug, control.Intent{SpCool: &v}, "homekit")
 }
 
 func (b *Bridge) onSetSpeed(slug string, v float64) error {
-	if !b.writable(slug) {
+	if b.o.Control == nil {
 		return ErrReadOnly
 	}
 	fan := FanFromSpeed(v, b.fanSpeeds(slug))
@@ -289,7 +283,7 @@ func (b *Bridge) onSetSpeed(slug string, v float64) error {
 
 // onSetSwing: on is the vane's swing mode, off returns it to auto.
 func (b *Bridge) onSetSwing(slug string, v int) error {
-	if !b.writable(slug) {
+	if b.o.Control == nil {
 		return ErrReadOnly
 	}
 	vane := "auto"

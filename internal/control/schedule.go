@@ -195,8 +195,8 @@ type ScheduleChange struct{ Added, Deleted int }
 // gone are deleted. Adds go first so a failure part-way never leaves a gap.
 func (c *Controller) ApplySchedule(ctx context.Context, slug string, edited []kumo.ScheduleEvent, source string) (ScheduleChange, error) {
 	var none ScheduleChange
-	if !c.Writable(slug) || c.o.Schedules == nil {
-		return none, ErrNotWritable
+	if c.o.Schedules == nil {
+		return none, ErrUnavailable
 	}
 	snap, ok := c.o.Store.Get(slug)
 	if !ok {

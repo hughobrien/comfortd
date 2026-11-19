@@ -116,7 +116,7 @@ func TestUndecodedValue(t *testing.T) {
 func TestCardAlertsImageAndRange(t *testing.T) {
 	status := json.RawMessage(`{"minSetPoint":16,"maxSetPoint":31}`)
 	sn := fixtureSnap(t, "office", "device_office.json", map[string]json.RawMessage{"status": status})
-	c := BuildCard(sn, mustAnn(t), CardControl{Writable: true}, time.Now(), time.Minute)
+	c := BuildCard(sn, mustAnn(t), CardControl{}, time.Now(), time.Minute)
 	if len(c.Alerts) != 1 || c.Alerts[0] != "check filter" { // fixture has filter:true only
 		t.Fatalf("alerts %v", c.Alerts)
 	}
@@ -137,7 +137,7 @@ func TestCardModesAndSetpointsFollowMode(t *testing.T) {
 	extra := map[string]json.RawMessage{"profile": prof, "status": status}
 	sn := fixtureSnap(t, "office", "device_office.json", extra)
 	var vals []string
-	for _, m := range BuildCard(sn, mustAnn(t), CardControl{Writable: true}, time.Now(), time.Minute).Modes {
+	for _, m := range BuildCard(sn, mustAnn(t), CardControl{}, time.Now(), time.Minute).Modes {
 		vals = append(vals, m.Value)
 	}
 	if got := strings.Join(vals, ","); got != "vent,heat,cool,dry,auto" {
@@ -149,7 +149,7 @@ func TestCardModesAndSetpointsFollowMode(t *testing.T) {
 		d := *sn.Device
 		d.OperationMode = mode
 		s.Device = &d
-		c := BuildCard(s, mustAnn(t), CardControl{Writable: true}, time.Now(), time.Minute)
+		c := BuildCard(s, mustAnn(t), CardControl{}, time.Now(), time.Minute)
 		if c.ShowHeat != want[0] || c.ShowCool != want[1] {
 			t.Errorf("%s: heat=%v cool=%v", mode, c.ShowHeat, c.ShowCool)
 		}
@@ -240,10 +240,10 @@ func TestLimitsViewOnlyWhenEnabled(t *testing.T) {
 	}
 	status := json.RawMessage(`{"minSetPoint":19,"maxSetPoint":24}`)
 	sn := fixtureSnap(t, "house", "device_house.json", map[string]json.RawMessage{"profile": prof, "status": status})
-	if BuildCard(sn, mustAnn(t), CardControl{Writable: true}, time.Now(), time.Minute).Limits.Show {
+	if BuildCard(sn, mustAnn(t), CardControl{}, time.Now(), time.Minute).Limits.Show {
 		t.Fatal("shown for a unit that is not opted in")
 	}
-	l := BuildCard(sn, mustAnn(t), CardControl{Writable: true, Limits: true}, time.Now(), time.Minute).Limits
+	l := BuildCard(sn, mustAnn(t), CardControl{Limits: true}, time.Now(), time.Minute).Limits
 	if !l.Show || l.MinCool != "19" || l.MaxHeat != "24" || l.CoolLo != "19" || l.CoolHi != "30" || l.HeatLo != "10" || l.HeatHi != "28" {
 		t.Fatalf("%+v", l)
 	}
@@ -255,7 +255,7 @@ func TestLimitsViewCarriesTheAccountPreference(t *testing.T) {
 		t.Skip("no house profile fixture")
 	}
 	sn := fixtureSnap(t, "house", "device_house.json", map[string]json.RawMessage{"profile": prof})
-	l := BuildCard(sn, mustAnn(t), CardControl{Writable: true, Limits: true, LimitsOn: true, LimitsOnKnown: true}, time.Now(), time.Minute).Limits
+	l := BuildCard(sn, mustAnn(t), CardControl{Limits: true, LimitsOn: true, LimitsOnKnown: true}, time.Now(), time.Minute).Limits
 	if !l.Enabled || !l.EnabledKnown {
 		t.Fatalf("%+v", l)
 	}

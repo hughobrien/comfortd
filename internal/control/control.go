@@ -25,7 +25,7 @@ import (
 )
 
 var (
-	ErrNotWritable = errors.New("control: unit not writable")
+	ErrUnavailable = errors.New("control: not available")
 	// ErrInvalid is wrapped with the reason.
 	ErrInvalid = errors.New("control: invalid intent")
 )
@@ -141,7 +141,6 @@ type Options struct {
 	Store         *store.Store
 	History       *history.Log
 	Kick          func(slug string)
-	Writable      []string
 	Window        time.Duration // coalescing window, default 1s
 	HoldTimeout   time.Duration // pending hold, default 30s
 	LastModePath  string
@@ -207,8 +206,6 @@ type Setpoints struct {
 	Cool *float64 `json:"cool,omitempty"`
 }
 
-func (c *Controller) Writable(slug string) bool { return slices.Contains(c.o.Writable, slug) }
-
 func (c *Controller) changed(slug string) {
 	if c.o.OnChange != nil {
 		c.o.OnChange(slug)
@@ -226,9 +223,6 @@ func (c *Controller) state(slug string) *unitState {
 
 // Apply validates and queues an intent; it returns immediately.
 func (c *Controller) Apply(slug string, in Intent, source string) error {
-	if !c.Writable(slug) {
-		return ErrNotWritable
-	}
 	if in.Mode == nil && in.SpHeat == nil && in.SpCool == nil && in.Fan == nil && in.Vane == nil {
 		return fmt.Errorf("%w: nothing to change", ErrInvalid)
 	}

@@ -30,19 +30,17 @@ func TestSetLimits(t *testing.T) {
 	for _, tc := range []struct {
 		name      string
 		lo, hi    float64
-		enabled   bool
 		sendErr   error
 		wantCalls int
 		wantErr   error
 	}{
-		{"ok", 19, 24, true, nil, 1, nil},
-		{"half steps", 19.5, 24.5, true, nil, 1, nil},
-		{"unit not writable", 19, 24, false, nil, 0, ErrNotWritable},
-		{"floor below profile cool min", 18, 24, true, nil, 0, ErrInvalid},
-		{"ceiling above profile heat max", 19, 29, true, nil, 0, ErrInvalid},
-		{"floor not below ceiling", 24, 24, true, nil, 0, ErrInvalid},
-		{"not a half step", 19.3, 24, true, nil, 0, ErrInvalid},
-		{"cloud refuses", 19, 24, true, errors.New("boom"), 1, errors.New("boom")},
+		{"ok", 19, 24, nil, 1, nil},
+		{"half steps", 19.5, 24.5, nil, 1, nil},
+		{"floor below profile cool min", 18, 24, nil, 0, ErrInvalid},
+		{"ceiling above profile heat max", 19, 29, nil, 0, ErrInvalid},
+		{"floor not below ceiling", 24, 24, nil, 0, ErrInvalid},
+		{"not a half step", 19.3, 24, nil, 0, ErrInvalid},
+		{"cloud refuses", 19, 24, errors.New("boom"), 1, errors.New("boom")},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			st := store.New([]store.Unit{{Slug: "house", Serial: "SER"}})
@@ -53,10 +51,7 @@ func TestSetLimits(t *testing.T) {
 				t.Fatal(err)
 			}
 			f := &fakeLimits{err: tc.sendErr}
-			o := Options{Store: st, Writable: []string{"house"}, Limits: f}
-			if !tc.enabled {
-				o.Writable = nil
-			}
+			o := Options{Store: st, Limits: f}
 			err := New(o).SetLimits(context.Background(), "house", tc.lo, tc.hi, "ui")
 			if (err == nil) != (tc.wantErr == nil) || (tc.wantErr != nil && tc.sendErr == nil && !errors.Is(err, tc.wantErr)) {
 				t.Fatalf("err %v, want %v", err, tc.wantErr)
