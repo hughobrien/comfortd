@@ -9,8 +9,27 @@
     systems = [ "x86_64-linux" ];
     forEachSystem = f: nixpkgs.lib.genAttrs systems f;
 
+    # nixpkgs lags templ; keep this in step with the templ version in go.mod
+    # (the *_templ.go files and the drift check use it). Drop when nixpkgs catches up.
+    templOverlay = final: prev: {
+      templ =
+        if prev.lib.versionAtLeast prev.templ.version "0.3.1118" then
+          throw "nixpkgs now ships templ ${prev.templ.version}: delete templOverlay from flake.nix"
+        else
+          prev.templ.overrideAttrs (old: rec {
+            version = "0.3.1118";
+            src = prev.fetchFromGitHub {
+              owner = "a-h";
+              repo = "templ";
+              rev = "v${version}";
+              hash = "sha256-4ARBfwLD37FSCC3pgYWomsXRThl8NkHLte8awD0/Ddo=";
+            };
+            vendorHash = "sha256-SI3Y7eqw+sLvBmRi7r4Oc30ovIKvFRGxdXF8fyKog9g=";
+          });
+    };
+
     perSystem = forEachSystem (system: let
-      pkgs = import nixpkgs { inherit system; };
+      pkgs = import nixpkgs { inherit system; overlays = [ templOverlay ]; };
       version = "0.1.0";
 
       comfortd-pkg = pkgs.buildGoModule {
@@ -19,7 +38,7 @@
         src = ./.;
         # When go.mod/go.sum change, set this to
         # pkgs.lib.fakeHash, run the gate build, and paste the `got:` hash.
-        vendorHash = "sha256-Q/obVq/75OEEChJHqDKvTiGRo1ZEmjRFeLSNSFT0byU=";
+        vendorHash = "sha256-2ZNZBeZY688ZM/cIsUF3lcyAzbACXayNDREy5UNOMag=";
         subPackages = [ "cmd/comfortd" ];
         ldflags = [ "-s" "-w" "-X main.version=${version}" ];
         doCheck = true;
