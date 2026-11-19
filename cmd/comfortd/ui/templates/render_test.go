@@ -42,7 +42,7 @@ func TestCardPendingMarked(t *testing.T) {
 	var sb strings.Builder
 	c := ui.CardView{Slug: "office", Mode: "Heat", SpHeat: "19", SpMin: "10", SpMax: "31", On: true, ShowHeat: true,
 		Modes:   []ui.Choice{{Value: "heat", Label: "Heat", Pressed: true}, {Value: "vent", Label: "Fan"}},
-		Control: ui.CardControl{Writable: true, Pending: map[string]string{"spHeat": "19.5"}}}
+		Control: ui.CardControl{Pending: map[string]string{"spHeat": "19.5"}}}
 	if err := Card(c).Render(context.Background(), &sb); err != nil {
 		t.Fatal(err)
 	}
@@ -65,7 +65,7 @@ func TestCardFanOnlyShowsNA(t *testing.T) {
 	var sb strings.Builder
 	c := ui.CardView{Slug: "office", Mode: "Fan", SpHeat: "19", SpCool: "22", SpMin: "10", SpMax: "31", On: true,
 		Modes:   []ui.Choice{{Value: "heat", Label: "Heat"}, {Value: "vent", Label: "Fan", Pressed: true}},
-		Control: ui.CardControl{Writable: true}}
+		Control: ui.CardControl{}}
 	if err := Card(c).Render(context.Background(), &sb); err != nil {
 		t.Fatal(err)
 	}
@@ -99,7 +99,7 @@ func TestHoldControlRendered(t *testing.T) {
 		{"away on: Away ends it", ui.HoldView{Show: true, Mode: "away"}, `mode.value = &#39;none&#39;`, false},
 	} {
 		var sb strings.Builder
-		card := ui.CardView{Slug: "office", Schedule: sched, Hold: c.hold, Control: ui.CardControl{Writable: c.hold.Show}}
+		card := ui.CardView{Slug: "office", Schedule: sched, Hold: c.hold, Control: ui.CardControl{}}
 		if err := Card(card).Render(context.Background(), &sb); err != nil {
 			t.Fatal(err)
 		}
@@ -114,7 +114,7 @@ func TestHoldControlRendered(t *testing.T) {
 // stale between polls; only the time input is left alone while it is edited.
 func TestHoldUntilButtonIsMorphed(t *testing.T) {
 	var sb strings.Builder
-	card := ui.CardView{Slug: "office", Schedule: ui.ScheduleView{Present: true, Active: true}, Hold: ui.HoldView{Show: true, Mode: "next", CanNext: true}, Control: ui.CardControl{Writable: true}}
+	card := ui.CardView{Slug: "office", Schedule: ui.ScheduleView{Present: true, Active: true}, Hold: ui.HoldView{Show: true, Mode: "next", CanNext: true}, Control: ui.CardControl{}}
 	if err := Card(card).Render(context.Background(), &sb); err != nil {
 		t.Fatal(err)
 	}
@@ -160,7 +160,7 @@ func TestDialCenterIsAuto(t *testing.T) {
 func TestLimitsControlRenders(t *testing.T) {
 	render := func(l ui.LimitsView) string {
 		var sb strings.Builder
-		card := ui.CardView{Slug: "house", Limits: l, Control: ui.CardControl{Writable: true, Limits: l.Show}}
+		card := ui.CardView{Slug: "house", Limits: l, Control: ui.CardControl{Limits: l.Show}}
 		if err := Card(card).Render(context.Background(), &sb); err != nil {
 			t.Fatal(err)
 		}
@@ -180,7 +180,7 @@ func TestLimitsControlRenders(t *testing.T) {
 func TestLimitSlidersDisabledUntilEnabled(t *testing.T) {
 	var sb strings.Builder
 	l := ui.LimitsView{Show: true, MinCool: "19", MaxHeat: "24", CoolLo: "19", CoolHi: "30", HeatLo: "10", HeatHi: "28"}
-	card := ui.CardView{Slug: "house", Limits: l, Control: ui.CardControl{Writable: true, Limits: true}}
+	card := ui.CardView{Slug: "house", Limits: l, Control: ui.CardControl{Limits: true}}
 	if err := Card(card).Render(context.Background(), &sb); err != nil {
 		t.Fatal(err)
 	}

@@ -16,7 +16,7 @@ var ErrBadTime = errors.New("bad time")
 // HoldView is the card's hold control: which radio is on and what the
 // choices need.
 type HoldView struct {
-	Show    bool      // the unit is writable and has a zone
+	Show    bool      // the unit has a zone
 	Mode    string    // none, next, until, permanent or away (Away mode is on)
 	Time    string    // "15:04" in the unit's zone: the end of an "until" hold, else empty
 	CanNext bool      // the schedule has a next event to hold until
@@ -25,8 +25,8 @@ type HoldView struct {
 
 // BuildHold works out the control from the zone's hold and the schedule. A
 // permanent hold's far-future end time is never shown.
-func BuildHold(s store.Snapshot, writable bool, now time.Time) HoldView {
-	if !writable || s.Zone == nil {
+func BuildHold(s store.Snapshot, now time.Time) HoldView {
+	if s.Zone == nil {
 		return HoldView{}
 	}
 	sc := BuildSchedule(s, now)

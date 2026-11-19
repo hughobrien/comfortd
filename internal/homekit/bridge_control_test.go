@@ -51,7 +51,7 @@ func newCtlRig(t *testing.T, mode string) *ctlRig {
 	p.PollOnce(context.Background())
 	var b *Bridge
 	ctl := control.New(control.Options{
-		Sender: client, Store: st, Writable: []string{"office"},
+		Sender: client, Store: st,
 		Window: 50 * time.Millisecond, HoldTimeout: time.Second,
 		LastModePath: filepath.Join(dir, "lastmode.json"),
 		OnChange:     func(slug string) { b.Sync(slug) },
@@ -185,17 +185,6 @@ func TestSyncUsesOverlay(t *testing.T) {
 	}
 }
 
-func TestNotWritableStillRejected(t *testing.T) {
-	r := newCtlRig(t, "heat")
-	if err := r.b.onSetActive("house", 0); !errors.Is(err, ErrReadOnly) {
-		t.Fatalf("got %v", err)
-	}
-	if err := r.b.onSetHeatThresh("house", 21); !errors.Is(err, ErrReadOnly) {
-		t.Fatalf("got %v", err)
-	}
-	r.waitCommands(t, 0)
-}
-
 func TestThresholdOutOfRange(t *testing.T) {
 	r := newCtlRig(t, "heat")
 	if err := r.b.onSetHeatThresh("office", 45); !errors.Is(err, control.ErrInvalid) {
@@ -222,16 +211,6 @@ func TestSpeedAndSwingSendCommands(t *testing.T) {
 	cmds = r.waitCommands(t, 2)
 	if cmds[1].Commands["airDirection"] != "auto" {
 		t.Fatalf("got %+v", cmds)
-	}
-}
-
-func TestSpeedSwingReadOnlyWhenNotWritable(t *testing.T) {
-	r := newCtlRig(t, "heat")
-	if err := r.b.onSetSpeed("house", 40); !errors.Is(err, ErrReadOnly) {
-		t.Fatal(err)
-	}
-	if err := r.b.onSetSwing("house", 1); !errors.Is(err, ErrReadOnly) {
-		t.Fatal(err)
 	}
 }
 
@@ -284,8 +263,5 @@ func TestModeSwitches(t *testing.T) {
 	cmds = r.waitCommands(t, 2)
 	if cmds[1].Commands["operationMode"] != "off" {
 		t.Fatalf("got %+v", cmds)
-	}
-	if err := r.b.onSetModeSwitch("house", "dry", true); !errors.Is(err, ErrReadOnly) {
-		t.Fatalf("got %v", err)
 	}
 }

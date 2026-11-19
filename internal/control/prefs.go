@@ -42,7 +42,7 @@ func (c *Controller) RefreshPrefs(ctx context.Context) {
 // account, as in the app).
 func (c *Controller) SetLimitsOn(ctx context.Context, slug string, on bool) error {
 	if !c.LimitsEnabled(slug) || c.o.Prefs == nil {
-		return ErrNotWritable
+		return ErrUnavailable
 	}
 	sctx, cancel := context.WithTimeout(ctx, sendTimeout)
 	defer cancel()
@@ -61,7 +61,7 @@ func (c *Controller) changedAll() {
 	if c.o.OnChange == nil {
 		return
 	}
-	for _, slug := range c.o.Writable {
-		c.o.OnChange(slug)
+	for _, u := range c.o.Store.Units() {
+		c.o.OnChange(u.Slug)
 	}
 }

@@ -21,14 +21,8 @@ import (
 	"github.com/hughobrien/comfortd/pkg/kumo/kumotest"
 )
 
-// ctlDeps returns deps with a running controller (office writable) against the fake.
+// ctlDeps returns deps with a running controller against the fake.
 func ctlDeps(t *testing.T) (*kumotest.Server, deps) {
-	t.Helper()
-	return ctlDepsFor(t, []string{"office"})
-}
-
-// ctlDepsFor is ctlDeps with the given writable units.
-func ctlDepsFor(t *testing.T, writable []string) (*kumotest.Server, deps) {
 	t.Helper()
 	srv := kumotest.New()
 	t.Cleanup(srv.Close)
@@ -45,7 +39,7 @@ func ctlDepsFor(t *testing.T, writable []string) (*kumotest.Server, deps) {
 	p.PollSlow(context.Background())
 	p.PollOnce(context.Background())
 	p.PollSchedule(context.Background())
-	ctl := control.New(control.Options{Sender: c, Schedules: c, Holds: c, Limits: c, Prefs: c, AfterLimits: p.PollStatus, AfterSchedule: p.PollSchedule, AfterHold: p.PollOnce, Store: st, Writable: writable, Window: 20 * time.Millisecond})
+	ctl := control.New(control.Options{Sender: c, Schedules: c, Holds: c, Limits: c, Prefs: c, AfterLimits: p.PollStatus, AfterSchedule: p.PollSchedule, AfterHold: p.PollOnce, Store: st, Window: 20 * time.Millisecond})
 	st.Subscribe(ctl.Observe)
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
@@ -83,11 +77,8 @@ func TestCommandEndpointQueues(t *testing.T) {
 	}
 }
 
-func TestCommandEndpointForbidden(t *testing.T) {
+func TestCommandEndpointUnknownUnit(t *testing.T) {
 	srv, d := ctlDeps(t)
-	if rec := post(newMux(d), "/v1/units/house/command", "application/json", `{"spHeat":21}`, nil); rec.Code != 403 {
-		t.Fatal(rec.Code)
-	}
 	if rec := post(newMux(d), "/v1/units/nope/command", "application/json", `{"spHeat":21}`, nil); rec.Code != 404 {
 		t.Fatal(rec.Code)
 	}
@@ -135,15 +126,12 @@ func TestUIPostNeedsDatastarHeader(t *testing.T) {
 	if rec := post(h, "/ui/units/office/spheat?delta=0.5", "", "", map[string]string{"Datastar-Request": "true"}); rec.Code != 204 {
 		t.Fatal(rec.Code)
 	}
-	if rec := post(h, "/ui/units/house/mode?m=off", "", "", map[string]string{"Datastar-Request": "true"}); rec.Code != 403 {
-		t.Fatal(rec.Code)
-	}
 	if rec := post(h, "/ui/units/office/mode?m=autoHeat", "", "", map[string]string{"Datastar-Request": "true"}); rec.Code != 400 {
 		t.Fatal(rec.Code)
 	}
 }
 
-func TestCardButtonsOnlyWhenWritable(t *testing.T) {
+func TestCardButtons(t *testing.T) {
 	_, d := ctlDeps(t)
 	h := newMux(d)
 	// The index renders nothing server-side for units until SSE; use the view builder.
@@ -165,8 +153,8 @@ func TestCardButtonsOnlyWhenWritable(t *testing.T) {
 	if !strings.Contains(office, "/ui/units/office/mode?m=heat") {
 		t.Errorf("office has no buttons: %s", office)
 	}
-	if strings.Contains(house, "@post") {
-		t.Errorf("house has buttons: %s", house)
+	if !strings.Contains(house, "/ui/units/house/mode?m=heat") {
+		t.Errorf("house has no buttons: %s", house)
 	}
 }
 

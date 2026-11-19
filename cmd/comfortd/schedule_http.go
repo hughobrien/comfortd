@@ -34,10 +34,6 @@ func (d deps) scheduleGuard(w http.ResponseWriter, r *http.Request) (store.Snaps
 	if !uiOK(w, r) || !d.known(w, slug) {
 		return store.Snapshot{}, false
 	}
-	if !d.Ctl.Writable(slug) {
-		d.ctlError(w, control.ErrNotWritable)
-		return store.Snapshot{}, false
-	}
 	sn, _ := d.Store.Get(slug)
 	return sn, true
 }

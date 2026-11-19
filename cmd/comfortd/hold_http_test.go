@@ -59,13 +59,6 @@ func TestHoldNeedsDatastarHeader(t *testing.T) {
 	}
 }
 
-func TestHoldUnwritableUnit(t *testing.T) {
-	srv, d := ctlDeps(t)
-	if rec := holdPost(d, "house", "mode=permanent", dsHdr); rec.Code != 403 || len(srv.HoldWrites()) != 0 {
-		t.Fatalf("%d %+v", rec.Code, srv.HoldWrites())
-	}
-}
-
 func TestHoldBadInput(t *testing.T) {
 	srv, d := ctlDeps(t)
 	for _, form := range []string{"mode=until&at=99:99", "mode=until", "mode=sideways", ""} {

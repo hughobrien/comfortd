@@ -123,12 +123,9 @@ func TestScheduleSaveRejectsBadRows(t *testing.T) {
 	}
 }
 
-func TestScheduleEditForbidden(t *testing.T) {
+func TestScheduleEditRejected(t *testing.T) {
 	_, d := ctlDeps(t)
 	h := newMux(d)
-	if rec := post(h, "/ui/units/house/schedule", formType, "key=x", dsHdr); rec.Code != 403 {
-		t.Fatalf("house: %d", rec.Code)
-	}
 	if rec := post(h, "/ui/units/office/schedule", formType, "key=x", nil); rec.Code != 403 {
 		t.Fatalf("no datastar header: %d", rec.Code)
 	}

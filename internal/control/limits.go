@@ -15,9 +15,9 @@ type LimitWriter interface {
 }
 
 // LimitsEnabled reports whether the unit's Min/Max setpoint limits may be
-// changed: it must be writable and the controller must have a limit writer.
+// changed: the controller must have a limit writer.
 func (c *Controller) LimitsEnabled(slug string) bool {
-	return c.o.Limits != nil && c.Writable(slug)
+	return c.o.Limits != nil
 }
 
 // SetLimits sets the unit's adapter limits: minCool is the lowest cooling
@@ -25,7 +25,7 @@ func (c *Controller) LimitsEnabled(slug string) bool {
 // lie in the unit's own profile range for that mode, and minCool < maxHeat.
 func (c *Controller) SetLimits(ctx context.Context, slug string, minCool, maxHeat float64, source string) error {
 	if !c.LimitsEnabled(slug) {
-		return ErrNotWritable
+		return ErrUnavailable
 	}
 	snap, ok := c.o.Store.Get(slug)
 	if !ok {

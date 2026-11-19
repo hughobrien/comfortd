@@ -22,8 +22,8 @@ type HoldWriter interface {
 // holdIDs checks the unit can have its hold changed and returns its snapshot.
 func (c *Controller) holdIDs(slug string) (store.Snapshot, error) {
 	var none store.Snapshot
-	if !c.Writable(slug) || c.o.Holds == nil {
-		return none, ErrNotWritable
+	if c.o.Holds == nil {
+		return none, ErrUnavailable
 	}
 	snap, ok := c.o.Store.Get(slug)
 	if !ok {

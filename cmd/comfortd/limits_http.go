@@ -26,7 +26,7 @@ func (d deps) handleLimits(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !d.Ctl.LimitsEnabled(slug) {
-		d.ctlError(w, control.ErrNotWritable)
+		d.ctlError(w, control.ErrUnavailable)
 		return
 	}
 	// Read the form before the stream starts: the server closes the request body once it writes.
