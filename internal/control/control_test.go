@@ -25,6 +25,7 @@ type rig struct {
 	st     *store.Store
 	hist   *history.Log
 	p      *poller.Poller
+	client *kumo.Client
 	c      *Controller
 	mu     sync.Mutex
 	kicks  []string
@@ -61,7 +62,7 @@ func newRigWindow(t *testing.T, window time.Duration) *rig {
 	}
 	t.Cleanup(func() { hist.Close() })
 	p := poller.New(client, st, time.Minute)
-	r := &rig{srv: srv, st: st, hist: hist, p: p, dir: dir, window: window}
+	r := &rig{srv: srv, st: st, hist: hist, p: p, client: client, dir: dir, window: window}
 	r.c = r.newController(client)
 	st.Subscribe(r.c.Observe)
 	ctx, cancel := context.WithCancel(context.Background())
