@@ -32,7 +32,22 @@ type rig struct {
 	chg    []string
 	dir    string
 	window time.Duration
+	now    func() time.Time // the controller's clock; nil = the real one
 }
+
+// stepClock is a clock that only moves when a test advances it, so a test can
+// hold the controller's coalescing deadline in the future for as long as it
+// needs, however loaded the machine is.
+type stepClock struct {
+	mu sync.Mutex
+	t  time.Time
+}
+
+func newStepClock() *stepClock { return &stepClock{t: time.Date(2026, 11, 7, 12, 0, 0, 0, time.UTC)} }
+
+func (c *stepClock) Now() time.Time { c.mu.Lock(); defer c.mu.Unlock(); return c.t }
+
+func (c *stepClock) Advance(d time.Duration) { c.mu.Lock(); c.t = c.t.Add(d); c.mu.Unlock() }
 
 func (r *rig) changes() []string {
 	r.mu.Lock()
@@ -43,7 +58,12 @@ func (r *rig) changes() []string {
 func newRig(t *testing.T) *rig { return newRigWindow(t, 50*time.Millisecond) }
 
 // newRigWindow is newRig with the controller's coalescing window set.
-func newRigWindow(t *testing.T, window time.Duration) *rig {
+func newRigWindow(t *testing.T, window time.Duration) *rig { return newRigClock(t, window, nil) }
+
+// newRigClock is newRigWindow with the controller's clock replaced (nil keeps
+// the real one). With a stepClock the coalescing window never closes until the
+// test advances the clock.
+func newRigClock(t *testing.T, window time.Duration, now func() time.Time) *rig {
 	t.Helper()
 	srv := kumotest.New()
 	t.Cleanup(srv.Close)
@@ -62,7 +82,7 @@ func newRigWindow(t *testing.T, window time.Duration) *rig {
 	}
 	t.Cleanup(func() { hist.Close() })
 	p := poller.New(client, st, time.Minute)
-	r := &rig{srv: srv, st: st, hist: hist, p: p, client: client, dir: dir, window: window}
+	r := &rig{srv: srv, st: st, hist: hist, p: p, client: client, dir: dir, window: window, now: now}
 	r.c = r.newController(client)
 	st.Subscribe(r.c.Observe)
 	ctx, cancel := context.WithCancel(context.Background())
@@ -76,7 +96,7 @@ func newRigWindow(t *testing.T, window time.Duration) *rig {
 func (r *rig) newController(s Sender) *Controller {
 	return New(Options{
 		Sender: s, Store: r.st, History: r.hist,
-		Window: r.window, HoldTimeout: 300 * time.Millisecond,
+		Window: r.window, Now: r.now, HoldTimeout: 300 * time.Millisecond,
 		LastModePath: filepath.Join(r.dir, "lastmode.json"), SetpointsPath: filepath.Join(r.dir, "setpoints.json"),
 		Kick:     func(slug string) { r.mu.Lock(); r.kicks = append(r.kicks, slug); r.mu.Unlock() },
 		OnChange: func(slug string) { r.mu.Lock(); r.chg = append(r.chg, slug); r.mu.Unlock() },
@@ -122,18 +142,30 @@ func TestInvalid(t *testing.T) {
 }
 
 func TestCoalescesBurst(t *testing.T) {
-	r := newRigWindow(t, 400*time.Millisecond) // a scheduling stall must not split the burst
-	// Back to back: a sleep between them could outlast the 50 ms window on a
-	// loaded machine and split the burst.
+	// The clock is frozen, so the window cannot close between Applies however
+	// long the machine stalls: the whole burst is queued before it is released.
+	clk := newStepClock()
+	r := newRigClock(t, 50*time.Millisecond, clk.Now)
 	for _, v := range []float64{20, 20.5, 21} {
 		r.c.Apply("office", Intent{SpHeat: f(v)}, "ui")
 	}
 	r.c.Apply("office", Intent{Mode: s("heat")}, "ui")
-	eventually(t, 2*time.Second, func() bool { return len(r.srv.Commands()) >= 1 }, "sent")
-	time.Sleep(600 * time.Millisecond) // any stray second command would show by now
+	r.releaseWindow(clk)
+	eventually(t, 5*time.Second, func() bool { return len(r.srv.Commands()) >= 1 }, "sent")
+	time.Sleep(200 * time.Millisecond) // any stray second command would show by now
 	cmds := r.srv.Commands()
 	if len(cmds) != 1 || len(cmds[0].Commands) != 2 || cmds[0].Commands["operationMode"] != "heat" || cmds[0].Commands["spHeat"] != 21.0 {
 		t.Fatalf("got %+v", cmds)
+	}
+}
+
+// releaseWindow closes the coalescing window on a rig built with a stepClock
+// and wakes the controller so it notices.
+func (r *rig) releaseWindow(clk *stepClock) {
+	clk.Advance(r.window)
+	select {
+	case r.c.wake <- struct{}{}:
+	default:
 	}
 }
 
@@ -316,14 +348,22 @@ func TestFanAndVaneValidation(t *testing.T) {
 }
 
 func TestDryThenCoolWithSetpoint(t *testing.T) {
-	r := newRigWindow(t, 500*time.Millisecond) // both Applies must land inside the window, even on a busy CI host
+	// The clock is frozen until both intents are queued, so the first cannot be
+	// sent on its own however the scheduler behaves.
+	clk := newStepClock()
+	r := newRigClock(t, 50*time.Millisecond, clk.Now)
 	if err := r.c.Apply("office", Intent{Mode: s("dry")}, "api"); err != nil {
 		t.Fatal(err)
 	}
 	if err := r.c.Apply("office", Intent{Mode: s("cool"), SpCool: f(21.2)}, "api"); err != nil {
 		t.Fatal(err)
 	}
-	eventually(t, 5*time.Second, func() bool { return len(r.srv.Commands()) == 1 }, "command")
+	r.releaseWindow(clk)
+	eventually(t, 5*time.Second, func() bool { return len(r.srv.Commands()) >= 1 }, "command")
+	time.Sleep(200 * time.Millisecond) // a stray second command would show by now
+	if n := len(r.srv.Commands()); n != 1 {
+		t.Fatalf("%d commands, want one coalesced", n)
+	}
 	cmds := r.srv.Commands()[0].Commands
 	if cmds["operationMode"] != "cool" || cmds["spCool"] != 21.0 && cmds["spCool"] != 21.5 || len(cmds) != 2 {
 		t.Fatalf("sent %v", cmds)
