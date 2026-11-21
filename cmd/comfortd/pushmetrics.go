@@ -5,6 +5,10 @@ package main
 import (
 	"context"
 	"log/slog"
+	"maps"
+	"math"
+	"slices"
+	"strings"
 	"time"
 
 	"github.com/hughobrien/comfortd/internal/promwrite"
@@ -29,12 +33,48 @@ type metricPusher struct {
 	interval func() time.Duration
 
 	kick chan string
-	last map[string]time.Time // newest sample time pushed, per unit
+	last map[string]time.Time                    // newest sample time pushed, per unit
+	sent map[string]map[string]map[string]string // labels of the series last queued, per unit, by key
+}
+
+// staleNaN is Prometheus's staleness marker (value.StaleNaN): a NaN with this
+// exact bit pattern, which the encoder passes through unchanged.
+var staleNaN = math.Float64frombits(0x7ff0000000000002)
+
+func seriesKey(l map[string]string) string {
+	var b strings.Builder
+	for _, n := range slices.Sorted(maps.Keys(l)) {
+		b.WriteString(n + "\x00" + l[n] + "\x00")
+	}
+	return b.String()
+}
+
+// staleMarkers returns a staleness-marker sample at t for each series sent
+// for the unit last time and missing from series now (a one-hot mode that
+// changed, a nil setpoint), and remembers series as what was sent. Remote
+// write has no scrape to notice a series stopped, so the store would keep
+// answering the old one. Only the latest set is kept, so memory is bounded;
+// the markers then belong to the queue, which keeps them across a failed
+// write.
+func (p *metricPusher) staleMarkers(slug string, series []promwrite.Series, t time.Time) []promwrite.Series {
+	now := make(map[string]map[string]string, len(series))
+	for _, s := range series {
+		now[seriesKey(s.Labels)] = s.Labels
+	}
+	var out []promwrite.Series
+	for k, l := range p.sent[slug] {
+		if _, ok := now[k]; !ok {
+			out = append(out, promwrite.Series{Labels: l, Samples: []promwrite.Sample{{T: t, V: staleNaN}}})
+		}
+	}
+	p.sent[slug] = now
+	return out
 }
 
 func newMetricPusher(m *Metrics, st *store.Store, push promwrite.Pushers, job string, interval func() time.Duration) *metricPusher {
 	p := &metricPusher{m: m, st: st, targets: push, job: job, now: time.Now, interval: interval,
-		kick: make(chan string, 64), last: map[string]time.Time{}}
+		kick: make(chan string, 64), last: map[string]time.Time{},
+		sent: map[string]map[string]map[string]string{}}
 	m.RegisterPush(push.Collectors("comfortd")...)
 	st.Subscribe(func(u store.Update) {
 		select {
@@ -84,6 +124,7 @@ func (p *metricPusher) push(ctx context.Context, slug string, resend bool) {
 	}
 	series := promwrite.FromFamilies(fams, t, func(l map[string]string) bool { return l["unit"] == slug },
 		map[string]string{"job": p.job})
+	series = append(series, p.staleMarkers(slug, series, t)...)
 	if len(series) == 0 {
 		return
 	}
