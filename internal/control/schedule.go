@@ -198,6 +198,14 @@ func (c *Controller) ApplySchedule(ctx context.Context, slug string, edited []ku
 	if c.o.Schedules == nil {
 		return none, ErrUnavailable
 	}
+	unlock, ctx, err := c.lockWrites(ctx, slug)
+	if err != nil {
+		return none, err
+	}
+	defer unlock()
+	// Diff against what the cloud has now, not against whatever the store held
+	// when this save was clicked: an earlier save may have changed it.
+	c.refresh(ctx, c.o.AfterSchedule)
 	snap, ok := c.o.Store.Get(slug)
 	if !ok {
 		return none, fmt.Errorf("%w: unknown unit", ErrInvalid)
@@ -273,16 +281,9 @@ func (c *Controller) ApplySchedule(ctx context.Context, slug string, edited []ku
 			}
 			ch.Deleted = len(dels)
 		}
-		if c.o.AfterSchedule != nil {
-			c.o.AfterSchedule(ctx)
-		}
-		if err != nil {
-			return ch, err
-		}
-		return ch, nil
+		c.refresh(ctx, c.o.AfterSchedule)
+		return ch, err
 	}
-	if c.o.AfterSchedule != nil {
-		c.o.AfterSchedule(ctx)
-	}
+	c.refresh(ctx, c.o.AfterSchedule)
 	return ch, nil
 }

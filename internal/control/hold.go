@@ -52,6 +52,11 @@ func holdState(s store.Snapshot) string {
 
 // SetHold holds the unit's settings until until; nil makes the hold permanent.
 func (c *Controller) SetHold(ctx context.Context, slug string, until *time.Time, source string) error {
+	unlock, ctx, err := c.lockWrites(ctx, slug)
+	if err != nil {
+		return err
+	}
+	defer unlock()
 	snap, err := c.holdIDs(slug)
 	if err != nil {
 		return err
@@ -76,6 +81,11 @@ func (c *Controller) SetHold(ctx context.Context, slug string, until *time.Time,
 
 // EndHold ends the unit's hold; the unit goes back to the schedule's current event.
 func (c *Controller) EndHold(ctx context.Context, slug, source string) error {
+	unlock, ctx, err := c.lockWrites(ctx, slug)
+	if err != nil {
+		return err
+	}
+	defer unlock()
 	snap, err := c.holdIDs(slug)
 	if err != nil {
 		return err
@@ -103,14 +113,17 @@ func (c *Controller) afterHold(ctx context.Context, slug string) {
 	if c.o.Kick != nil {
 		c.o.Kick(slug)
 	}
-	if c.o.AfterHold != nil {
-		c.o.AfterHold(ctx)
-	}
+	c.refresh(ctx, c.o.AfterHold)
 }
 
 // SetAway turns Away mode on for the unit's zone, with the unit's away
 // settings (see AwaySettings); until is when it ends, nil for until ended.
 func (c *Controller) SetAway(ctx context.Context, slug string, until *time.Time, source string) error {
+	unlock, ctx, err := c.lockWrites(ctx, slug)
+	if err != nil {
+		return err
+	}
+	defer unlock()
 	snap, err := c.holdIDs(slug)
 	if err != nil {
 		return err

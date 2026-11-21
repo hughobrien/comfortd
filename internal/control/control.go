@@ -166,6 +166,8 @@ type Controller struct {
 	o    Options
 	wake chan struct{}
 
+	writeMu sync.Map // slug -> *sync.Mutex, see lockWrites
+
 	mu                      sync.Mutex
 	units                   map[string]*unitState
 	limitsOn, limitsOnKnown bool                 // the account's Min/Max setpoints preference, as last read

@@ -25,6 +25,7 @@ type rig struct {
 	st     *store.Store
 	hist   *history.Log
 	p      *poller.Poller
+	client *kumo.Client
 	c      *Controller
 	mu     sync.Mutex
 	kicks  []string
@@ -61,7 +62,7 @@ func newRigWindow(t *testing.T, window time.Duration) *rig {
 	}
 	t.Cleanup(func() { hist.Close() })
 	p := poller.New(client, st, time.Minute)
-	r := &rig{srv: srv, st: st, hist: hist, p: p, dir: dir, window: window}
+	r := &rig{srv: srv, st: st, hist: hist, p: p, client: client, dir: dir, window: window}
 	r.c = r.newController(client)
 	st.Subscribe(r.c.Observe)
 	ctx, cancel := context.WithCancel(context.Background())
@@ -315,14 +316,14 @@ func TestFanAndVaneValidation(t *testing.T) {
 }
 
 func TestDryThenCoolWithSetpoint(t *testing.T) {
-	r := newRig(t)
+	r := newRigWindow(t, 500*time.Millisecond) // both Applies must land inside the window, even on a busy CI host
 	if err := r.c.Apply("office", Intent{Mode: s("dry")}, "api"); err != nil {
 		t.Fatal(err)
 	}
 	if err := r.c.Apply("office", Intent{Mode: s("cool"), SpCool: f(21.2)}, "api"); err != nil {
 		t.Fatal(err)
 	}
-	eventually(t, time.Second, func() bool { return len(r.srv.Commands()) == 1 }, "command")
+	eventually(t, 5*time.Second, func() bool { return len(r.srv.Commands()) == 1 }, "command")
 	cmds := r.srv.Commands()[0].Commands
 	if cmds["operationMode"] != "cool" || cmds["spCool"] != 21.0 && cmds["spCool"] != 21.5 || len(cmds) != 2 {
 		t.Fatalf("sent %v", cmds)

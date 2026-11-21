@@ -27,6 +27,11 @@ func (c *Controller) SetLimits(ctx context.Context, slug string, minCool, maxHea
 	if !c.LimitsEnabled(slug) {
 		return ErrUnavailable
 	}
+	unlock, ctx, err := c.lockWrites(ctx, slug)
+	if err != nil {
+		return err
+	}
+	defer unlock()
 	snap, ok := c.o.Store.Get(slug)
 	if !ok {
 		return fmt.Errorf("%w: unknown unit", ErrInvalid)
@@ -61,9 +66,7 @@ func (c *Controller) SetLimits(ctx context.Context, slug string, minCool, maxHea
 	}
 	c.record(slug, "status", "minSetPoint", oldMin, fnum(minCool), source)
 	c.record(slug, "status", "maxSetPoint", oldMax, fnum(maxHeat), source)
-	if c.o.AfterLimits != nil {
-		c.o.AfterLimits(ctx)
-	}
+	c.refresh(ctx, c.o.AfterLimits)
 	return nil
 }
 
