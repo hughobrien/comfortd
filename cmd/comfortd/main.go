@@ -16,7 +16,6 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
-	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -210,24 +209,19 @@ func runContext(ctx context.Context, args []string, stdout io.Writer, ready func
 	st.SubscribeAlways(ctl.Observe) // before the hub and HomeKit, so they see a cleared hold
 	st.Subscribe(func(u store.Update) { hub.Publish(pushEvent{Slug: u.Slug}) })
 	hist.Subscribe(func(r history.Record) { hub.Publish(pushEvent{Record: &r}) })
-	if slugs := splitList(*hkUnits); len(slugs) > 0 {
-		var sel []store.Unit
-		for _, slug := range slugs {
-			i := slices.IndexFunc(units, func(u store.Unit) bool { return u.Slug == slug })
-			if i < 0 {
-				slog.Error("homekit-units: unknown unit", "unit", slug)
-				fmt.Fprintf(os.Stderr, "comfortd: -homekit-units: unknown unit %q\n", slug)
-				return 1
-			}
-			sel = append(sel, units[i])
-		}
+	hkSel, hkUnknown := pickHomeKitUnits(units, splitList(*hkUnits))
+	if len(hkUnknown) > 0 {
+		// A renamed zone changes its slug; keep the web UI and metrics up.
+		slog.Error("homekit-units: unknown unit(s) skipped; HomeKit will lack them", "unknown", hkUnknown, "discovered", slugList(units))
+	}
+	if len(hkSel) > 0 {
 		force := map[string]bool{}
 		for _, s := range splitList(*forceStale) {
 			force[s] = true
 		}
 		bridge, err = homekit.New(homekit.Options{
 			StateDir: *stateDir, BridgeName: *bridgeName, Version: version, Port: *hapPort,
-			Units: sel, Snapshot: st.Get, Control: ctl, Interval: *interval, Beat: beat, Now: time.Now, ForceStale: force,
+			Units: hkSel, Snapshot: st.Get, Control: ctl, Interval: *interval, Beat: beat, Now: time.Now, ForceStale: force,
 		})
 		if err != nil {
 			slog.Error("homekit", "err", err)
@@ -239,7 +233,7 @@ func runContext(ctx context.Context, args []string, stdout io.Writer, ready func
 				slog.Error("homekit server", "err", err)
 			}
 		})
-		slog.Info("homekit enabled", "units", slugs, "port", *hapPort)
+		slog.Info("homekit enabled", "units", slugList(hkSel), "port", *hapPort)
 	}
 	p = poller.New(client, st, *interval)
 	p.OnStatus = ctl.RefreshPrefs
