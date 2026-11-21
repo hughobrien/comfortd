@@ -112,6 +112,9 @@
           services.prometheus.enable = true;
           services.prometheus.extraFlags = [ "--web.enable-remote-write-receiver" ];
         }).config;
+        # The two HomeKit settings that used to do nothing must now trip an assertion.
+        bad = c: (moduleSystem { services.comfortd = c; }).config.assertions;
+        failing = as: lib.filter (a: !a.assertion) as;
         lib = nixpkgs.lib;
         job = jobs: lib.findFirst (j: j.job_name == "comfortd") null jobs;
         drops = j: lib.any (r: r.source_labels == [ "pushed_my_host" ] && r.regex == "true" && r.action == "drop") j.metric_relabel_configs;
@@ -122,6 +125,9 @@
       assert vm.services.prometheus.scrapeConfigs == [ ];
       assert lib.hasInfix "my_host=http://127.0.0.1:9090" (prom.systemd.services.comfortd.serviceConfig.ExecStart);
       assert drops (job prom.services.prometheus.scrapeConfigs);
+      assert lib.length (failing (bad { homekit.enable = true; })) == 1;
+      assert lib.length (failing (bad { homekit.enable = true; homekit.units = [ "office" ]; openFirewall = true; })) == 1;
+      assert failing (bad { homekit.enable = true; homekit.units = [ "office" ]; homekit.port = 51826; openFirewall = true; }) == [ ];
       vm.systemd.units."comfortd.service".unit;
     defaultModule = { pkgs, lib, ... }: {
       imports = [ ./nix/module.nix ];

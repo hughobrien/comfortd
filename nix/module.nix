@@ -189,7 +189,7 @@ in {
     openFirewall = lib.mkOption {
       type = lib.types.bool;
       default = false;
-      description = "Open the HomeKit port and mDNS UDP 5353 (HomeKit only).";
+      description = "Open the HomeKit port and mDNS UDP 5353 (HomeKit only). Needs `homekit.port` set to a fixed port.";
     };
 
     extraArgs = lib.mkOption {
@@ -219,8 +219,8 @@ in {
           "--listen" (lib.escapeShellArg cfg.listen)
           "--state-dir" "/var/lib/comfortd"
           "--credentials" "%d/credentials"
-          "--poll-interval" cfg.pollInterval
-          "--backstop" cfg.backstop
+          "--poll-interval" (lib.escapeShellArg cfg.pollInterval)
+          "--backstop" (lib.escapeShellArg cfg.backstop)
           "--job" (lib.escapeShellArg cfg.prometheus.jobName)
         ] ++ lib.concatLists (lib.mapAttrsToList (n: t: [ "--push" (lib.escapeShellArg "${n}=${t.url}") ]) targets) ++ lib.optionals (cfg.inactiveUnits != [ ]) [
           "--inactive-units" (lib.escapeShellArg (lib.concatStringsSep "," cfg.inactiveUnits))
@@ -255,6 +255,14 @@ in {
       {
         assertion = lib.all validName (lib.attrNames targets);
         message = "services.comfortd push target names must be letters, digits and _, not starting with a digit: ${lib.concatStringsSep ", " (lib.attrNames targets)}";
+      }
+      {
+        assertion = !cfg.homekit.enable || cfg.homekit.units != [ ];
+        message = "services.comfortd.homekit.enable is true but services.comfortd.homekit.units is empty, so no HomeKit bridge would start: list the unit slugs to expose.";
+      }
+      {
+        assertion = !(cfg.openFirewall && cfg.homekit.enable) || cfg.homekit.port != 0;
+        message = "services.comfortd.openFirewall is true with HomeKit enabled but services.comfortd.homekit.port is 0 (ephemeral), so no TCP port could be opened: set a fixed services.comfortd.homekit.port.";
       }
     ];
 
