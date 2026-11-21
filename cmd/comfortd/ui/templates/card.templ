@@ -363,7 +363,7 @@ templ LimitsControl(c ui.CardView) {
 			data-on:submit__prevent={ "@post('/ui/units/" + c.Slug + "/limits', {contentType: 'form'})" }
 			data-on:change__debounce.800ms={ "@post('/ui/units/" + c.Slug + "/limits', {contentType: 'form'})" }
 		>
-			<label class="limits-on" title="Min/Max setpoints in the Comfort app. This is one setting for the whole account, so it covers both units."><input type="checkbox" name="enabled" checked?={ l.Enabled } data-on:change="el.form.querySelectorAll('input[type=range]').forEach(r => r.disabled = !el.checked)"/> Enabled</label>
+			<label class="limits-on" title="Min/Max setpoints in the Comfort app. This is one setting for the whole account, so it covers both units."><input type="checkbox" name="enabled" checked?={ l.Enabled } disabled?={ !l.EnabledKnown } data-on:change="el.form.querySelectorAll('input[type=range]').forEach(r => r.disabled = !el.checked)"/> Enabled</label>
 			<div class="limit-pair">
 				<label class="limit-slider">
 					<span class="ls-title">Lowest cooling <output data-ignore-morph>{ l.MinCool }</output></span>

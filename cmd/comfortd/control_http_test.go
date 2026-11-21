@@ -24,6 +24,14 @@ import (
 // ctlDeps returns deps with a running controller against the fake.
 func ctlDeps(t *testing.T) (*kumotest.Server, deps) {
 	t.Helper()
+	return ctlDepsPrefs(t, nil)
+}
+
+// ctlDepsPrefs is ctlDeps with the preference client wrapped by wrap (nil: as
+// is). The start-up read of the preference is skipped when wrap is given, so a
+// test can start with it unknown.
+func ctlDepsPrefs(t *testing.T, wrap func(control.PrefsClient) control.PrefsClient) (*kumotest.Server, deps) {
+	t.Helper()
 	srv := kumotest.New()
 	t.Cleanup(srv.Close)
 	dir := t.TempDir()
@@ -39,12 +47,18 @@ func ctlDeps(t *testing.T) (*kumotest.Server, deps) {
 	p.PollSlow(context.Background())
 	p.PollOnce(context.Background())
 	p.PollSchedule(context.Background())
-	ctl := control.New(control.Options{Sender: c, Schedules: c, Holds: c, Limits: c, Prefs: c, AfterLimits: p.PollStatus, AfterSchedule: p.PollSchedule, AfterHold: p.PollOnce, Store: st, Window: 20 * time.Millisecond})
+	var prefs control.PrefsClient = c
+	if wrap != nil {
+		prefs = wrap(c)
+	}
+	ctl := control.New(control.Options{Sender: c, Schedules: c, Holds: c, Limits: c, Prefs: prefs, AfterLimits: p.PollStatus, AfterSchedule: p.PollSchedule, AfterHold: p.PollOnce, Store: st, Window: 20 * time.Millisecond})
 	st.Subscribe(ctl.Observe)
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 	go ctl.Run(ctx)
-	ctl.RefreshPrefs(ctx)
+	if wrap == nil {
+		ctl.RefreshPrefs(ctx)
+	}
 	now := time.Now()
 	return srv, deps{Store: st, Ctl: ctl, Interval: time.Minute, Now: func() time.Time { return now }}
 }
