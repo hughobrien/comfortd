@@ -3,13 +3,19 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"encoding/binary"
+	"encoding/json"
+	"errors"
+	"math"
 	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/hughobrien/comfortd/internal/promwrite"
+	"github.com/hughobrien/comfortd/internal/store"
 )
 
 type fakeWriter struct{ got [][]promwrite.Series }
@@ -81,5 +87,111 @@ func TestPushUnitState(t *testing.T) {
 		if !strings.Contains(body, want) {
 			t.Errorf("missing %s on /metrics:\n%s", want, body)
 		}
+	}
+}
+
+// stale lists the series in the writes whose sample is the staleness marker.
+func stale(ws [][]promwrite.Series) map[string]bool {
+	out := map[string]bool{}
+	for _, w := range ws {
+		for _, s := range w {
+			for _, p := range s.Samples {
+				if math.Float64bits(p.V) == 0x7ff0000000000002 {
+					out[s.Labels["__name__"]+"/"+s.Labels["mode"]+s.Labels["unit"]] = true
+				}
+			}
+		}
+	}
+	return out
+}
+
+func setMode(t *testing.T, st *store.Store, mode string) {
+	t.Helper()
+	_, err := st.Patch("office", store.EndpointDevice, func(old json.RawMessage) (json.RawMessage, error) {
+		var m map[string]any
+		if err := json.Unmarshal(old, &m); err != nil {
+			return nil, err
+		}
+		m["operationMode"] = mode
+		return json.Marshal(m)
+	}, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestPushMarksDisappearedSeriesStale(t *testing.T) {
+	_, d := ctlDeps(t)
+	targets := promwrite.Targets{{Name: "vm", URL: "http://vm"}}
+	d.Metrics = NewMetrics(targets.Labels())
+	w := &fakeWriter{}
+	push := promwrite.NewPushers(targets, nil)
+	push[0].Queue.W = w
+	p := newMetricPusher(d.Metrics, d.Store, push, "comfortd", func() time.Duration { return time.Minute })
+	ctx := context.Background()
+
+	p.push(ctx, "office", false)
+	if got := stale(w.got); len(got) != 0 {
+		t.Fatalf("first push marked %v stale", got)
+	}
+	setMode(t, d.Store, "cool")
+	p.push(ctx, "office", false)
+	if got := stale(w.got); !got["comfortd_mode/heatoffice"] || len(got) != 1 {
+		t.Fatalf("want only heat marked stale after heat to cool, got %v", got)
+	}
+	w.got = nil
+	p.push(ctx, "office", false)
+	if got := stale(w.got); len(got) != 0 {
+		t.Errorf("a marker is sent once, got %v again", got)
+	}
+	if n := len(p.sent["office"]); n == 0 || n > 50 {
+		t.Errorf("remembered %d series, want the current set only", n)
+	}
+}
+
+// failOnce fails one write with a retryable error once failed is false.
+type failOnce struct {
+	fakeWriter
+	failed bool
+}
+
+func (w *failOnce) Write(ctx context.Context, s []promwrite.Series) error {
+	if !w.failed {
+		w.failed = true
+		return errors.New("down")
+	}
+	return w.fakeWriter.Write(ctx, s)
+}
+
+func TestStaleMarkersSurviveFailedPush(t *testing.T) {
+	_, d := ctlDeps(t)
+	targets := promwrite.Targets{{Name: "vm", URL: "http://vm"}}
+	d.Metrics = NewMetrics(targets.Labels())
+	w := &failOnce{failed: true} // the first push goes through
+	push := promwrite.NewPushers(targets, nil)
+	push[0].Queue.W = w
+	p := newMetricPusher(d.Metrics, d.Store, push, "comfortd", func() time.Duration { return time.Minute })
+	ctx := context.Background()
+
+	p.push(ctx, "office", false)
+	w.failed = false
+	w.got = nil
+	setMode(t, d.Store, "cool")
+	p.push(ctx, "office", false) // fails: heat's marker stays queued
+	if len(w.got) != 0 {
+		t.Fatal("the write should have failed")
+	}
+	p.push(ctx, "office", false)
+	if got := stale(w.got); !got["comfortd_mode/heatoffice"] {
+		t.Errorf("marker lost by the failed push, got %v", got)
+	}
+}
+
+func TestEncodeKeepsStaleNaN(t *testing.T) {
+	b := promwrite.Encode([]promwrite.Series{{Labels: map[string]string{"__name__": "x"},
+		Samples: []promwrite.Sample{{T: time.UnixMilli(1), V: staleNaN}}}})
+	want := binary.LittleEndian.AppendUint64(nil, 0x7ff0000000000002)
+	if !bytes.Contains(b, want) {
+		t.Errorf("encoded sample lost the staleness bit pattern: %x", b)
 	}
 }
