@@ -17,21 +17,61 @@ import (
 	"github.com/hughobrien/comfortd/cmd/comfortd/ui"
 )
 
-const maxImageBytes = 4 << 20
+const (
+	maxImageBytes = 4 << 20
+	maxRedirects  = 3
+	// failTTL is how long a failed fetch is remembered, so a down CDN costs
+	// one outbound request per picture per window rather than one per page view.
+	failTTL = 5 * time.Minute
+)
 
 // imageCache fetches each unit's model picture once, server side, and keeps
 // it on disk, so browsers never contact the CDN (and never tell it their IP).
 type imageCache struct {
 	dir    string
 	client *http.Client
-	mu     sync.Mutex
+	now    func() time.Time // injectable for tests
+
+	mu     sync.Mutex // guards the two maps only, never held across I/O
+	flying map[string]*flight
+	failed map[string]failure
+}
+
+// flight is one in-progress fetch that concurrent requests for the same
+// picture wait on.
+type flight struct {
+	done chan struct{}
+	b    []byte
+	err  error
+}
+
+type failure struct {
+	err   error
+	until time.Time
+}
+
+// httpsOnly refuses redirects that leave https (the first URL is checked in get).
+func httpsOnly(req *http.Request, via []*http.Request) error {
+	if req.URL.Scheme != "https" {
+		return fmt.Errorf("image redirect to non-https url refused")
+	}
+	if len(via) > maxRedirects {
+		return fmt.Errorf("image fetch: too many redirects")
+	}
+	return nil
 }
 
 func newImageCache(dir string, client *http.Client) *imageCache {
 	if client == nil {
 		client = &http.Client{Timeout: 15 * time.Second}
 	}
-	return &imageCache{dir: dir, client: client}
+	if client.CheckRedirect == nil {
+		cp := *client
+		cp.CheckRedirect = httpsOnly
+		client = &cp
+	}
+	return &imageCache{dir: dir, client: client, now: time.Now,
+		flying: map[string]*flight{}, failed: map[string]failure{}}
 }
 
 // get returns the cached bytes for url, fetching and storing them first if needed.
@@ -40,11 +80,40 @@ func (c *imageCache) get(url string) ([]byte, error) {
 		return nil, fmt.Errorf("image url is not https")
 	}
 	path := filepath.Join(c.dir, ui.ImageKey(url))
-	c.mu.Lock()
-	defer c.mu.Unlock()
 	if b, err := os.ReadFile(path); err == nil {
 		return b, nil
 	}
+	c.mu.Lock()
+	if f, ok := c.failed[path]; ok {
+		if c.now().Before(f.until) {
+			c.mu.Unlock()
+			return nil, f.err
+		}
+		delete(c.failed, path)
+	}
+	if f, ok := c.flying[path]; ok {
+		c.mu.Unlock()
+		<-f.done
+		return f.b, f.err
+	}
+	f := &flight{done: make(chan struct{})}
+	c.flying[path] = f
+	c.mu.Unlock()
+
+	f.b, f.err = c.fetch(url, path)
+
+	c.mu.Lock()
+	delete(c.flying, path)
+	if f.err != nil {
+		c.failed[path] = failure{err: f.err, until: c.now().Add(failTTL)}
+	}
+	c.mu.Unlock()
+	close(f.done)
+	return f.b, f.err
+}
+
+// fetch downloads url and stores it at path.
+func (c *imageCache) fetch(url, path string) ([]byte, error) {
 	resp, err := c.client.Get(url)
 	if err != nil {
 		return nil, err

@@ -66,6 +66,80 @@ func TestImageRejects(t *testing.T) {
 	}
 }
 
+func TestImageRedirectLeavingHTTPSRefused(t *testing.T) {
+	var plainHits atomic.Int32
+	plain := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		plainHits.Add(1)
+		w.Write(png)
+	}))
+	defer plain.Close()
+	tls := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, plain.URL+"/x.png", http.StatusFound)
+	}))
+	defer tls.Close()
+	c := newImageCache(t.TempDir(), tls.Client())
+	if _, err := c.get(tls.URL + "/x.png"); err == nil {
+		t.Fatal("redirect to http followed")
+	}
+	if plainHits.Load() != 0 {
+		t.Fatalf("plain http server was contacted %d times", plainHits.Load())
+	}
+}
+
+func TestImageFailureNegativeCached(t *testing.T) {
+	var hits atomic.Int32
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hits.Add(1)
+		http.Error(w, "down", http.StatusBadGateway)
+	}))
+	defer srv.Close()
+	now := time.Now()
+	c := newImageCache(t.TempDir(), srv.Client())
+	c.now = func() time.Time { return now }
+	for range 3 {
+		if _, err := c.get(srv.URL + "/x.png"); err == nil {
+			t.Fatal("failure not reported")
+		}
+	}
+	if hits.Load() != 1 {
+		t.Fatalf("upstream hit %d times within the window, want 1", hits.Load())
+	}
+	now = now.Add(failTTL + time.Second)
+	c.get(srv.URL + "/x.png")
+	if hits.Load() != 2 {
+		t.Fatalf("upstream hit %d times after the window, want 2", hits.Load())
+	}
+}
+
+func TestImageSlowFetchDoesNotBlockOtherUnits(t *testing.T) {
+	release := make(chan struct{})
+	started := make(chan struct{})
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/slow.png" {
+			close(started)
+			<-release
+		}
+		w.Write(png)
+	}))
+	defer srv.Close()
+	c := newImageCache(t.TempDir(), srv.Client())
+	slowDone := make(chan struct{})
+	go func() { c.get(srv.URL + "/slow.png"); close(slowDone) }()
+	// Let the slow fetch finish before TempDir cleanup removes its target.
+	defer func() { close(release); <-slowDone }()
+	<-started
+	done := make(chan error, 1)
+	go func() { _, err := c.get(srv.URL + "/fast.png"); done <- err }()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("fast fetch blocked behind slow one")
+	}
+}
+
 func TestImageHandler(t *testing.T) {
 	st := store.New([]store.Unit{{Slug: "office", Name: "Office", Serial: kumotest.OfficeSerial}})
 	if err := st.Put("office", "device", []byte(`{"deviceSerial":"X","model":{"gallery":{"imageUrl":"https://cdn.example/x.png"}}}`), time.Now()); err != nil {
