@@ -57,10 +57,18 @@ func TestHomekitPageOffIs404(t *testing.T) {
 	}
 }
 
-func TestUnknownHomekitUnit(t *testing.T) {
-	var out io.Writer = io.Discard
-	if code := run([]string{"-fake", "-listen", "127.0.0.1:0", "-state-dir", t.TempDir(), "-homekit-units", "nope"}, out); code == 0 {
-		t.Fatal("want non-zero exit")
+// A -homekit-units slug that matches no unit (a renamed zone) must not take
+// the daemon down: the web UI and API keep serving.
+func TestUnknownHomekitUnitKeepsDaemonUp(t *testing.T) {
+	base, _ := startDaemon(t, "-homekit-units", "nope")
+	resp, err := http.Get(base + "/v1/units")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	b, _ := io.ReadAll(resp.Body)
+	if !strings.Contains(string(b), "office") {
+		t.Fatalf("units: %s", b)
 	}
 }
 

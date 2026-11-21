@@ -72,5 +72,6 @@ func discoverLive(ctx context.Context, api API) ([]store.Unit, error) {
 	if len(units) == 0 {
 		return nil, fmt.Errorf("no units found")
 	}
+	uniqueSlugs(units)
 	return units, nil
 }
