@@ -103,7 +103,9 @@ func TestSocketCountsMissingSubscribedReplies(t *testing.T) {
 func TestSocketDeliversPushes(t *testing.T) {
 	e := newEnv(t, kumotest.Password)
 	_, rec := startSocket(t, e)
-	waitFor(t, "connected", func() bool { return e.srv.SocketClients() == 1 })
+	// The fake only pushes to a client once it has subscribed, which happens
+	// after the connection is up; a push sent in between is dropped.
+	waitFor(t, "subscribed", func() bool { return slices.Contains(e.srv.SocketSubscribed(), kumotest.OfficeSerial) })
 	e.srv.SetField(kumotest.OfficeSerial, "spHeat", 22.0)
 	waitFor(t, "fast push", func() bool {
 		return rec.find("device_update", func(m map[string]any) bool { return m["payloadType"] == "fast" && m["spHeat"] == 22.0 })
