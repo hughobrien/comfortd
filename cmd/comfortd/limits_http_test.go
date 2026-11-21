@@ -3,11 +3,63 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"strings"
 	"testing"
 
+	"github.com/hughobrien/comfortd/internal/control"
 	"github.com/hughobrien/comfortd/pkg/kumo/kumotest"
 )
+
+// failingPrefs reads fail unless ok is set; writes go through to the fake.
+type failingPrefs struct {
+	control.PrefsClient
+	ok bool
+}
+
+func (f *failingPrefs) MinMaxEnabled(ctx context.Context) (bool, error) {
+	if !f.ok {
+		return false, errors.New("prefs read failed")
+	}
+	return f.PrefsClient.MinMaxEnabled(ctx)
+}
+
+func TestLimitsPreferenceUnknown(t *testing.T) {
+	for name, tc := range map[string]struct {
+		readable  bool
+		wantSaved bool
+	}{
+		"unreadable: refused, nothing written": {false, false},
+		"readable: read first, then saved":     {true, true},
+	} {
+		t.Run(name, func(t *testing.T) {
+			srv, d := ctlDepsPrefs(t, func(p control.PrefsClient) control.PrefsClient {
+				return &failingPrefs{PrefsClient: p, ok: tc.readable}
+			})
+			if _, known := d.Ctl.LimitsOn(); known {
+				t.Fatal("starts known")
+			}
+			code, body := limitsPost(d, "house", "enabled=on&min=19&max=24", dsHdr)
+			if code != 200 {
+				t.Fatalf("%d %s", code, body)
+			}
+			on, prefWrites := srv.MinMaxEnabled()
+			if !tc.wantSaved {
+				if strings.Contains(body, "Saved.") || !strings.Contains(body, `class="hold-msg err"`) {
+					t.Errorf("body %s", body)
+				}
+				if prefWrites != 0 || len(srv.LimitWrites()) != 0 {
+					t.Errorf("wrote: prefs %d limits %+v", prefWrites, srv.LimitWrites())
+				}
+				return
+			}
+			if !strings.Contains(body, "Saved.") || !on || prefWrites != 1 || len(srv.LimitWrites()) != 1 {
+				t.Errorf("body %s on=%v prefs=%d limits=%+v", body, on, prefWrites, srv.LimitWrites())
+			}
+		})
+	}
+}
 
 func limitsPost(d deps, slug, form string, hdr map[string]string) (code int, body string) {
 	rec := post(newMux(d), "/ui/units/"+slug+"/limits", formType, form, hdr)

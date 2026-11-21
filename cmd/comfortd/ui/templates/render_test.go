@@ -179,13 +179,27 @@ func TestLimitsControlRenders(t *testing.T) {
 
 func TestLimitSlidersDisabledUntilEnabled(t *testing.T) {
 	var sb strings.Builder
-	l := ui.LimitsView{Show: true, MinCool: "19", MaxHeat: "24", CoolLo: "19", CoolHi: "30", HeatLo: "10", HeatHi: "28"}
+	l := ui.LimitsView{Show: true, EnabledKnown: true, MinCool: "19", MaxHeat: "24", CoolLo: "19", CoolHi: "30", HeatLo: "10", HeatHi: "28"}
 	card := ui.CardView{Slug: "house", Limits: l, Control: ui.CardControl{Limits: true}}
 	if err := Card(card).Render(context.Background(), &sb); err != nil {
 		t.Fatal(err)
 	}
 	if n := strings.Count(sb.String(), `type="range"`); n != 2 || strings.Count(sb.String(), " disabled") != 2 {
 		t.Errorf("want two disabled sliders: %s", sb.String())
+	}
+}
+
+// While the account preference is unread the box cannot be ticked: it would be a guess.
+func TestLimitsCheckboxDisabledWhileUnknown(t *testing.T) {
+	for _, known := range []bool{false, true} {
+		var sb strings.Builder
+		l := ui.LimitsView{Show: true, EnabledKnown: known, MinCool: "19", MaxHeat: "24", CoolLo: "19", CoolHi: "30", HeatLo: "10", HeatHi: "28"}
+		if err := Card(ui.CardView{Slug: "house", Limits: l, Control: ui.CardControl{Limits: true}}).Render(context.Background(), &sb); err != nil {
+			t.Fatal(err)
+		}
+		if got := strings.Contains(sb.String(), `name="enabled" disabled`); got == known {
+			t.Errorf("known=%v: checkbox disabled=%v", known, got)
+		}
 	}
 }
 

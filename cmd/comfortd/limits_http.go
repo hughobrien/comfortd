@@ -43,11 +43,20 @@ func (d deps) handleLimits(w http.ResponseWriter, r *http.Request) {
 	lo, e1 := strconv.ParseFloat(minS, 64)
 	hi, e2 := strconv.ParseFloat(maxS, 64)
 	var err error
+	// The checkbox is only meaningful against a known preference: read it now if the
+	// start-up read failed, and refuse (writing nothing) if it still cannot be read.
+	if _, known := d.Ctl.LimitsOn(); perr == nil && !known {
+		d.Ctl.RefreshPrefs(r.Context())
+		if _, known = d.Ctl.LimitsOn(); !known {
+			say("hold-msg err", "could not read the Min/Max setting from the cloud, so nothing was saved; try again")
+			return
+		}
+	}
 	if perr != nil || (!noLimits && (e1 != nil || e2 != nil)) {
 		err = fmt.Errorf("%w: enter both limits as numbers", control.ErrInvalid)
 	} else {
 		// The account preference first (as the app does), then the limits, each only if it changed.
-		if on, known := d.Ctl.LimitsOn(); known && on != enabled {
+		if on, _ := d.Ctl.LimitsOn(); on != enabled {
 			err = d.Ctl.SetLimitsOn(r.Context(), slug, enabled)
 		}
 		if sn, ok := d.Store.Get(slug); err == nil && ok && !noLimits {
